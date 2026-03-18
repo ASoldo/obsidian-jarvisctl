@@ -18,7 +18,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-live";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-18-live-view-reset";
+const BUILD_STAMP = "2026-03-18-render-fix";
 
 interface JarvisAgentMetadata {
 	name: string;
@@ -88,7 +88,10 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			VIEW_TYPE_JARVISCTL_CONTROL,
 			(leaf) => new JarvisCtlControlView(leaf, this),
 		);
-		await this.detachLegacyLeaves();
+		await this.detachStaleLeaves();
+		window.setTimeout(() => {
+			void this.activateView();
+		}, 0);
 
 		this.addRibbonIcon("cpu", "Open Jarvis Control", async () => {
 			await this.activateView();
@@ -118,7 +121,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 	}
 
 	async onunload(): Promise<void> {
-		await this.detachLegacyLeaves();
+		await this.detachStaleLeaves();
 		await this.app.workspace.detachLeavesOfType(VIEW_TYPE_JARVISCTL_CONTROL);
 	}
 
@@ -143,22 +146,14 @@ export default class JarvisCtlControlPlugin extends Plugin {
 	}
 
 	async activateView(): Promise<void> {
-		await this.detachLegacyLeaves();
-		const existingLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_JARVISCTL_CONTROL);
-		const mainLeaf = existingLeaves.find((leaf) => !this.isSideLeaf(leaf));
-		const leaf = mainLeaf ?? this.app.workspace.getLeaf("tab");
+		await this.detachStaleLeaves();
+		const leaf = this.app.workspace.getLeaf("tab");
 
 		await leaf.setViewState({
 			type: VIEW_TYPE_JARVISCTL_CONTROL,
 			active: true,
 		});
 		this.app.workspace.revealLeaf(leaf);
-
-		for (const existing of existingLeaves) {
-			if (existing !== leaf && this.isSideLeaf(existing)) {
-				existing.detach();
-			}
-		}
 	}
 
 	private isSideLeaf(leaf: WorkspaceLeaf): boolean {
@@ -170,7 +165,8 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		return root === workspace.leftSplit || root === workspace.rightSplit;
 	}
 
-	private async detachLegacyLeaves(): Promise<void> {
+	private async detachStaleLeaves(): Promise<void> {
+		await this.app.workspace.detachLeavesOfType(VIEW_TYPE_JARVISCTL_CONTROL);
 		for (const legacyType of LEGACY_VIEW_TYPES) {
 			await this.app.workspace.detachLeavesOfType(legacyType);
 		}
@@ -535,7 +531,7 @@ class JarvisCtlControlView extends ItemView {
 		const title = topBar.createDiv({ cls: "jarvisctl-title" });
 		title.createDiv({ cls: "jarvisctl-kicker", text: "Operator Surface" });
 		title.createEl("h2", { text: "Jarvis Control" });
-		title.createP({
+		title.createEl("p", {
 			cls: "jarvisctl-subtitle",
 			text: `Build ${this.plugin.getBuildStamp()} · Namespaces, agents, and live attach actions inside Obsidian.`,
 		});
@@ -597,7 +593,7 @@ class JarvisCtlControlView extends ItemView {
 		if (this.sessions.length === 0) {
 			const empty = body.createDiv({ cls: "jarvisctl-empty" });
 			empty.createEl("h3", { text: "No active namespaces" });
-			empty.createP({
+			empty.createEl("p", {
 				text: "When a board-owned Codex run is active, it will appear here with attach and exec actions.",
 			});
 			const list = empty.createEl("ul");
@@ -646,7 +642,7 @@ class JarvisCtlControlView extends ItemView {
 		if (!session) {
 			const empty = body.createDiv({ cls: "jarvisctl-empty" });
 			empty.createEl("h3", { text: "Nothing selected" });
-			empty.createP({ text: "Select a namespace to inspect agents and operator actions." });
+			empty.createEl("p", { text: "Select a namespace to inspect agents and operator actions." });
 			return;
 		}
 
