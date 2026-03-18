@@ -9,7 +9,7 @@ import {
 	WorkspaceLeaf,
 } from "obsidian";
 import { execFile } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -95,7 +95,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			name: "Open jarvisctl dashboard in Terminal tab",
 			callback: async () => {
 				await this.openTerminalCommand(
-					[this.settings.jarvisctlPath],
+					[this.getTerminalJarvisCtlPath()],
 					"JarvisCtl Dashboard",
 					this.getVaultBasePath(),
 				);
@@ -157,7 +157,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 	}
 
 	async fetchSessions(): Promise<JarvisSessionMetadata[]> {
-		const { stdout } = await execFileAsync(this.settings.jarvisctlPath, ["list", "--json"]);
+		const { stdout } = await this.execJarvisCtl(["list", "--json"]);
 		const parsed = JSON.parse(stdout.trim() || "[]") as unknown;
 		if (!Array.isArray(parsed)) {
 			throw new Error("jarvisctl list --json did not return an array");
@@ -166,21 +166,23 @@ export default class JarvisCtlControlPlugin extends Plugin {
 	}
 
 	async runJarvisCtl(args: string[]): Promise<void> {
-		await execFileAsync(this.settings.jarvisctlPath, args);
+		await this.execJarvisCtl(args);
 	}
 
 	async openNamespaceAttach(session: JarvisSessionMetadata): Promise<void> {
+		const jarvisctlPath = this.getTerminalJarvisCtlPath();
 		await this.openTerminalCommand(
-			[this.settings.jarvisctlPath, "attach", "--namespace", session.namespace],
+			[jarvisctlPath, "attach", "--namespace", session.namespace],
 			`Attach ${session.namespace}`,
 			session.working_directory ?? this.getVaultBasePath(),
 		);
 	}
 
 	async openAgentExec(session: JarvisSessionMetadata, agent: JarvisAgentMetadata): Promise<void> {
+		const jarvisctlPath = this.getTerminalJarvisCtlPath();
 		await this.openTerminalCommand(
 			[
-				this.settings.jarvisctlPath,
+				jarvisctlPath,
 				"exec",
 				"--namespace",
 				session.namespace,
@@ -229,6 +231,41 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			},
 		});
 		this.app.workspace.revealLeaf(leaf);
+	}
+
+	private async execJarvisCtl(args: string[]): Promise<{ stdout: string; stderr: string }> {
+		let lastError: unknown;
+		for (const candidate of this.getJarvisCtlCandidates()) {
+			try {
+				const { stdout, stderr } = await execFileAsync(candidate, args);
+				return { stdout, stderr };
+			} catch (error) {
+				if (isMissingExecutable(error)) {
+					lastError = error;
+					continue;
+				}
+				throw error;
+			}
+		}
+		throw lastError ?? new Error("jarvisctl executable could not be resolved");
+	}
+
+	getTerminalJarvisCtlPath(): string {
+		for (const candidate of this.getJarvisCtlCandidates()) {
+			if (candidate.includes("/") && existsSync(candidate)) {
+				return candidate;
+			}
+		}
+		return this.getJarvisCtlCandidates()[0];
+	}
+
+	private getJarvisCtlCandidates(): string[] {
+		const configuredPath = this.settings.jarvisctlPath.trim() || DEFAULT_SETTINGS.jarvisctlPath;
+		const candidates = [configuredPath];
+		if (!configuredPath.includes("/") && process.env.HOME) {
+			candidates.push(join(process.env.HOME, ".local", "bin", configuredPath));
+		}
+		return [...new Set(candidates)];
 	}
 
 	getBaseIntegratedTerminalProfile(): TerminalProfile {
@@ -328,14 +365,16 @@ class JarvisCtlControlView extends ItemView {
 	}
 
 	async onOpen(): Promise<void> {
-		this.containerEl.empty();
-		this.containerEl.addClass("jarvisctl-control-view");
+		this.contentEl.empty();
+		this.contentEl.addClass("jarvisctl-control-view");
 		await this.refreshSessions();
 		this.startPolling();
 	}
 
 	async onClose(): Promise<void> {
 		this.stopPolling();
+		this.contentEl.empty();
+		this.contentEl.removeClass("jarvisctl-control-view");
 	}
 
 	async handleSettingsChanged(): Promise<void> {
@@ -380,7 +419,7 @@ class JarvisCtlControlView extends ItemView {
 	}
 
 	private render(): void {
-		const container = this.containerEl;
+		const container = this.contentEl;
 		container.empty();
 		container.addClass("jarvisctl-control-view");
 
@@ -437,7 +476,7 @@ class JarvisCtlControlView extends ItemView {
 		}, "-primary");
 		this.makeButton(headerActions, "Dashboard", async () => {
 			await this.plugin.openTerminalCommand(
-				[this.plugin.settings.jarvisctlPath],
+				[this.plugin.getTerminalJarvisCtlPath()],
 				"JarvisCtl Dashboard",
 				this.plugin.getVaultBasePath(),
 			);
@@ -508,7 +547,7 @@ class JarvisCtlControlView extends ItemView {
 		}, "-primary");
 		this.makeButton(actions, "Copy attach", async () => {
 			await navigator.clipboard.writeText(
-				`${this.plugin.settings.jarvisctlPath} attach --namespace ${session.namespace}`,
+				`${this.plugin.getTerminalJarvisCtlPath()} attach --namespace ${session.namespace}`,
 			);
 			new Notice(`Copied attach command for ${session.namespace}`);
 		});
@@ -554,7 +593,7 @@ class JarvisCtlControlView extends ItemView {
 			});
 			this.makeButton(rowActions, "Copy exec", async () => {
 				await navigator.clipboard.writeText(
-					`${this.plugin.settings.jarvisctlPath} exec --namespace ${session.namespace} --agent ${agent.name}`,
+					`${this.plugin.getTerminalJarvisCtlPath()} exec --namespace ${session.namespace} --agent ${agent.name}`,
 				);
 				new Notice(`Copied exec command for ${agent.name}`);
 			});
@@ -685,6 +724,14 @@ function formatError(error: unknown): string {
 		return error.message;
 	}
 	return String(error);
+}
+
+function isMissingExecutable(error: unknown): boolean {
+	if (!(error instanceof Error)) {
+		return false;
+	}
+	const errorWithCode = error as Error & { code?: string };
+	return errorWithCode.code === "ENOENT";
 }
 
 function relativeAge(epochMs: number): string {
