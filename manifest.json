@@ -1,0 +1,9 @@
+{
+  "id": "jarvisctl-control",
+  "name": "JarvisCtl Control",
+  "version": "0.0.1",
+  "minAppVersion": "1.6.0",
+  "description": "Argocd-style control tab for live jarvisctl namespaces and agents.",
+  "author": "rootster",
+  "isDesktopOnly": true
+}

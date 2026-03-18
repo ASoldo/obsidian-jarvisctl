@@ -1,0 +1,17 @@
+{
+  "name": "obsidian-jarvisctl",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Argocd-style Obsidian control tab for jarvisctl namespaces and agents",
+  "scripts": {
+    "build": "node esbuild.config.mjs production",
+    "dev": "node esbuild.config.mjs development",
+    "install-local": "mkdir -p /home/rootster/documents/codex/.obsidian/plugins/jarvisctl-control && cp manifest.json main.js styles.css /home/rootster/documents/codex/.obsidian/plugins/jarvisctl-control/"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "esbuild": "^0.25.9",
+    "obsidian": "^1.8.10",
+    "typescript": "^5.9.2"
+  }
+}
