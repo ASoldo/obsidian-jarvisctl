@@ -18,7 +18,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-live";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-18-render-fix";
+const BUILD_STAMP = "2026-03-18-compact-runtime";
 
 interface JarvisAgentMetadata {
 	name: string;
@@ -533,13 +533,12 @@ class JarvisCtlControlView extends ItemView {
 		title.createEl("h2", { text: "Jarvis Control" });
 		title.createEl("p", {
 			cls: "jarvisctl-subtitle",
-			text: `Build ${this.plugin.getBuildStamp()} · Namespaces, agents, and live attach actions inside Obsidian.`,
+			text: `Build ${this.plugin.getBuildStamp()} · Compact namespace and agent control inside Obsidian.`,
 		});
 
 		const metrics = topBar.createDiv({ cls: "jarvisctl-metrics" });
-		const liveNamespaces = this.sessions.filter((session) =>
-			session.agents.some((agent) => agent.running),
-		).length;
+		const liveNamespaces = this.sessions.filter((session) => this.countRunningAgents(session) > 0)
+			.length;
 		const agentCount = this.sessions.reduce(
 			(total, session) => total + session.agents.length,
 			0,
@@ -594,51 +593,77 @@ class JarvisCtlControlView extends ItemView {
 			const empty = body.createDiv({ cls: "jarvisctl-empty" });
 			empty.createEl("h3", { text: "No active namespaces" });
 			empty.createEl("p", {
-				text: "When a board-owned Codex run is active, it will appear here with attach and exec actions.",
+				text: "Start a namespace with jarvisctl run or move work into Ready for Codex to populate this surface.",
 			});
-			const list = empty.createEl("ul");
-			list.createEl("li", { text: "Use the project or dispatch board to move work into Ready for Codex." });
-			list.createEl("li", { text: "Use the Dashboard button to open bare jarvisctl in a Terminal tab." });
 			return;
 		}
 
-		const list = body.createDiv({ cls: "jarvisctl-namespace-list" });
+		const list = body.createDiv({ cls: "jarvisctl-namespace-table" });
+		const tableHead = list.createDiv({ cls: "jarvisctl-namespace-row is-head" });
+		tableHead.createDiv({ cls: "jarvisctl-namespace-cell -name", text: "Namespace" });
+		tableHead.createDiv({ cls: "jarvisctl-namespace-cell", text: "Agents" });
+		tableHead.createDiv({ cls: "jarvisctl-namespace-cell", text: "State" });
+		tableHead.createDiv({ cls: "jarvisctl-namespace-cell", text: "Age" });
+
 		for (const session of this.sessions) {
 			const isSelected = this.selectedNamespace === session.namespace;
 			const card = list.createDiv({
-				cls: isSelected ? "jarvisctl-card is-selected" : "jarvisctl-card",
+				cls: isSelected
+					? "jarvisctl-namespace-row is-selected"
+					: "jarvisctl-namespace-row",
 			});
 			card.addEventListener("click", () => {
 				this.selectedNamespace = session.namespace;
 				this.render();
 			});
 
-			const topLine = card.createDiv({ cls: "jarvisctl-card-topline" });
-			topLine.createDiv({ cls: "jarvisctl-card-title", text: session.namespace });
-			const running = session.agents.some((agent) => agent.running);
-			topLine.createSpan({
-				cls: running ? "jarvisctl-chip is-live" : "jarvisctl-chip is-idle",
-				text: running ? "Live" : "Idle",
+			const nameCell = card.createDiv({ cls: "jarvisctl-namespace-cell -name" });
+			nameCell.createDiv({ cls: "jarvisctl-namespace-name", text: session.namespace });
+			nameCell.createDiv({ cls: "jarvisctl-namespace-subtext", text: session.backend });
+
+			card.createDiv({
+				cls: "jarvisctl-namespace-cell",
+				text: `${session.agents.length}`,
 			});
 
-			const details = card.createDiv({ cls: "jarvisctl-detail-grid" });
-			this.renderDetailBox(details, "Agents", `${session.agents.length}`);
-			this.renderDetailBox(details, "Backend", session.backend);
-			this.renderDetailBox(details, "Working Dir", session.working_directory ?? "n/a");
-			this.renderDetailBox(details, "Age", relativeAge(session.created_at_epoch_ms));
+			const running = this.countRunningAgents(session);
+			const stateCell = card.createDiv({ cls: "jarvisctl-namespace-cell -state" });
+			stateCell.createSpan({
+				cls: running > 0 ? "jarvisctl-chip is-live" : "jarvisctl-chip is-idle",
+				text:
+					running > 0
+						? `${running}/${session.agents.length} live`
+						: "idle",
+			});
+
+			card.createDiv({
+				cls: "jarvisctl-namespace-cell",
+				text: relativeAge(session.created_at_epoch_ms),
+			});
 		}
 	}
 
 	private renderDetailsPanel(parent: HTMLElement): void {
 		const panel = parent.createDiv({ cls: "jarvisctl-panel" });
 		const header = panel.createDiv({ cls: "jarvisctl-panel-header" });
+		const session = this.getSelectedSession();
 		header.createDiv({
 			cls: "jarvisctl-panel-title",
-			text: this.getSelectedSession()?.namespace ?? "Namespace Detail",
+			text: session?.namespace ?? "Namespace Detail",
 		});
+		if (session) {
+			const headerMeta = header.createDiv({ cls: "jarvisctl-panel-meta" });
+			headerMeta.createSpan({ cls: "jarvisctl-chip", text: session.backend });
+			headerMeta.createSpan({
+				cls:
+					this.countRunningAgents(session) > 0
+						? "jarvisctl-chip is-live"
+						: "jarvisctl-chip is-idle",
+				text: `${this.countRunningAgents(session)}/${session.agents.length} live`,
+			});
+		}
 
 		const body = panel.createDiv({ cls: "jarvisctl-panel-body" });
-		const session = this.getSelectedSession();
 		if (!session) {
 			const empty = body.createDiv({ cls: "jarvisctl-empty" });
 			empty.createEl("h3", { text: "Nothing selected" });
@@ -666,8 +691,8 @@ class JarvisCtlControlView extends ItemView {
 		}, "-danger");
 
 		const detailGrid = body.createDiv({ cls: "jarvisctl-detail-grid" });
-		this.renderDetailBox(detailGrid, "Working Dir", session.working_directory ?? "n/a");
-		this.renderDetailBox(detailGrid, "Command", session.shell_command);
+		this.renderDetailBox(detailGrid, "Working Dir", session.working_directory ?? "n/a", "-wide");
+		this.renderDetailBox(detailGrid, "Command", session.shell_command, "-wide");
 		this.renderDetailBox(detailGrid, "Backend", session.backend);
 		this.renderDetailBox(detailGrid, "Created", new Date(session.created_at_epoch_ms).toLocaleString());
 
@@ -707,10 +732,18 @@ class JarvisCtlControlView extends ItemView {
 		}
 	}
 
-	private renderDetailBox(parent: HTMLElement, label: string, value: string): void {
-		const box = parent.createDiv({ cls: "jarvisctl-detail-box" });
+	private renderDetailBox(
+		parent: HTMLElement,
+		label: string,
+		value: string,
+		modifier = "",
+	): void {
+		const box = parent.createDiv({
+			cls: modifier ? `jarvisctl-detail-box ${modifier}` : "jarvisctl-detail-box",
+		});
 		box.createSpan({ cls: "jarvisctl-detail-box-label", text: label });
-		box.createDiv({ cls: "jarvisctl-detail-box-value", text: value });
+		const valueEl = box.createDiv({ cls: "jarvisctl-detail-box-value", text: value });
+		valueEl.setAttr("title", value);
 	}
 
 	private renderStatusLine(parent: HTMLElement): void {
@@ -757,6 +790,10 @@ class JarvisCtlControlView extends ItemView {
 
 	private getSelectedSession(): JarvisSessionMetadata | undefined {
 		return this.sessions.find((session) => session.namespace === this.selectedNamespace);
+	}
+
+	private countRunningAgents(session: JarvisSessionMetadata): number {
+		return session.agents.filter((agent) => agent.running).length;
 	}
 }
 
