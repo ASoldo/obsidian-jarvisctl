@@ -9,14 +9,16 @@ import {
 	WorkspaceLeaf,
 } from "obsidian";
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control";
+const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-live";
+const LEGACY_VIEW_TYPES = ["jarvisctl-control"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
+const BUILD_STAMP = "2026-03-18-live-view-reset";
 
 interface JarvisAgentMetadata {
 	name: string;
@@ -76,14 +78,17 @@ const DEFAULT_SETTINGS: JarvisCtlControlSettings = {
 
 export default class JarvisCtlControlPlugin extends Plugin {
 	settings: JarvisCtlControlSettings = DEFAULT_SETTINGS;
+	private lastExecPath: string | null = null;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
+		this.writeDebugSnapshot({ event: "plugin-onload" });
 
 		this.registerView(
 			VIEW_TYPE_JARVISCTL_CONTROL,
 			(leaf) => new JarvisCtlControlView(leaf, this),
 		);
+		await this.detachLegacyLeaves();
 
 		this.addRibbonIcon("cpu", "Open Jarvis Control", async () => {
 			await this.activateView();
@@ -113,6 +118,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 	}
 
 	async onunload(): Promise<void> {
+		await this.detachLegacyLeaves();
 		await this.app.workspace.detachLeavesOfType(VIEW_TYPE_JARVISCTL_CONTROL);
 	}
 
@@ -137,6 +143,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 	}
 
 	async activateView(): Promise<void> {
+		await this.detachLegacyLeaves();
 		const existingLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_JARVISCTL_CONTROL);
 		const mainLeaf = existingLeaves.find((leaf) => !this.isSideLeaf(leaf));
 		const leaf = mainLeaf ?? this.app.workspace.getLeaf("tab");
@@ -161,6 +168,12 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		};
 		const root = "getRoot" in leaf && typeof leaf.getRoot === "function" ? leaf.getRoot() : null;
 		return root === workspace.leftSplit || root === workspace.rightSplit;
+	}
+
+	private async detachLegacyLeaves(): Promise<void> {
+		for (const legacyType of LEGACY_VIEW_TYPES) {
+			await this.app.workspace.detachLeavesOfType(legacyType);
+		}
 	}
 
 	async fetchSessions(): Promise<JarvisSessionMetadata[]> {
@@ -244,6 +257,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		let lastError: unknown;
 		for (const candidate of this.getJarvisCtlCandidates()) {
 			try {
+				this.lastExecPath = candidate;
 				const { stdout, stderr } = await execFileAsync(candidate, args);
 				return { stdout, stderr };
 			} catch (error) {
@@ -274,6 +288,44 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		}
 		candidates.push(configuredPath);
 		return [...new Set(candidates)];
+	}
+
+	getBuildStamp(): string {
+		return BUILD_STAMP;
+	}
+
+	getLastExecPath(): string | null {
+		return this.lastExecPath;
+	}
+
+	writeDebugSnapshot(snapshot: Record<string, unknown>): void {
+		try {
+			const pluginDir = join(
+				this.getVaultBasePath(),
+				this.app.vault.configDir,
+				"plugins",
+				this.manifest.id,
+			);
+			mkdirSync(pluginDir, { recursive: true });
+			writeFileSync(
+				join(pluginDir, "debug.json"),
+				JSON.stringify(
+					{
+						build: BUILD_STAMP,
+						settings_path: this.settings.jarvisctlPath,
+						candidate_paths: this.getJarvisCtlCandidates(),
+						last_exec_path: this.lastExecPath,
+						updated_at: new Date().toISOString(),
+						...snapshot,
+					},
+					null,
+					2,
+				),
+				"utf8",
+			);
+		} catch (error) {
+			console.warn("JarvisCtl Control could not write debug snapshot", error);
+		}
 	}
 
 	getBaseIntegratedTerminalProfile(): TerminalProfile {
@@ -376,7 +428,10 @@ class JarvisCtlControlView extends ItemView {
 	async onOpen(): Promise<void> {
 		this.contentEl.empty();
 		this.contentEl.addClass("jarvisctl-control-view");
-		await this.refreshSessions();
+		this.statusMessage = "Opening runtime surface";
+		this.errorMessage = null;
+		this.safeRender("view-open");
+		void this.refreshSessions();
 		this.startPolling();
 	}
 
@@ -417,15 +472,47 @@ class JarvisCtlControlView extends ItemView {
 			this.lastRefreshLabel = new Date().toLocaleTimeString();
 			this.statusMessage = "Live data";
 			this.errorMessage = null;
-			this.render();
+			this.safeRender("refresh-success");
 		} catch (error) {
 			console.error(error);
 			this.errorMessage = formatError(error);
 			this.statusMessage = "Refresh failed";
-			this.render();
+			this.safeRender("refresh-error");
 			if (noticeOnError) {
 				new Notice(`JarvisCtl Control refresh failed: ${formatError(error)}`);
 			}
+		}
+	}
+
+	private safeRender(event: string): void {
+		try {
+			this.render();
+			this.plugin.writeDebugSnapshot({
+				event,
+				render_status: "ok",
+				sessions_count: this.sessions.length,
+				session_names: this.sessions.map((session) => session.namespace),
+				selected_namespace: this.selectedNamespace,
+				error_message: this.errorMessage,
+			});
+		} catch (error) {
+			console.error(error);
+			this.errorMessage = formatError(error);
+			const container = this.contentEl;
+			container.empty();
+			container.addClass("jarvisctl-control-view");
+			const shell = container.createDiv({ cls: "jarvisctl-shell" });
+			this.renderTopBar(shell);
+			this.renderErrorBanner(shell, `Render failed: ${this.errorMessage}`);
+			this.renderStatusLine(shell);
+			this.plugin.writeDebugSnapshot({
+				event,
+				render_status: "failed",
+				sessions_count: this.sessions.length,
+				session_names: this.sessions.map((session) => session.namespace),
+				selected_namespace: this.selectedNamespace,
+				error_message: this.errorMessage,
+			});
 		}
 	}
 
@@ -450,7 +537,7 @@ class JarvisCtlControlView extends ItemView {
 		title.createEl("h2", { text: "Jarvis Control" });
 		title.createP({
 			cls: "jarvisctl-subtitle",
-			text: "Namespaces, agents, and live attach actions inside Obsidian.",
+			text: `Build ${this.plugin.getBuildStamp()} · Namespaces, agents, and live attach actions inside Obsidian.`,
 		});
 
 		const metrics = topBar.createDiv({ cls: "jarvisctl-metrics" });
@@ -657,7 +744,7 @@ class JarvisCtlControlView extends ItemView {
 	private async withAction(status: string, callback: () => Promise<void>): Promise<void> {
 		this.actionInFlight = true;
 		this.statusMessage = status;
-		this.render();
+		this.safeRender("action-start");
 		try {
 			await callback();
 			this.statusMessage = "Action completed";
@@ -668,7 +755,7 @@ class JarvisCtlControlView extends ItemView {
 			new Notice(`JarvisCtl Control action failed: ${formatError(error)}`);
 		} finally {
 			this.actionInFlight = false;
-			this.render();
+			this.safeRender("action-finish");
 		}
 	}
 
