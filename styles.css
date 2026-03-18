@@ -13,10 +13,9 @@
   --jarvis-amber: #f59e0b;
   --jarvis-green: #22c55e;
   container-type: inline-size;
-  display: flex;
-  flex-direction: column;
   height: 100%;
   min-height: 100%;
+  overflow-y: auto;
   padding: 14px;
   background:
     radial-gradient(circle at top right, color-mix(in srgb, var(--jarvis-magenta) 10%, transparent) 0, transparent 28%),
@@ -26,17 +25,17 @@
 }
 
 .jarvisctl-shell {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 12px;
-  flex: 1 1 auto;
-  min-height: 0;
+  align-content: start;
+  min-height: 100%;
 }
 
 .jarvisctl-topbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 16px;
   padding: 14px 16px;
   border: 1px solid var(--jarvis-border);
@@ -74,7 +73,8 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
-  min-width: 360px;
+  min-width: min(360px, 100%);
+  width: min(100%, 420px);
 }
 
 .jarvisctl-metric {
@@ -145,16 +145,12 @@
 
 .jarvisctl-layout {
   display: grid;
-  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 12px;
-  min-height: 0;
-  flex: 1;
+  align-items: start;
 }
 
 .jarvisctl-panel {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
   border: 1px solid var(--jarvis-border);
   border-radius: 18px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--jarvis-surface) 94%, #020617 6%), color-mix(in srgb, var(--jarvis-surface-2) 92%, #020617 8%));
@@ -179,9 +175,8 @@
 }
 
 .jarvisctl-panel-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
+  display: grid;
+  gap: 12px;
   padding: 12px;
 }
 
@@ -312,8 +307,6 @@
   flex-direction: column;
   gap: 12px;
   align-items: flex-start;
-  justify-content: center;
-  height: 100%;
   padding: 20px;
 }
 
@@ -330,6 +323,7 @@
 .jarvisctl-statusline {
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: center;
   font-size: 12px;
@@ -337,20 +331,8 @@
 }
 
 @container (max-width: 900px) {
-  .jarvisctl-topbar,
-  .jarvisctl-layout {
-    grid-template-columns: 1fr;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .jarvisctl-topbar {
-    align-items: stretch;
-  }
-
   .jarvisctl-metrics {
-    min-width: 0;
-    width: 100%;
+    grid-template-columns: 1fr;
   }
 
   .jarvisctl-detail-grid {
@@ -365,4 +347,31 @@
     flex-direction: column;
     align-items: flex-start;
   }
+}
+
+.jarvisctl-error-banner {
+  border: 1px solid color-mix(in srgb, var(--jarvis-red) 45%, var(--jarvis-border) 55%);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--jarvis-surface) 86%, var(--jarvis-red) 14%);
+  padding: 12px 14px;
+  display: grid;
+  gap: 6px;
+}
+
+.jarvisctl-error-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: color-mix(in srgb, var(--jarvis-red) 72%, white 28%);
+}
+
+.jarvisctl-error-message {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.jarvisctl-error-hint {
+  font-size: 12px;
+  color: var(--jarvis-text-dim);
+  word-break: break-word;
 }

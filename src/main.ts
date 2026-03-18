@@ -61,8 +61,15 @@ interface JarvisCtlControlSettings {
 	shellExecutable: string;
 }
 
+function defaultJarvisCtlPath(): string {
+	if (process.env.HOME) {
+		return join(process.env.HOME, ".local", "bin", "jarvisctl");
+	}
+	return "jarvisctl";
+}
+
 const DEFAULT_SETTINGS: JarvisCtlControlSettings = {
-	jarvisctlPath: "jarvisctl",
+	jarvisctlPath: defaultJarvisCtlPath(),
 	refreshIntervalMs: 2500,
 	shellExecutable: "/usr/bin/zsh",
 };
@@ -261,10 +268,11 @@ export default class JarvisCtlControlPlugin extends Plugin {
 
 	private getJarvisCtlCandidates(): string[] {
 		const configuredPath = this.settings.jarvisctlPath.trim() || DEFAULT_SETTINGS.jarvisctlPath;
-		const candidates = [configuredPath];
+		const candidates: string[] = [];
 		if (!configuredPath.includes("/") && process.env.HOME) {
 			candidates.push(join(process.env.HOME, ".local", "bin", configuredPath));
 		}
+		candidates.push(configuredPath);
 		return [...new Set(candidates)];
 	}
 
@@ -344,6 +352,7 @@ class JarvisCtlControlView extends ItemView {
 	private refreshHandle: number | null = null;
 	private lastRefreshLabel = "never";
 	private statusMessage = "Idle";
+	private errorMessage: string | null = null;
 	private actionInFlight = false;
 
 	constructor(leaf: WorkspaceLeaf, plugin: JarvisCtlControlPlugin) {
@@ -407,9 +416,11 @@ class JarvisCtlControlView extends ItemView {
 			}
 			this.lastRefreshLabel = new Date().toLocaleTimeString();
 			this.statusMessage = "Live data";
+			this.errorMessage = null;
 			this.render();
 		} catch (error) {
 			console.error(error);
+			this.errorMessage = formatError(error);
 			this.statusMessage = "Refresh failed";
 			this.render();
 			if (noticeOnError) {
@@ -425,6 +436,9 @@ class JarvisCtlControlView extends ItemView {
 
 		const shell = container.createDiv({ cls: "jarvisctl-shell" });
 		this.renderTopBar(shell);
+		if (this.errorMessage) {
+			this.renderErrorBanner(shell, this.errorMessage);
+		}
 		this.renderBody(shell);
 		this.renderStatusLine(shell);
 	}
@@ -458,6 +472,16 @@ class JarvisCtlControlView extends ItemView {
 		const metric = parent.createDiv({ cls: "jarvisctl-metric" });
 		metric.createSpan({ cls: "jarvisctl-metric-label", text: label });
 		metric.createDiv({ cls: "jarvisctl-metric-value", text: value });
+	}
+
+	private renderErrorBanner(parent: HTMLElement, message: string): void {
+		const banner = parent.createDiv({ cls: "jarvisctl-error-banner" });
+		banner.createDiv({ cls: "jarvisctl-error-title", text: "Runtime refresh failed" });
+		banner.createDiv({ cls: "jarvisctl-error-message", text: message });
+		banner.createDiv({
+			cls: "jarvisctl-error-hint",
+			text: `Binary: ${this.plugin.getTerminalJarvisCtlPath()}`,
+		});
 	}
 
 	private renderBody(parent: HTMLElement): void {
@@ -672,10 +696,10 @@ class JarvisCtlControlSettingTab extends PluginSettingTab {
 			.setDesc("Executable used for list, interrupt, delete, attach, and exec actions.")
 			.addText((text) =>
 				text
-					.setPlaceholder("jarvisctl")
+					.setPlaceholder(DEFAULT_SETTINGS.jarvisctlPath)
 					.setValue(this.plugin.settings.jarvisctlPath)
 					.onChange(async (value) => {
-						this.plugin.settings.jarvisctlPath = value.trim() || "jarvisctl";
+						this.plugin.settings.jarvisctlPath = value.trim() || DEFAULT_SETTINGS.jarvisctlPath;
 						await this.plugin.saveSettings();
 					}),
 			);
