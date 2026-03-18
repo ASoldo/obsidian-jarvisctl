@@ -130,13 +130,30 @@ export default class JarvisCtlControlPlugin extends Plugin {
 	}
 
 	async activateView(): Promise<void> {
-		const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_JARVISCTL_CONTROL)[0];
-		const leaf = existing ?? this.app.workspace.getRightLeaf(false) ?? this.app.workspace.getLeaf("tab");
+		const existingLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_JARVISCTL_CONTROL);
+		const mainLeaf = existingLeaves.find((leaf) => !this.isSideLeaf(leaf));
+		const leaf = mainLeaf ?? this.app.workspace.getLeaf("tab");
+
 		await leaf.setViewState({
 			type: VIEW_TYPE_JARVISCTL_CONTROL,
 			active: true,
 		});
 		this.app.workspace.revealLeaf(leaf);
+
+		for (const existing of existingLeaves) {
+			if (existing !== leaf && this.isSideLeaf(existing)) {
+				existing.detach();
+			}
+		}
+	}
+
+	private isSideLeaf(leaf: WorkspaceLeaf): boolean {
+		const workspace = this.app.workspace as unknown as {
+			leftSplit?: unknown;
+			rightSplit?: unknown;
+		};
+		const root = "getRoot" in leaf && typeof leaf.getRoot === "function" ? leaf.getRoot() : null;
+		return root === workspace.leftSplit || root === workspace.rightSplit;
 	}
 
 	async fetchSessions(): Promise<JarvisSessionMetadata[]> {
@@ -295,6 +312,7 @@ class JarvisCtlControlView extends ItemView {
 	constructor(leaf: WorkspaceLeaf, plugin: JarvisCtlControlPlugin) {
 		super(leaf);
 		this.plugin = plugin;
+		this.navigation = true;
 	}
 
 	getViewType(): string {
