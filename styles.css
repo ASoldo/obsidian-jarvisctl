@@ -417,6 +417,40 @@
   word-break: break-word;
 }
 
+.jarvisctl-modal-copy {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.jarvisctl-modal-label {
+  display: block;
+  margin: 12px 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.jarvisctl-modal-textarea {
+  width: 100%;
+  min-height: 110px;
+  resize: vertical;
+  border-radius: 10px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  padding: 10px 12px;
+  line-height: 1.45;
+}
+
+.jarvisctl-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
 @container (max-width: 1080px) {
   .jarvisctl-layout {
     grid-template-columns: 1fr;

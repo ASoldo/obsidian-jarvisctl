@@ -1,6 +1,7 @@
 import {
 	App,
 	ItemView,
+	Modal,
 	Notice,
 	Plugin,
 	PluginSettingTab,
@@ -10,7 +11,7 @@ import {
 } from "obsidian";
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -18,7 +19,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-live";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-18-compact-runtime";
+const BUILD_STAMP = "2026-03-19-codex-tools";
 
 interface JarvisAgentMetadata {
 	name: string;
@@ -61,6 +62,15 @@ interface JarvisCtlControlSettings {
 	jarvisctlPath: string;
 	refreshIntervalMs: number;
 	shellExecutable: string;
+}
+
+interface JarvisTellRequest {
+	message: string;
+}
+
+interface JarvisCodexLaunchRequest {
+	message: string;
+	imagePaths: string[];
 }
 
 function defaultJarvisCtlPath(): string {
@@ -114,6 +124,22 @@ export default class JarvisCtlControlPlugin extends Plugin {
 					"JarvisCtl Dashboard",
 					this.getVaultBasePath(),
 				);
+			},
+		});
+
+		this.addCommand({
+			id: "continue-current-ticket-in-codex",
+			name: "Continue current ticket in Codex",
+			callback: async () => {
+				await this.launchCodexForActiveNote(false);
+			},
+		});
+
+		this.addCommand({
+			id: "start-fresh-current-ticket-in-codex",
+			name: "Start fresh Codex session for current ticket",
+			callback: async () => {
+				await this.launchCodexForActiveNote(true);
 			},
 		});
 
@@ -183,6 +209,66 @@ export default class JarvisCtlControlPlugin extends Plugin {
 
 	async runJarvisCtl(args: string[]): Promise<void> {
 		await this.execJarvisCtl(args);
+	}
+
+	async promptAndTell(namespace: string, agent: string): Promise<void> {
+		const request = await promptForTell(this.app, namespace, agent);
+		if (!request) {
+			return;
+		}
+		const message = request.message.trim();
+		if (!message) {
+			new Notice("Nothing was sent because the message was empty.");
+			return;
+		}
+
+		await this.runJarvisCtl([
+			"tell",
+			"--namespace",
+			namespace,
+			"--agent",
+			agent,
+			"--text",
+			message,
+		]);
+		new Notice(`Sent message to ${namespace}:${agent}`);
+	}
+
+	async launchCodexForActiveNote(fresh: boolean): Promise<void> {
+		const file = this.app.workspace.getActiveFile();
+		if (!(file instanceof TFile) || file.extension !== "md") {
+			new Notice("Open a Markdown ticket note first.");
+			return;
+		}
+
+		const request = await promptForCodexLaunch(this.app, file.basename, fresh);
+		if (!request) {
+			return;
+		}
+
+		const args = [
+			"codex",
+			"--task-note",
+			join(this.getVaultBasePath(), file.path),
+		];
+		if (fresh) {
+			args.push("--fresh");
+		}
+
+		const message = request.message.trim();
+		if (message) {
+			args.push("--message", message);
+		}
+
+		for (const image of this.resolveImagePaths(file, request.imagePaths)) {
+			args.push("--image", image);
+		}
+
+		await this.openTerminalCommand(
+			[this.getTerminalJarvisCtlPath(), ...args],
+			`${fresh ? "Fresh" : "Continue"} Codex ${file.basename}`,
+			this.getVaultBasePath(),
+		);
 	}
 
 	async openNamespaceAttach(session: JarvisSessionMetadata): Promise<void> {
@@ -390,6 +476,29 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			return adapter.getBasePath();
 		}
 		throw new Error("Vault base path is unavailable on this adapter");
+	}
+
+	private resolveImagePaths(file: TFile, rawPaths: string[]): string[] {
+		const basePath = this.getVaultBasePath();
+		const noteDir = file.parent?.path ? join(basePath, file.parent.path) : basePath;
+
+		return rawPaths.map((rawPath) => {
+			const trimmed = rawPath.trim();
+			if (!trimmed) {
+				throw new Error("Image path cannot be empty.");
+			}
+
+			const resolved = isAbsolute(trimmed)
+				? trimmed
+				: existsSync(join(noteDir, trimmed))
+					? join(noteDir, trimmed)
+					: join(basePath, trimmed);
+
+			if (!existsSync(resolved)) {
+				throw new Error(`Image not found: ${trimmed}`);
+			}
+			return resolved;
+		});
 	}
 }
 
@@ -619,7 +728,12 @@ class JarvisCtlControlView extends ItemView {
 
 			const nameCell = card.createDiv({ cls: "jarvisctl-namespace-cell -name" });
 			nameCell.createDiv({ cls: "jarvisctl-namespace-name", text: session.namespace });
-			nameCell.createDiv({ cls: "jarvisctl-namespace-subtext", text: session.backend });
+			nameCell.createDiv({
+				cls: "jarvisctl-namespace-subtext",
+				text: this.looksLikeCodexSession(session)
+					? `codex / ${session.backend}`
+					: session.backend,
+			});
 
 			card.createDiv({
 				cls: "jarvisctl-namespace-cell",
@@ -654,6 +768,9 @@ class JarvisCtlControlView extends ItemView {
 		if (session) {
 			const headerMeta = header.createDiv({ cls: "jarvisctl-panel-meta" });
 			headerMeta.createSpan({ cls: "jarvisctl-chip", text: session.backend });
+			if (this.looksLikeCodexSession(session)) {
+				headerMeta.createSpan({ cls: "jarvisctl-chip", text: "codex" });
+			}
 			headerMeta.createSpan({
 				cls:
 					this.countRunningAgents(session) > 0
@@ -677,6 +794,9 @@ class JarvisCtlControlView extends ItemView {
 				await this.plugin.openNamespaceAttach(session);
 			});
 		}, "-primary");
+		this.makeButton(actions, "Tell agent0", async () => {
+			await this.plugin.promptAndTell(session.namespace, "agent0");
+		});
 		this.makeButton(actions, "Copy attach", async () => {
 			await navigator.clipboard.writeText(
 				`${this.plugin.getTerminalJarvisCtlPath()} attach --namespace ${session.namespace}`,
@@ -706,6 +826,9 @@ class JarvisCtlControlView extends ItemView {
 			meta.createSpan({ text: agent.running ? "running" : "idle" });
 
 			const rowActions = row.createDiv({ cls: "jarvisctl-agent-actions" });
+			this.makeButton(rowActions, "Tell", async () => {
+				await this.plugin.promptAndTell(session.namespace, agent.name);
+			});
 			this.makeButton(rowActions, "Exec", async () => {
 				await this.withAction(`Opening ${session.namespace}:${agent.name}`, async () => {
 					await this.plugin.openAgentExec(session, agent);
@@ -795,6 +918,10 @@ class JarvisCtlControlView extends ItemView {
 	private countRunningAgents(session: JarvisSessionMetadata): number {
 		return session.agents.filter((agent) => agent.running).length;
 	}
+
+	private looksLikeCodexSession(session: JarvisSessionMetadata): boolean {
+		return /\bcodex\b/i.test(session.shell_command);
+	}
 }
 
 class JarvisCtlControlSettingTab extends PluginSettingTab {
@@ -853,6 +980,194 @@ class JarvisCtlControlSettingTab extends PluginSettingTab {
 					}),
 			);
 	}
+}
+
+class JarvisTextModal extends Modal {
+	private readonly titleText: string;
+	private readonly description: string;
+	private readonly submitLabel: string;
+	private readonly resolveResult: (result: JarvisTellRequest | null) => void;
+	private resolved = false;
+
+	constructor(
+		app: App,
+		titleText: string,
+		description: string,
+		submitLabel: string,
+		resolveResult: (result: JarvisTellRequest | null) => void,
+	) {
+		super(app);
+		this.titleText = titleText;
+		this.description = description;
+		this.submitLabel = submitLabel;
+		this.resolveResult = resolveResult;
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl("h2", { text: this.titleText });
+		contentEl.createEl("p", {
+			cls: "jarvisctl-modal-copy",
+			text: this.description,
+		});
+
+		contentEl.createEl("label", {
+			cls: "jarvisctl-modal-label",
+			text: "Message",
+		});
+		const messageEl = contentEl.createEl("textarea", {
+			cls: "jarvisctl-modal-textarea",
+		});
+		messageEl.placeholder = "Add feedback, a correction, or a high-priority note for the running agent.";
+
+		const actions = contentEl.createDiv({ cls: "jarvisctl-modal-actions" });
+		const cancel = actions.createEl("button", { text: "Cancel" });
+		cancel.addEventListener("click", () => this.finish(null));
+
+		const submit = actions.createEl("button", {
+			text: this.submitLabel,
+			cls: "mod-cta",
+		});
+		submit.addEventListener("click", () => {
+			this.finish({ message: messageEl.value });
+		});
+
+		window.setTimeout(() => messageEl.focus(), 0);
+	}
+
+	onClose(): void {
+		if (!this.resolved) {
+			this.resolveResult(null);
+		}
+	}
+
+	private finish(result: JarvisTellRequest | null): void {
+		if (this.resolved) {
+			return;
+		}
+		this.resolved = true;
+		this.resolveResult(result);
+		this.close();
+	}
+}
+
+class JarvisCodexLaunchModal extends Modal {
+	private readonly titleText: string;
+	private readonly description: string;
+	private readonly resolveResult: (result: JarvisCodexLaunchRequest | null) => void;
+	private resolved = false;
+
+	constructor(
+		app: App,
+		titleText: string,
+		description: string,
+		resolveResult: (result: JarvisCodexLaunchRequest | null) => void,
+	) {
+		super(app);
+		this.titleText = titleText;
+		this.description = description;
+		this.resolveResult = resolveResult;
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl("h2", { text: this.titleText });
+		contentEl.createEl("p", {
+			cls: "jarvisctl-modal-copy",
+			text: this.description,
+		});
+
+		contentEl.createEl("label", {
+			cls: "jarvisctl-modal-label",
+			text: "Operator message",
+		});
+		const messageEl = contentEl.createEl("textarea", {
+			cls: "jarvisctl-modal-textarea",
+		});
+		messageEl.placeholder =
+			"Optional follow-up or review feedback. Leave blank to launch from the ticket note alone.";
+
+		contentEl.createEl("label", {
+			cls: "jarvisctl-modal-label",
+			text: "Image paths",
+		});
+		const imagesEl = contentEl.createEl("textarea", {
+			cls: "jarvisctl-modal-textarea",
+		});
+		imagesEl.placeholder =
+			"Optional image paths, one per line. Relative paths resolve from the note folder first, then the vault root.";
+
+		const actions = contentEl.createDiv({ cls: "jarvisctl-modal-actions" });
+		const cancel = actions.createEl("button", { text: "Cancel" });
+		cancel.addEventListener("click", () => this.finish(null));
+
+		const submit = actions.createEl("button", {
+			text: "Launch",
+			cls: "mod-cta",
+		});
+		submit.addEventListener("click", () => {
+			const imagePaths = imagesEl.value
+				.split(/\r?\n|,/)
+				.map((value) => value.trim())
+				.filter((value) => value.length > 0);
+			this.finish({
+				message: messageEl.value,
+				imagePaths,
+			});
+		});
+
+		window.setTimeout(() => messageEl.focus(), 0);
+	}
+
+	onClose(): void {
+		if (!this.resolved) {
+			this.resolveResult(null);
+		}
+	}
+
+	private finish(result: JarvisCodexLaunchRequest | null): void {
+		if (this.resolved) {
+			return;
+		}
+		this.resolved = true;
+		this.resolveResult(result);
+		this.close();
+	}
+}
+
+function promptForTell(
+	app: App,
+	namespace: string,
+	agent: string,
+): Promise<JarvisTellRequest | null> {
+	return new Promise((resolve) => {
+		new JarvisTextModal(
+			app,
+			`Tell ${namespace}:${agent}`,
+			"Send a direct message into the running agent session. This is useful for mid-run corrections or urgent context changes.",
+			"Send",
+			resolve,
+		).open();
+	});
+}
+
+function promptForCodexLaunch(
+	app: App,
+	noteName: string,
+	fresh: boolean,
+): Promise<JarvisCodexLaunchRequest | null> {
+	return new Promise((resolve) => {
+		new JarvisCodexLaunchModal(
+			app,
+			fresh ? `Fresh Codex for ${noteName}` : `Continue Codex for ${noteName}`,
+			fresh
+				? "Launch a new Codex conversation for the current ticket. Optional message and images will be attached to the initial prompt."
+				: "Reuse the latest Codex session for the current ticket when one exists. Optional message and images will be attached to the resumed prompt.",
+			resolve,
+		).open();
+	});
 }
 
 function shellQuote(value: string): string {
