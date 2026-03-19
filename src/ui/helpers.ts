@@ -306,14 +306,14 @@ export function buildWorkflow(session: JarvisSessionMetadata | null): WorkflowSt
 			label: "Load Ticket",
 			status: session.context?.task_note ? "synced" : "idle",
 			icon: "T",
-			detail: shortPath(session.context?.task_note),
+			detail: session.context?.task_note ?? "execution contract unavailable",
 		},
 		{
 			id: "thread",
 			label: "Start Thread",
 			status: session.context?.thread_status ?? "idle",
 			icon: "C",
-			detail: compactId(session.context?.codex_session_id, 8, 4),
+			detail: session.context?.codex_session_id ?? "thread not started",
 		},
 		{
 			id: "feed",
@@ -330,10 +330,7 @@ export function buildWorkflow(session: JarvisSessionMetadata | null): WorkflowSt
 			label: `Branch ${index + 1}`,
 			status: subagent.status,
 			icon: "B",
-			detail: truncate(
-				`${subagent.tool} · ${subagent.latest_message ?? subagent.prompt_preview ?? "awaiting branch detail"}`,
-				44,
-			),
+			detail: `${subagent.tool} · ${subagent.latest_message ?? subagent.prompt_preview ?? "awaiting branch detail"}`,
 		});
 	}
 
@@ -342,7 +339,7 @@ export function buildWorkflow(session: JarvisSessionMetadata | null): WorkflowSt
 		label: "Summarize Runtime",
 		status: session.context?.last_activity ? "running" : "idle",
 		icon: "R",
-		detail: truncate(session.context?.last_activity ?? session.context?.live_message, 44),
+		detail: session.context?.last_activity ?? session.context?.live_message ?? "awaiting runtime summary",
 	});
 
 	return steps;
