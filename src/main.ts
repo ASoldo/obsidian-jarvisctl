@@ -19,7 +19,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-live";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-19-runtime-context";
+const BUILD_STAMP = "2026-03-19-app-server-runtime";
 
 interface JarvisAgentMetadata {
 	name: string;
@@ -47,6 +47,13 @@ interface JarvisRuntimeContext {
 	prompt_file?: string | null;
 	record_file?: string | null;
 	transcript_path?: string | null;
+	thread_id?: string | null;
+	thread_status?: string | null;
+	turn_id?: string | null;
+	turn_status?: string | null;
+	live_message?: string | null;
+	last_activity?: string | null;
+	last_error?: string | null;
 }
 
 interface TerminalProfile {
@@ -707,7 +714,7 @@ class JarvisCtlControlView extends ItemView {
 		title.createEl("h2", { text: "Jarvis Control" });
 		title.createEl("p", {
 			cls: "jarvisctl-subtitle",
-			text: `Build ${this.plugin.getBuildStamp()} · Compact namespace and agent control inside Obsidian.`,
+			text: `Build ${this.plugin.getBuildStamp()} · Headless Codex runtime control inside Obsidian.`,
 		});
 
 		const metrics = topBar.createDiv({ cls: "jarvisctl-metrics" });
@@ -818,12 +825,16 @@ class JarvisCtlControlView extends ItemView {
 
 			const running = this.countRunningAgents(session);
 			const stateCell = card.createDiv({ cls: "jarvisctl-namespace-cell -state" });
+			const stateText = context?.turn_status
+				? `turn ${context.turn_status}`
+				: context?.thread_status
+					? context.thread_status
+					: running > 0
+						? `${running}/${session.agents.length} live`
+						: "idle";
 			stateCell.createSpan({
 				cls: running > 0 ? "jarvisctl-chip is-live" : "jarvisctl-chip is-idle",
-				text:
-					running > 0
-						? `${running}/${session.agents.length} live`
-						: "idle",
+				text: stateText,
 			});
 
 			card.createDiv({
@@ -918,6 +929,21 @@ class JarvisCtlControlView extends ItemView {
 		}
 		if (context?.codex_session_id) {
 			this.renderDetailBox(detailGrid, "Codex Session", context.codex_session_id);
+		}
+		if (context?.thread_status) {
+			this.renderDetailBox(detailGrid, "Thread", context.thread_status);
+		}
+		if (context?.turn_status) {
+			this.renderDetailBox(detailGrid, "Turn", context.turn_status);
+		}
+		if (context?.live_message) {
+			this.renderDetailBox(detailGrid, "Live Message", context.live_message, "-wide");
+		}
+		if (context?.last_activity) {
+			this.renderDetailBox(detailGrid, "Last Activity", context.last_activity, "-wide");
+		}
+		if (context?.last_error) {
+			this.renderDetailBox(detailGrid, "Last Error", context.last_error, "-wide");
 		}
 		if (context?.transcript_path) {
 			this.renderDetailBox(detailGrid, "Transcript", context.transcript_path, "-wide");
@@ -1041,7 +1067,8 @@ class JarvisCtlControlView extends ItemView {
 		const context = this.getRuntimeContext(session);
 		if (context?.workload) {
 			const mode = context.launch_mode ? ` / ${context.launch_mode}` : "";
-			return `${context.workload}${mode} / ${session.backend}`;
+			const thread = context.thread_status ? ` / ${context.thread_status}` : "";
+			return `${context.workload}${mode}${thread} / ${session.backend}`;
 		}
 		return this.looksLikeCodexSession(session)
 			? `codex / ${session.backend}`
