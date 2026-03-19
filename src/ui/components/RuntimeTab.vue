@@ -13,17 +13,18 @@ import {
 	formatDateTime,
 	sessionTone,
 	sessionStateLabel,
-	shortPath,
 	statusTone,
-	truncate,
 } from "../helpers";
 import ExpandableText from "./ExpandableText.vue";
 import StatusBadge from "./StatusBadge.vue";
+
+type RuntimeSection = "snapshot" | "feed" | "activity" | "branches" | "agents";
 
 const props = defineProps<{
 	host: JarvisDashboardHost;
 	session: JarvisSessionMetadata | null;
 	activitySections: JarvisActivitySection[];
+	section: RuntimeSection;
 }>();
 
 const events = computed(() => (props.session?.context?.recent_events ?? []).slice(-12).reverse());
@@ -45,50 +46,56 @@ function subagentTone(subagent: JarvisRuntimeSubagentMetadata): "live" | "warnin
 	<div v-if="session" class="cp-runtime-tab">
 		<div class="cp-runtime-toolbar">
 			<div class="cp-runtime-toolbar__actions">
-				<button type="button" class="cp-button cp-button--primary" @click="host.attach(session)">Attach</button>
+				<button type="button" class="cp-button cp-button--primary" title="Attach to namespace" @click="host.attach(session)">
+					↗
+				</button>
 				<button
 					type="button"
 					class="cp-button"
+					title="Continue ticket"
 					:disabled="!session.context?.task_note"
 					@click="host.continueTicket(session)"
 				>
-					Continue
+					↻
 				</button>
 				<button
 					type="button"
 					class="cp-button"
+					title="Start fresh ticket session"
 					:disabled="!session.context?.task_note"
 					@click="host.freshTicket(session)"
 				>
-					Fresh
+					＋
 				</button>
 				<button
 					type="button"
 					class="cp-button"
+					title="Open ticket note"
 					:disabled="!session.context?.task_note"
 					@click="host.openTicket(session)"
 				>
-					Open Ticket
+					⌘
 				</button>
 				<button
 					type="button"
 					class="cp-button"
+					title="Open transcript"
 					:disabled="!session.context?.transcript_path"
 					@click="host.openTranscript(session)"
 				>
-					Transcript
+					≡
 				</button>
 			</div>
 			<div class="cp-runtime-toolbar__actions cp-runtime-toolbar__actions--right">
-				<button type="button" class="cp-button" @click="host.tellAgent(session)">Tell Agent0</button>
-				<button type="button" class="cp-button" @click="host.copyAttach(session)">Copy Attach</button>
-				<button type="button" class="cp-button cp-button--danger" @click="host.closeNamespace(session)">
-					Close Namespace
+				<button type="button" class="cp-button" title="Tell agent0" @click="host.tellAgent(session)">✎</button>
+				<button type="button" class="cp-button" title="Copy attach command" @click="host.copyAttach(session)">⧉</button>
+				<button type="button" class="cp-button cp-button--danger" title="Close namespace" @click="host.closeNamespace(session)">
+					×
 				</button>
 			</div>
 		</div>
 
-		<section class="cp-panel cp-subpanel">
+		<section v-if="section === 'snapshot'" class="cp-panel cp-subpanel cp-runtime-section">
 			<div class="cp-panel__header">
 				<div>
 					<p class="cp-panel__eyebrow">Session Snapshot</p>
@@ -99,7 +106,7 @@ function subagentTone(subagent: JarvisRuntimeSubagentMetadata): "live" | "warnin
 					<span v-for="token in describeSessionTokens(session)" :key="token" class="cp-chip">{{ token }}</span>
 				</div>
 			</div>
-			<div class="cp-panel__body">
+			<div class="cp-panel__body cp-panel__body--scroll">
 				<div class="cp-snapshot-grid">
 					<div class="cp-kv-card cp-kv-card--hero">
 						<div class="cp-kv-card__label">Task</div>
@@ -161,7 +168,7 @@ function subagentTone(subagent: JarvisRuntimeSubagentMetadata): "live" | "warnin
 					</div>
 					<div class="cp-kv-card cp-kv-card--full">
 						<div class="cp-kv-card__label">Live Message</div>
-						<ExpandableText :text="session.context?.live_message ?? 'No live summary yet.'" :lines="4" />
+						<ExpandableText :text="session.context?.live_message ?? 'No live summary yet.'" :lines="6" />
 					</div>
 					<div class="cp-kv-card cp-kv-card--full">
 						<div class="cp-kv-card__label">Command</div>
@@ -171,153 +178,149 @@ function subagentTone(subagent: JarvisRuntimeSubagentMetadata): "live" | "warnin
 			</div>
 		</section>
 
-		<div class="cp-runtime-grid">
-			<section class="cp-panel cp-subpanel">
-				<div class="cp-panel__header">
-					<div>
-						<p class="cp-panel__eyebrow">Runtime Feed</p>
-						<h3 class="cp-panel__title">Live Events</h3>
-					</div>
-					<div class="cp-panel__meta">
-						<span class="cp-chip">{{ events.length }} events</span>
-						<StatusBadge :label="session.context?.turn_status ?? 'idle'" :tone="sessionTone(session)" compact />
-					</div>
+		<section v-else-if="section === 'feed'" class="cp-panel cp-subpanel cp-runtime-section">
+			<div class="cp-panel__header">
+				<div>
+					<p class="cp-panel__eyebrow">Runtime Feed</p>
+					<h3 class="cp-panel__title">Live Events</h3>
 				</div>
-				<div class="cp-panel__body cp-panel__body--scroll">
-					<div v-if="events.length === 0" class="cp-empty-state">No runtime events yet.</div>
-					<div v-else class="cp-feed-list">
-						<article v-for="event in events" :key="event.id" class="cp-feed-card">
-							<div class="cp-feed-card__top">
-								<div class="cp-feed-card__chips">
-									<span class="cp-chip">{{ event.kind }}</span>
-									<StatusBadge v-if="event.status" :label="event.status" :tone="eventTone(event)" compact />
-									<span v-if="event.actor" class="cp-chip">{{ event.actor }}</span>
-								</div>
-								<span class="cp-feed-card__time">{{ formatClock(event.timestamp_epoch_ms) }}</span>
+				<div class="cp-panel__meta">
+					<span class="cp-chip">{{ events.length }} events</span>
+					<StatusBadge :label="session.context?.turn_status ?? 'idle'" :tone="sessionTone(session)" compact />
+				</div>
+			</div>
+			<div class="cp-panel__body cp-panel__body--scroll">
+				<div v-if="events.length === 0" class="cp-empty-state">No runtime events yet.</div>
+				<div v-else class="cp-feed-list">
+					<article v-for="event in events" :key="event.id" class="cp-feed-card">
+						<div class="cp-feed-card__top">
+							<div class="cp-feed-card__chips">
+								<span class="cp-chip">{{ event.kind }}</span>
+								<StatusBadge v-if="event.status" :label="event.status" :tone="eventTone(event)" compact />
+								<span v-if="event.actor" class="cp-chip">{{ event.actor }}</span>
 							</div>
-							<div class="cp-feed-card__title">{{ event.title }}</div>
-							<ExpandableText v-if="event.detail" :text="event.detail" :lines="4" />
-						</article>
-					</div>
+							<span class="cp-feed-card__time">{{ formatClock(event.timestamp_epoch_ms) }}</span>
+						</div>
+						<div class="cp-feed-card__title">{{ event.title }}</div>
+						<ExpandableText v-if="event.detail" :text="event.detail" :lines="6" />
+					</article>
 				</div>
-			</section>
+			</div>
+		</section>
 
-			<section class="cp-panel cp-subpanel">
-				<div class="cp-panel__header">
-					<div>
-						<p class="cp-panel__eyebrow">Observed Activity</p>
-						<h3 class="cp-panel__title">Event Log Tail</h3>
-					</div>
-					<div class="cp-panel__meta">
-						<span class="cp-chip">{{ activitySections.length }} sections</span>
-						<span class="cp-chip">event log</span>
-					</div>
+		<section v-else-if="section === 'activity'" class="cp-panel cp-subpanel cp-runtime-section">
+			<div class="cp-panel__header">
+				<div>
+					<p class="cp-panel__eyebrow">Observed Activity</p>
+					<h3 class="cp-panel__title">Event Log Tail</h3>
 				</div>
-				<div class="cp-panel__body cp-panel__body--scroll">
-					<div v-if="activitySections.length === 0" class="cp-empty-state">No observed log output yet.</div>
-					<div v-else class="cp-activity-list">
-						<article v-for="(section, index) in activitySections" :key="`${section.kind}-${index}`" class="cp-activity-card">
-							<div class="cp-activity-card__head">
-								<span class="cp-chip">{{ section.label }}</span>
-							</div>
-							<ExpandableText v-if="section.summary" :text="section.summary" :lines="3" />
-							<div v-if="section.lines.length > 0" class="cp-console">
-								<div v-for="(line, lineIndex) in section.lines" :key="lineIndex" class="cp-console__line">
-									{{ line }}
-								</div>
-							</div>
-						</article>
-					</div>
+				<div class="cp-panel__meta">
+					<span class="cp-chip">{{ activitySections.length }} sections</span>
+					<span class="cp-chip">event log</span>
 				</div>
-			</section>
-		</div>
+			</div>
+			<div class="cp-panel__body cp-panel__body--scroll">
+				<div v-if="activitySections.length === 0" class="cp-empty-state">No observed log output yet.</div>
+				<div v-else class="cp-activity-list">
+					<article v-for="(sectionItem, index) in activitySections" :key="`${sectionItem.kind}-${index}`" class="cp-activity-card">
+						<div class="cp-activity-card__head">
+							<span class="cp-chip">{{ sectionItem.label }}</span>
+						</div>
+						<ExpandableText v-if="sectionItem.summary" :text="sectionItem.summary" :lines="4" />
+						<div v-if="sectionItem.lines.length > 0" class="cp-console">
+							<div v-for="(line, lineIndex) in sectionItem.lines" :key="lineIndex" class="cp-console__line">
+								{{ line }}
+							</div>
+						</div>
+					</article>
+				</div>
+			</div>
+		</section>
 
-		<div class="cp-runtime-grid cp-runtime-grid--lower">
-			<section class="cp-panel cp-subpanel">
-				<div class="cp-panel__header">
-					<div>
-						<p class="cp-panel__eyebrow">Subagent Branches</p>
-						<h3 class="cp-panel__title">Branch Runtime</h3>
-					</div>
-					<div class="cp-panel__meta">
-						<span class="cp-chip">{{ subagents.length }} tracked</span>
-					</div>
+		<section v-else-if="section === 'branches'" class="cp-panel cp-subpanel cp-runtime-section">
+			<div class="cp-panel__header">
+				<div>
+					<p class="cp-panel__eyebrow">Subagent Branches</p>
+					<h3 class="cp-panel__title">Branch Runtime</h3>
 				</div>
-				<div class="cp-panel__body cp-panel__body--scroll">
-					<div class="cp-branch-root">
-						<div class="cp-branch-root__title">Main Thread</div>
-						<div class="cp-branch-root__meta">{{ session.context?.thread_id ?? "main" }} · {{ sessionStateLabel(session) }}</div>
-					</div>
-					<div v-if="subagents.length === 0" class="cp-empty-state">No spawned subagents yet.</div>
-					<div v-else class="cp-branch-list">
-						<article v-for="subagent in subagents" :key="subagent.thread_id" class="cp-branch-card">
-							<div class="cp-branch-card__rail">
-								<div class="cp-branch-card__dot" />
-								<div class="cp-branch-card__line" />
-							</div>
-							<div class="cp-branch-card__body">
-								<div class="cp-branch-card__head">
-									<div>
-										<div class="cp-branch-card__title">agent {{ subagent.thread_id.slice(0, 8) }}</div>
-										<div class="cp-branch-card__meta">
-											{{ subagent.tool }}<span v-if="subagent.model"> · {{ subagent.model }}</span
-											><span v-if="subagent.reasoning_effort"> · {{ subagent.reasoning_effort }}</span>
-										</div>
-									</div>
-									<div class="cp-branch-card__status">
-										<StatusBadge :label="subagent.status" :tone="subagentTone(subagent)" compact />
-										<span class="cp-chip">{{ formatClock(subagent.updated_at_epoch_ms) }}</span>
-									</div>
-								</div>
-								<ExpandableText v-if="subagent.prompt_preview" :text="subagent.prompt_preview" :lines="3" />
-								<ExpandableText v-if="subagent.latest_message" :text="subagent.latest_message" :lines="4" />
-								<div v-if="(subagent.recent_actions?.length ?? 0) > 0" class="cp-branch-actions">
-									<div v-for="action in subagent.recent_actions" :key="action.id" class="cp-branch-action">
-										<div class="cp-branch-action__head">
-											<span class="cp-chip">{{ action.title }}</span>
-											<StatusBadge v-if="action.status" :label="action.status" :tone="statusTone(action.status)" compact />
-											<span class="cp-chip">{{ formatClock(action.timestamp_epoch_ms) }}</span>
-										</div>
-										<ExpandableText v-if="action.detail" :text="action.detail" :lines="3" />
-									</div>
-								</div>
-							</div>
-						</article>
-					</div>
+				<div class="cp-panel__meta">
+					<span class="cp-chip">{{ subagents.length }} tracked</span>
 				</div>
-			</section>
-
-			<section class="cp-panel cp-subpanel">
-				<div class="cp-panel__header">
-					<div>
-						<p class="cp-panel__eyebrow">Agents</p>
-						<h3 class="cp-panel__title">Execution Controls</h3>
-					</div>
-					<div class="cp-panel__meta">
-						<span class="cp-chip">{{ session.agents.length }} total</span>
-					</div>
+			</div>
+			<div class="cp-panel__body cp-panel__body--scroll">
+				<div class="cp-branch-root">
+					<div class="cp-branch-root__title">Main Thread</div>
+					<div class="cp-branch-root__meta">{{ session.context?.thread_id ?? "main" }} · {{ sessionStateLabel(session) }}</div>
 				</div>
-				<div class="cp-panel__body cp-panel__body--scroll">
-					<div class="cp-agent-list">
-						<article v-for="agent in session.agents" :key="agent.name" class="cp-agent-card">
-							<div class="cp-agent-card__head">
+				<div v-if="subagents.length === 0" class="cp-empty-state">No spawned subagents yet.</div>
+				<div v-else class="cp-branch-list">
+					<article v-for="subagent in subagents" :key="subagent.thread_id" class="cp-branch-card">
+						<div class="cp-branch-card__rail">
+							<div class="cp-branch-card__dot" />
+							<div class="cp-branch-card__line" />
+						</div>
+						<div class="cp-branch-card__body">
+							<div class="cp-branch-card__head">
 								<div>
-									<div class="cp-agent-card__title">{{ agent.name }}</div>
-									<div class="cp-agent-card__meta">PID {{ agent.pid }} · {{ agent.running ? "running" : "idle" }}</div>
+									<div class="cp-branch-card__title">agent {{ subagent.thread_id.slice(0, 8) }}</div>
+									<div class="cp-branch-card__meta">
+										{{ subagent.tool }}<span v-if="subagent.model"> · {{ subagent.model }}</span
+										><span v-if="subagent.reasoning_effort"> · {{ subagent.reasoning_effort }}</span>
+									</div>
 								</div>
-								<StatusBadge :label="agent.running ? 'running' : 'idle'" :tone="agent.running ? 'live' : 'idle'" compact />
+								<div class="cp-branch-card__status">
+									<StatusBadge :label="subagent.status" :tone="subagentTone(subagent)" compact />
+									<span class="cp-chip">{{ formatClock(subagent.updated_at_epoch_ms) }}</span>
+								</div>
 							</div>
-							<div class="cp-agent-card__actions">
-								<button type="button" class="cp-mini-button" @click="host.tellAgent(session, agent.name)">Tell</button>
-								<button type="button" class="cp-mini-button cp-mini-button--primary" @click="host.execAgent(session, agent.name)">Exec</button>
-								<button type="button" class="cp-mini-button" @click="host.interruptAgent(session, agent.name)">Interrupt</button>
-								<button type="button" class="cp-mini-button" @click="host.copyExec(session, agent.name)">Copy Exec</button>
+							<ExpandableText v-if="subagent.prompt_preview" :text="subagent.prompt_preview" :lines="4" />
+							<ExpandableText v-if="subagent.latest_message" :text="subagent.latest_message" :lines="6" />
+							<div v-if="(subagent.recent_actions?.length ?? 0) > 0" class="cp-branch-actions">
+								<div v-for="action in subagent.recent_actions" :key="action.id" class="cp-branch-action">
+									<div class="cp-branch-action__head">
+										<span class="cp-chip">{{ action.title }}</span>
+										<StatusBadge v-if="action.status" :label="action.status" :tone="statusTone(action.status)" compact />
+										<span class="cp-chip">{{ formatClock(action.timestamp_epoch_ms) }}</span>
+									</div>
+									<ExpandableText v-if="action.detail" :text="action.detail" :lines="4" />
+								</div>
 							</div>
-						</article>
-					</div>
+						</div>
+					</article>
 				</div>
-			</section>
-		</div>
+			</div>
+		</section>
+
+		<section v-else class="cp-panel cp-subpanel cp-runtime-section">
+			<div class="cp-panel__header">
+				<div>
+					<p class="cp-panel__eyebrow">Agents</p>
+					<h3 class="cp-panel__title">Execution Controls</h3>
+				</div>
+				<div class="cp-panel__meta">
+					<span class="cp-chip">{{ session.agents.length }} total</span>
+				</div>
+			</div>
+			<div class="cp-panel__body cp-panel__body--scroll">
+				<div class="cp-agent-list">
+					<article v-for="agent in session.agents" :key="agent.name" class="cp-agent-card">
+						<div class="cp-agent-card__head">
+							<div>
+								<div class="cp-agent-card__title">{{ agent.name }}</div>
+								<div class="cp-agent-card__meta">PID {{ agent.pid }} · {{ agent.running ? "running" : "idle" }}</div>
+							</div>
+							<StatusBadge :label="agent.running ? 'running' : 'idle'" :tone="agent.running ? 'live' : 'idle'" compact />
+						</div>
+						<div class="cp-agent-card__actions">
+							<button type="button" class="cp-mini-button" @click="host.tellAgent(session, agent.name)">Tell</button>
+							<button type="button" class="cp-mini-button cp-mini-button--primary" @click="host.execAgent(session, agent.name)">Exec</button>
+							<button type="button" class="cp-mini-button" @click="host.interruptAgent(session, agent.name)">Interrupt</button>
+							<button type="button" class="cp-mini-button" @click="host.copyExec(session, agent.name)">Copy Exec</button>
+						</div>
+					</article>
+				</div>
+			</div>
+		</section>
 	</div>
 
 	<div v-else class="cp-empty-state cp-empty-state--large">

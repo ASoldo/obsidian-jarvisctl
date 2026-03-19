@@ -170,6 +170,10 @@
       "sidebar bottom";
   }
 
+  .cp-dashboard-grid.is-bottom-collapsed {
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
   .cp-sidebar {
     grid-area: sidebar;
     @apply grid min-h-0;
@@ -225,7 +229,7 @@
   }
 
   .cp-main-panel__body {
-    @apply overflow-auto overscroll-contain;
+    @apply overflow-hidden;
   }
 
   .cp-topology-workbench {
@@ -240,6 +244,38 @@
 
   .cp-tab-strip {
     @apply flex flex-wrap items-center gap-2;
+  }
+
+  .cp-surface-tab-strip {
+    @apply flex flex-wrap items-center justify-end gap-2;
+  }
+
+  .cp-surface-tab {
+    border: 1px solid var(--cp-border);
+    background: color-mix(in srgb, var(--cp-panel-strong) 92%, #030712 8%);
+    color: var(--cp-text-dim);
+    @apply inline-flex items-center gap-2 rounded-xl px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] transition;
+  }
+
+  .cp-surface-tab:hover {
+    border-color: var(--cp-border-strong);
+    color: var(--cp-text-soft);
+  }
+
+  .cp-surface-tab.is-active {
+    border-color: color-mix(in srgb, var(--cp-blue) 34%, var(--cp-border) 66%);
+    color: var(--cp-text-soft);
+    background: color-mix(in srgb, var(--cp-blue) 14%, var(--cp-panel) 86%);
+  }
+
+  .cp-surface-tab__icon {
+    border: 1px solid color-mix(in srgb, var(--cp-border) 92%, transparent);
+    background: color-mix(in srgb, var(--cp-panel) 96%, #030712 4%);
+    @apply inline-flex h-6 w-6 items-center justify-center rounded-lg text-[11px] leading-none;
+  }
+
+  .cp-surface-tab__label {
+    @apply whitespace-nowrap;
   }
 
   .cp-tab {
@@ -553,7 +589,12 @@
   }
 
   .cp-runtime-tab {
-    @apply grid min-h-0 min-w-0 content-start gap-3 pb-4 pr-1;
+    @apply grid min-h-0 min-w-0 gap-3 pb-4 pr-1;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .cp-runtime-section {
+    @apply min-h-0;
   }
 
   .cp-runtime-toolbar {
@@ -929,6 +970,10 @@
         "sidebar"
         "main"
         "bottom";
+    }
+
+    .cp-surface-tab-strip {
+      @apply justify-start;
     }
 
     .cp-runtime-grid,

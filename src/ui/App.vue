@@ -7,7 +7,14 @@ import Sidebar from "./components/Sidebar.vue";
 import TopBar from "./components/TopBar.vue";
 import { buildRepositoryGroups } from "./helpers";
 
-type MainTab = "topology" | "applications" | "runtime";
+type MainTab =
+	| "topology"
+	| "applications"
+	| "snapshot"
+	| "feed"
+	| "activity"
+	| "branches"
+	| "agents";
 type BottomTab = "logs" | "events" | "reasoning" | "metrics";
 
 const props = defineProps<{
@@ -16,9 +23,9 @@ const props = defineProps<{
 
 const searchQuery = ref("");
 const selectedRepository = ref<string | null>(null);
-const mainTab = ref<MainTab>("runtime");
+const mainTab = ref<MainTab>("snapshot");
 const bottomTab = ref<BottomTab>("reasoning");
-const bottomCollapsed = ref(false);
+const bottomCollapsed = ref(true);
 
 const allSessions = computed(() => props.host.state.sessions);
 const repositories = computed(() => buildRepositoryGroups(allSessions.value));
@@ -130,7 +137,7 @@ function handleContinue(): void {
 			@continue="handleContinue"
 		/>
 
-		<div class="cp-dashboard-grid">
+		<div :class="['cp-dashboard-grid', bottomCollapsed && 'is-bottom-collapsed']">
 			<Sidebar
 				:repositories="repositories"
 				:sessions="filteredSessions"
