@@ -963,6 +963,12 @@
   gap: 6px;
 }
 
+.jarvisctl-activity-head > .jarvisctl-chip {
+  justify-self: start;
+  width: fit-content;
+  max-width: 100%;
+}
+
 .jarvisctl-activity-summary {
   color: var(--jarvis-text-dim);
   font-size: 11px;
@@ -1023,7 +1029,7 @@
   position: relative;
   display: grid;
   gap: 6px;
-  padding: 8px 10px 8px calc(14px + var(--jarvis-depth, 0) * 22px);
+  padding: 10px 10px 10px calc(22px + var(--jarvis-depth, 0) * 22px);
   border-radius: 10px;
   border: 1px solid var(--jarvis-border);
   background:
@@ -1032,6 +1038,8 @@
       color-mix(in srgb, var(--jarvis-surface) 88%, transparent),
       color-mix(in srgb, var(--jarvis-surface-2) 94%, transparent)
     );
+  overflow: hidden;
+  isolation: isolate;
   box-shadow:
     inset 3px 0 0 color-mix(in srgb, var(--jarvis-indigo) 72%, white 28%),
     0 8px 18px color-mix(in srgb, #020617 10%, transparent),
@@ -1041,21 +1049,27 @@
 .jarvisctl-subagent-node::before {
   content: "";
   position: absolute;
-  left: calc(9px + var(--jarvis-depth, 0) * 22px);
-  top: -7px;
-  bottom: -7px;
-  width: 1px;
-  background: color-mix(in srgb, var(--jarvis-border) 80%, transparent);
+  left: calc(11px + var(--jarvis-depth, 0) * 22px);
+  top: 11px;
+  bottom: 11px;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--jarvis-indigo) 54%, transparent),
+    color-mix(in srgb, var(--jarvis-border) 86%, transparent)
+  );
 }
 
 .jarvisctl-subagent-node::after {
   content: "";
   position: absolute;
-  left: calc(9px + var(--jarvis-depth, 0) * 22px);
-  top: 18px;
-  width: 12px;
-  height: 1px;
-  background: color-mix(in srgb, var(--jarvis-border) 80%, transparent);
+  left: calc(11px + var(--jarvis-depth, 0) * 22px);
+  top: 21px;
+  width: 14px;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--jarvis-border) 88%, transparent);
 }
 
 .jarvisctl-subagent-top {
@@ -1093,9 +1107,9 @@
 .jarvisctl-agent-row {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  align-items: start;
   padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid var(--jarvis-border);
@@ -1137,6 +1151,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  justify-content: flex-start;
 }
 
 .jarvisctl-empty {
