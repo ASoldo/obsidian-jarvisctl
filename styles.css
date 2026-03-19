@@ -293,6 +293,11 @@
   color: color-mix(in srgb, var(--jarvis-amber) 78%, white 22%);
 }
 
+.jarvisctl-chip.is-error {
+  border-color: color-mix(in srgb, var(--jarvis-red) 54%, var(--jarvis-border) 46%);
+  color: color-mix(in srgb, var(--jarvis-red) 78%, white 22%);
+}
+
 .jarvisctl-detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -327,9 +332,170 @@
   text-overflow: ellipsis;
 }
 
+.jarvisctl-runtime-section {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--jarvis-border);
+  border-radius: 12px;
+  background: var(--jarvis-surface-2);
+  overflow: hidden;
+}
+
+.jarvisctl-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--jarvis-border);
+  background: color-mix(in srgb, var(--jarvis-surface-3) 82%, transparent);
+}
+
+.jarvisctl-section-body {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+}
+
+.jarvisctl-feed-list {
+  display: grid;
+  gap: 6px;
+}
+
+.jarvisctl-feed-card {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--jarvis-border);
+  background: color-mix(in srgb, var(--jarvis-surface) 74%, transparent);
+}
+
+.jarvisctl-feed-card.is-subagent {
+  border-color: color-mix(in srgb, var(--jarvis-indigo) 36%, var(--jarvis-border) 64%);
+}
+
+.jarvisctl-feed-card.is-command {
+  border-color: color-mix(in srgb, var(--jarvis-blue) 32%, var(--jarvis-border) 68%);
+}
+
+.jarvisctl-feed-card.is-plan {
+  border-color: color-mix(in srgb, var(--jarvis-teal) 28%, var(--jarvis-border) 72%);
+}
+
+.jarvisctl-feed-card.is-error {
+  border-color: color-mix(in srgb, var(--jarvis-red) 42%, var(--jarvis-border) 58%);
+}
+
+.jarvisctl-feed-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.jarvisctl-feed-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.jarvisctl-feed-time {
+  color: var(--jarvis-text-dim);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.jarvisctl-feed-title {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.jarvisctl-feed-detail {
+  margin: 0;
+  color: var(--jarvis-text-dim);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.jarvisctl-subagent-tree {
+  display: grid;
+  gap: 6px;
+}
+
+.jarvisctl-subagent-root {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px dashed var(--jarvis-border);
+  background: color-mix(in srgb, var(--jarvis-surface) 54%, transparent);
+}
+
+.jarvisctl-subagent-node {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px 8px calc(14px + var(--jarvis-depth, 0) * 22px);
+  border-radius: 10px;
+  border: 1px solid var(--jarvis-border);
+  background: color-mix(in srgb, var(--jarvis-surface) 78%, transparent);
+}
+
+.jarvisctl-subagent-node::before {
+  content: "";
+  position: absolute;
+  left: calc(9px + var(--jarvis-depth, 0) * 22px);
+  top: -7px;
+  bottom: -7px;
+  width: 1px;
+  background: color-mix(in srgb, var(--jarvis-border) 80%, transparent);
+}
+
+.jarvisctl-subagent-node::after {
+  content: "";
+  position: absolute;
+  left: calc(9px + var(--jarvis-depth, 0) * 22px);
+  top: 18px;
+  width: 12px;
+  height: 1px;
+  background: color-mix(in srgb, var(--jarvis-border) 80%, transparent);
+}
+
+.jarvisctl-subagent-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.jarvisctl-subagent-summary {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.jarvisctl-subagent-detail,
+.jarvisctl-subagent-message {
+  margin: 0;
+  color: var(--jarvis-text-dim);
+  font-size: 11px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.jarvisctl-subagent-message {
+  color: var(--text-normal);
+}
+
 .jarvisctl-agent-list {
   display: grid;
   gap: 6px;
+  padding: 8px;
 }
 
 .jarvisctl-agent-row {
@@ -372,6 +538,11 @@
   align-items: start;
   padding: 10px;
   min-height: 180px;
+}
+
+.jarvisctl-empty.-compact {
+  min-height: 0;
+  padding: 4px 2px 2px;
 }
 
 .jarvisctl-empty h3 {
@@ -483,6 +654,11 @@
     align-items: flex-start;
   }
 
+  .jarvisctl-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .jarvisctl-namespace-row {
     grid-template-columns: minmax(0, 1fr) 56px;
   }
@@ -503,6 +679,10 @@
   }
 
   .jarvisctl-agent-row {
+    grid-template-columns: 1fr;
+  }
+
+  .jarvisctl-subagent-top {
     grid-template-columns: 1fr;
   }
 

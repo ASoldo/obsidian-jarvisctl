@@ -19,7 +19,29 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-live";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-19-app-server-runtime";
+const BUILD_STAMP = "2026-03-19-runtime-feed";
+
+interface JarvisRuntimeFeedEntry {
+	id: string;
+	kind: string;
+	title: string;
+	timestamp_epoch_ms: number;
+	actor?: string | null;
+	detail?: string | null;
+	status?: string | null;
+}
+
+interface JarvisRuntimeSubagentMetadata {
+	thread_id: string;
+	tool: string;
+	status: string;
+	updated_at_epoch_ms: number;
+	parent_thread_id?: string | null;
+	model?: string | null;
+	reasoning_effort?: string | null;
+	prompt_preview?: string | null;
+	latest_message?: string | null;
+}
 
 interface JarvisAgentMetadata {
 	name: string;
@@ -47,6 +69,7 @@ interface JarvisRuntimeContext {
 	prompt_file?: string | null;
 	record_file?: string | null;
 	transcript_path?: string | null;
+	event_log_path?: string | null;
 	thread_id?: string | null;
 	thread_status?: string | null;
 	turn_id?: string | null;
@@ -54,6 +77,8 @@ interface JarvisRuntimeContext {
 	live_message?: string | null;
 	last_activity?: string | null;
 	last_error?: string | null;
+	recent_events?: JarvisRuntimeFeedEntry[] | null;
+	subagents?: JarvisRuntimeSubagentMetadata[] | null;
 }
 
 interface TerminalProfile {
@@ -718,16 +743,19 @@ class JarvisCtlControlView extends ItemView {
 		});
 
 		const metrics = topBar.createDiv({ cls: "jarvisctl-metrics" });
-		const liveNamespaces = this.sessions.filter((session) => this.countRunningAgents(session) > 0)
-			.length;
 		const agentCount = this.sessions.reduce(
 			(total, session) => total + session.agents.length,
+			0,
+		);
+		const subagentCount = this.sessions.reduce(
+			(total, session) => total + this.countSubagents(session),
 			0,
 		);
 		const selectedSession = this.getSelectedSession();
 
 		this.renderMetric(metrics, "Namespaces", `${this.sessions.length}`);
 		this.renderMetric(metrics, "Live Agents", `${agentCount}`);
+		this.renderMetric(metrics, "Subagents", `${subagentCount}`);
 		this.renderMetric(metrics, "Focus", selectedSession?.namespace ?? "none");
 	}
 
@@ -948,6 +976,9 @@ class JarvisCtlControlView extends ItemView {
 		if (context?.transcript_path) {
 			this.renderDetailBox(detailGrid, "Transcript", context.transcript_path, "-wide");
 		}
+		if (context?.event_log_path) {
+			this.renderDetailBox(detailGrid, "Event Log", context.event_log_path, "-wide");
+		}
 		if (context?.launch_mode) {
 			this.renderDetailBox(detailGrid, "Launch Mode", context.launch_mode);
 		}
@@ -956,14 +987,185 @@ class JarvisCtlControlView extends ItemView {
 		this.renderDetailBox(detailGrid, "Backend", session.backend);
 		this.renderDetailBox(detailGrid, "Created", new Date(session.created_at_epoch_ms).toLocaleString());
 
-		const agentList = body.createDiv({ cls: "jarvisctl-agent-list" });
+		this.renderRuntimeFeed(body, session);
+		this.renderSubagentTree(body, session);
+		this.renderAgentSection(body, session);
+	}
+
+	private renderRuntimeFeed(parent: HTMLElement, session: JarvisSessionMetadata): void {
+		const context = this.getRuntimeContext(session);
+		const events = (context?.recent_events ?? []).slice(-10);
+		const section = parent.createDiv({ cls: "jarvisctl-runtime-section" });
+		const header = section.createDiv({ cls: "jarvisctl-section-header" });
+		header.createDiv({ cls: "jarvisctl-panel-title", text: "Runtime Feed" });
+		const meta = header.createDiv({ cls: "jarvisctl-panel-meta" });
+		meta.createSpan({ cls: "jarvisctl-chip", text: `${events.length} events` });
+		if (context?.turn_status) {
+			meta.createSpan({ cls: "jarvisctl-chip", text: `turn ${context.turn_status}` });
+		}
+
+		const body = section.createDiv({ cls: "jarvisctl-section-body" });
+		if (events.length === 0) {
+			const empty = body.createDiv({ cls: "jarvisctl-empty -compact" });
+			empty.createEl("h3", { text: "No runtime events yet" });
+			empty.createEl("p", {
+				text: "As Codex starts emitting thread, turn, command, and subagent activity, it will appear here.",
+			});
+			return;
+		}
+
+		const feed = body.createDiv({ cls: "jarvisctl-feed-list" });
+		for (const event of events) {
+			const card = feed.createDiv({
+				cls: `jarvisctl-feed-card is-${event.kind} ${event.status ? `has-${event.status}` : ""}`.trim(),
+			});
+			const cardHead = card.createDiv({ cls: "jarvisctl-feed-head" });
+			const chips = cardHead.createDiv({ cls: "jarvisctl-feed-chips" });
+			chips.createSpan({ cls: "jarvisctl-chip", text: event.kind });
+			if (event.status) {
+				chips.createSpan({
+					cls: feedStatusClass(event.status),
+					text: event.status,
+				});
+			}
+			if (event.actor) {
+				chips.createSpan({ cls: "jarvisctl-chip", text: event.actor });
+			}
+			cardHead.createDiv({
+				cls: "jarvisctl-feed-time",
+				text: new Date(event.timestamp_epoch_ms).toLocaleTimeString(),
+			});
+			card.createDiv({ cls: "jarvisctl-feed-title", text: event.title });
+			if (event.detail) {
+				card.createEl("p", { cls: "jarvisctl-feed-detail", text: event.detail });
+			}
+		}
+	}
+
+	private renderSubagentTree(parent: HTMLElement, session: JarvisSessionMetadata): void {
+		const context = this.getRuntimeContext(session);
+		const subagents = (context?.subagents ?? []).slice().sort((left, right) =>
+			left.updated_at_epoch_ms - right.updated_at_epoch_ms,
+		);
+		const section = parent.createDiv({ cls: "jarvisctl-runtime-section" });
+		const header = section.createDiv({ cls: "jarvisctl-section-header" });
+		header.createDiv({ cls: "jarvisctl-panel-title", text: "Subagent Branches" });
+		const meta = header.createDiv({ cls: "jarvisctl-panel-meta" });
+		meta.createSpan({ cls: "jarvisctl-chip", text: `${subagents.length} tracked` });
+
+		const body = section.createDiv({ cls: "jarvisctl-section-body" });
+		if (subagents.length === 0) {
+			const empty = body.createDiv({ cls: "jarvisctl-empty -compact" });
+			empty.createEl("h3", { text: "No subagents yet" });
+			empty.createEl("p", {
+				text: "Spawned Codex collaborators will appear here with their thread ids, status, and latest note.",
+			});
+			return;
+		}
+
+		const tree = body.createDiv({ cls: "jarvisctl-subagent-tree" });
+		const root = tree.createDiv({ cls: "jarvisctl-subagent-root" });
+		root.createDiv({ cls: "jarvisctl-card-title", text: "Main thread" });
+		const rootMeta = root.createDiv({ cls: "jarvisctl-agent-meta" });
+		rootMeta.createSpan({ text: shortThreadId(context?.thread_id ?? "main") });
+		if (context?.thread_status) {
+			rootMeta.createSpan({ text: context.thread_status });
+		}
+
+		const childMap = new Map<string, JarvisRuntimeSubagentMetadata[]>();
+		for (const subagent of subagents) {
+			const parentId = subagent.parent_thread_id ?? context?.thread_id ?? "__root__";
+			const bucket = childMap.get(parentId) ?? [];
+			bucket.push(subagent);
+			childMap.set(parentId, bucket);
+		}
+
+		const rootThreadId = context?.thread_id ?? "__root__";
+		const roots = childMap.get(rootThreadId) ?? childMap.get("__root__") ?? subagents;
+		const rendered = new Set<string>();
+		for (const subagent of roots) {
+			this.renderSubagentNode(tree, subagent, childMap, rendered, 0);
+		}
+		for (const subagent of subagents) {
+			if (!rendered.has(subagent.thread_id)) {
+				this.renderSubagentNode(tree, subagent, childMap, rendered, 0);
+			}
+		}
+	}
+
+	private renderSubagentNode(
+		parent: HTMLElement,
+		subagent: JarvisRuntimeSubagentMetadata,
+		childMap: Map<string, JarvisRuntimeSubagentMetadata[]>,
+		rendered: Set<string>,
+		depth: number,
+	): void {
+		if (rendered.has(subagent.thread_id)) {
+			return;
+		}
+		rendered.add(subagent.thread_id);
+
+		const node = parent.createDiv({ cls: "jarvisctl-subagent-node" });
+		node.style.setProperty("--jarvis-depth", `${depth}`);
+		const top = node.createDiv({ cls: "jarvisctl-subagent-top" });
+		const summary = top.createDiv({ cls: "jarvisctl-subagent-summary" });
+		summary.createDiv({
+			cls: "jarvisctl-card-title",
+			text: `agent ${shortThreadId(subagent.thread_id)}`,
+		});
+		const meta = summary.createDiv({ cls: "jarvisctl-agent-meta" });
+		meta.createSpan({ text: subagent.tool });
+		if (subagent.model) {
+			meta.createSpan({ text: subagent.model });
+		}
+		if (subagent.reasoning_effort) {
+			meta.createSpan({ text: subagent.reasoning_effort });
+		}
+
+		const status = top.createDiv({ cls: "jarvisctl-feed-chips" });
+		status.createSpan({
+			cls: feedStatusClass(subagent.status),
+			text: subagent.status,
+		});
+		status.createSpan({
+			cls: "jarvisctl-chip",
+			text: new Date(subagent.updated_at_epoch_ms).toLocaleTimeString(),
+		});
+
+		if (subagent.prompt_preview) {
+			node.createEl("p", {
+				cls: "jarvisctl-subagent-detail",
+				text: subagent.prompt_preview,
+			});
+		}
+		if (subagent.latest_message) {
+			node.createDiv({
+				cls: "jarvisctl-subagent-message",
+				text: subagent.latest_message,
+			});
+		}
+
+		const children = childMap.get(subagent.thread_id) ?? [];
+		for (const child of children) {
+			this.renderSubagentNode(parent, child, childMap, rendered, depth + 1);
+		}
+	}
+
+	private renderAgentSection(parent: HTMLElement, session: JarvisSessionMetadata): void {
+		const section = parent.createDiv({ cls: "jarvisctl-runtime-section" });
+		const header = section.createDiv({ cls: "jarvisctl-section-header" });
+		header.createDiv({ cls: "jarvisctl-panel-title", text: "Agents" });
+		const meta = header.createDiv({ cls: "jarvisctl-panel-meta" });
+		meta.createSpan({ cls: "jarvisctl-chip", text: `${session.agents.length} total` });
+
+		const agentList = section.createDiv({ cls: "jarvisctl-agent-list" });
 		for (const agent of session.agents) {
 			const row = agentList.createDiv({ cls: "jarvisctl-agent-row" });
 			const left = row.createDiv();
 			left.createDiv({ cls: "jarvisctl-card-title", text: agent.name });
-			const meta = left.createDiv({ cls: "jarvisctl-agent-meta" });
-			meta.createSpan({ text: `PID ${agent.pid}` });
-			meta.createSpan({ text: agent.running ? "running" : "idle" });
+			const metaRow = left.createDiv({ cls: "jarvisctl-agent-meta" });
+			metaRow.createSpan({ text: `PID ${agent.pid}` });
+			metaRow.createSpan({ text: agent.running ? "running" : "idle" });
 
 			const rowActions = row.createDiv({ cls: "jarvisctl-agent-actions" });
 			this.makeButton(rowActions, "Tell", async () => {
@@ -1059,6 +1261,10 @@ class JarvisCtlControlView extends ItemView {
 		return session.agents.filter((agent) => agent.running).length;
 	}
 
+	private countSubagents(session: JarvisSessionMetadata): number {
+		return this.getRuntimeContext(session)?.subagents?.length ?? 0;
+	}
+
 	private getRuntimeContext(session: JarvisSessionMetadata): JarvisRuntimeContext | null {
 		return session.context ?? null;
 	}
@@ -1068,7 +1274,10 @@ class JarvisCtlControlView extends ItemView {
 		if (context?.workload) {
 			const mode = context.launch_mode ? ` / ${context.launch_mode}` : "";
 			const thread = context.thread_status ? ` / ${context.thread_status}` : "";
-			return `${context.workload}${mode}${thread} / ${session.backend}`;
+			const subagents = this.countSubagents(session)
+				? ` / ${this.countSubagents(session)} subagents`
+				: "";
+			return `${context.workload}${mode}${thread}${subagents} / ${session.backend}`;
 		}
 		return this.looksLikeCodexSession(session)
 			? `codex / ${session.backend}`
@@ -1351,6 +1560,26 @@ function isMissingExecutable(error: unknown): boolean {
 	}
 	const errorWithCode = error as Error & { code?: string };
 	return errorWithCode.code === "ENOENT";
+}
+
+function feedStatusClass(status: string): string {
+	switch (status) {
+		case "inProgress":
+		case "completed":
+		case "running":
+			return "jarvisctl-chip is-live";
+		case "failed":
+		case "errored":
+		case "shutdown":
+			return "jarvisctl-chip is-error";
+		default:
+			return "jarvisctl-chip is-idle";
+	}
+}
+
+function shortThreadId(threadId: string): string {
+	const [head] = threadId.split("-");
+	return head || threadId;
 }
 
 function relativeAge(epochMs: number): string {
