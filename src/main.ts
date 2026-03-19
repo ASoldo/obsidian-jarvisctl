@@ -19,7 +19,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-observer";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control", "jarvisctl-control-live"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-19-control-plane-grid";
+const BUILD_STAMP = "2026-03-19-n8n-flow-rail";
 
 interface JarvisRuntimeFeedEntry {
 	id: string;
@@ -856,20 +856,20 @@ class JarvisCtlControlView extends ItemView {
 
 			const nameCell = card.createDiv({ cls: "jarvisctl-namespace-cell -name" });
 			nameCell.createDiv({ cls: "jarvisctl-namespace-name", text: session.namespace });
+			const flow = nameCell.createDiv({ cls: "jarvisctl-namespace-flow" });
 			if (context?.task_title) {
-				nameCell.createDiv({
-					cls: "jarvisctl-namespace-task",
+				flow.createDiv({
+					cls: "jarvisctl-namespace-flow-item is-task",
 					text: context.task_title,
 				});
 			}
-			const metaRow = nameCell.createDiv({ cls: "jarvisctl-namespace-meta" });
-			metaRow.createDiv({
-				cls: "jarvisctl-namespace-subtext",
+			flow.createDiv({
+				cls: "jarvisctl-namespace-flow-item is-runtime",
 				text: this.describeSession(session),
 			});
 			if (context?.task_note) {
-				metaRow.createDiv({
-					cls: "jarvisctl-namespace-note",
+				flow.createDiv({
+					cls: "jarvisctl-namespace-flow-item is-note",
 					text: basename(context.task_note),
 				});
 			}
