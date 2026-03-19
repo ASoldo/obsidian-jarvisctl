@@ -19,7 +19,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-observer";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control", "jarvisctl-control-live"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-19-namespace-workflow-stack";
+const BUILD_STAMP = "2026-03-19-snapshot-panels";
 
 interface JarvisRuntimeFeedEntry {
 	id: string;
@@ -1290,21 +1290,21 @@ class JarvisCtlControlView extends ItemView {
 			valueEl.setAttr("title", value);
 		};
 
-		addFact("Task", context?.task_title, "-wide");
+		addFact("Task", context?.task_title, "-hero");
 		addFact("Codex Session", context?.codex_session_id);
-		addFact("Thread", context?.thread_status);
-		addFact("Turn", context?.turn_status);
-		addFact("Launch Mode", context?.launch_mode);
-		addFact("Backend", session.backend);
-		addFact("Created", new Date(session.created_at_epoch_ms).toLocaleString());
-		addFact("Last Activity", context?.last_activity, "-wide");
-		addFact("Live Message", context?.live_message, "-wide");
-		addFact("Last Error", context?.last_error, "-wide is-error");
-		addFact("Ticket Note", context?.task_note, "-wide");
-		addFact("Transcript", context?.transcript_path, "-wide");
-		addFact("Event Log", context?.event_log_path, "-wide");
-		addFact("Working Dir", session.working_directory ?? "n/a", "-wide");
-		addFact("Command", session.shell_command, "-wide");
+		addFact("Thread", context?.thread_status, "-metric");
+		addFact("Turn", context?.turn_status, "-metric");
+		addFact("Launch Mode", context?.launch_mode, "-metric");
+		addFact("Backend", session.backend, "-metric");
+		addFact("Created", new Date(session.created_at_epoch_ms).toLocaleString(), "-metric");
+		addFact("Last Activity", context?.last_activity, "-story");
+		addFact("Live Message", context?.live_message, "-story");
+		addFact("Last Error", context?.last_error, "-story is-error");
+		addFact("Ticket Note", context?.task_note, "-path");
+		addFact("Transcript", context?.transcript_path, "-path");
+		addFact("Event Log", context?.event_log_path, "-path");
+		addFact("Working Dir", session.working_directory ?? "n/a", "-path");
+		addFact("Command", session.shell_command, "-path");
 	}
 
 	private renderStatusLine(parent: HTMLElement): void {
