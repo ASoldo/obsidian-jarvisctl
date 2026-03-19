@@ -19,7 +19,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-observer";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control", "jarvisctl-control-live"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-19-namespace-top-stats";
+const BUILD_STAMP = "2026-03-19-control-plane-polish";
 
 interface JarvisRuntimeFeedEntry {
 	id: string;
@@ -616,6 +616,7 @@ class JarvisCtlControlView extends ItemView {
 	private errorMessage: string | null = null;
 	private actionInFlight = false;
 	private scrollState: Record<string, number> = {};
+	private headerMetricsEl: HTMLElement | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: JarvisCtlControlPlugin) {
 		super(leaf);
@@ -664,6 +665,7 @@ class JarvisCtlControlView extends ItemView {
 	async onOpen(): Promise<void> {
 		this.contentEl.empty();
 		this.contentEl.addClass("jarvisctl-control-view");
+		this.mountHeaderMetrics();
 		this.statusMessage = "Opening runtime surface";
 		this.errorMessage = null;
 		this.safeRender("view-open");
@@ -673,6 +675,7 @@ class JarvisCtlControlView extends ItemView {
 
 	async onClose(): Promise<void> {
 		this.stopPolling();
+		this.unmountHeaderMetrics();
 		this.contentEl.empty();
 		this.contentEl.removeClass("jarvisctl-control-view");
 	}
@@ -738,9 +741,9 @@ class JarvisCtlControlView extends ItemView {
 			container.empty();
 			container.addClass("jarvisctl-control-view");
 			const shell = container.createDiv({ cls: "jarvisctl-shell" });
-			this.renderTopBar(shell);
 			this.renderErrorBanner(shell, `Render failed: ${this.errorMessage}`);
 			this.renderStatusLine(shell);
+			this.syncHeaderMetrics();
 			this.plugin.writeDebugSnapshot({
 				event,
 				render_status: "failed",
@@ -759,13 +762,67 @@ class JarvisCtlControlView extends ItemView {
 		container.addClass("jarvisctl-control-view");
 
 		const shell = container.createDiv({ cls: "jarvisctl-shell" });
-		this.renderTopBar(shell);
 		if (this.errorMessage) {
 			this.renderErrorBanner(shell, this.errorMessage);
 		}
 		this.renderBody(shell);
 		this.renderStatusLine(shell);
+		this.syncHeaderMetrics();
 		this.restoreScrollState();
+	}
+
+	private mountHeaderMetrics(): void {
+		this.syncHeaderMetrics();
+	}
+
+	private unmountHeaderMetrics(): void {
+		this.headerMetricsEl?.remove();
+		this.headerMetricsEl = null;
+	}
+
+	private syncHeaderMetrics(): void {
+		const header = this.findViewHeader();
+		if (!header) {
+			return;
+		}
+		const actions = header.querySelector(".view-actions");
+		if (!actions?.parentElement) {
+			return;
+		}
+		if (!this.headerMetricsEl || !this.headerMetricsEl.isConnected) {
+			this.headerMetricsEl = createDiv({ cls: "jarvisctl-header-metrics" });
+			actions.parentElement.insertBefore(this.headerMetricsEl, actions);
+		}
+		this.headerMetricsEl.empty();
+
+		const agentCount = this.sessions.reduce(
+			(total, session) => total + session.agents.length,
+			0,
+		);
+		const subagentCount = this.sessions.reduce(
+			(total, session) => total + this.countSubagents(session),
+			0,
+		);
+		const selectedSession = this.getSelectedSession();
+		for (const [label, value] of [
+			["Namespaces", `${this.sessions.length}`],
+			["Live Agents", `${agentCount}`],
+			["Subagents", `${subagentCount}`],
+			["Focus", selectedSession?.namespace ?? "none"],
+		] as const) {
+			const chip = this.headerMetricsEl.createDiv({ cls: "jarvisctl-header-metric" });
+			chip.createSpan({ cls: "jarvisctl-header-metric-label", text: label });
+			chip.createSpan({ cls: "jarvisctl-header-metric-value", text: value });
+		}
+		this.headerMetricsEl.setAttr("title", `Jarvis Control · build ${this.plugin.getBuildStamp()}`);
+	}
+
+	private findViewHeader(): HTMLElement | null {
+		const root = this.containerEl.closest(".workspace-leaf-content");
+		if (root) {
+			return root.querySelector(".view-header");
+		}
+		return this.containerEl.parentElement?.querySelector(".view-header") ?? null;
 	}
 
 	private captureScrollState(): Record<string, number> {
@@ -813,39 +870,6 @@ class JarvisCtlControlView extends ItemView {
 				}
 			}
 		});
-	}
-
-	private renderTopBar(parent: HTMLElement): void {
-		const topBar = parent.createDiv({ cls: "jarvisctl-topbar" });
-		const title = topBar.createDiv({ cls: "jarvisctl-title" });
-		title.createDiv({ cls: "jarvisctl-kicker", text: "Operator Surface" });
-		title.createEl("h2", { text: "Jarvis Control" });
-		title.createEl("p", {
-			cls: "jarvisctl-subtitle",
-			text: `Build ${this.plugin.getBuildStamp()} · Headless Codex runtime control inside Obsidian.`,
-		});
-
-		const metrics = topBar.createDiv({ cls: "jarvisctl-metrics" });
-		const agentCount = this.sessions.reduce(
-			(total, session) => total + session.agents.length,
-			0,
-		);
-		const subagentCount = this.sessions.reduce(
-			(total, session) => total + this.countSubagents(session),
-			0,
-		);
-		const selectedSession = this.getSelectedSession();
-
-		this.renderMetric(metrics, "Namespaces", `${this.sessions.length}`);
-		this.renderMetric(metrics, "Live Agents", `${agentCount}`);
-		this.renderMetric(metrics, "Subagents", `${subagentCount}`);
-		this.renderMetric(metrics, "Focus", selectedSession?.namespace ?? "none");
-	}
-
-	private renderMetric(parent: HTMLElement, label: string, value: string): void {
-		const metric = parent.createDiv({ cls: "jarvisctl-metric" });
-		metric.createSpan({ cls: "jarvisctl-metric-label", text: label });
-		metric.createDiv({ cls: "jarvisctl-metric-value", text: value });
 	}
 
 	private renderErrorBanner(parent: HTMLElement, message: string): void {
@@ -899,7 +923,8 @@ class JarvisCtlControlView extends ItemView {
 				this.render();
 			});
 
-			const heading = card.createDiv({ cls: "jarvisctl-namespace-heading" });
+			const summary = card.createDiv({ cls: "jarvisctl-namespace-summary" });
+			const heading = summary.createDiv({ cls: "jarvisctl-namespace-heading" });
 			heading.createDiv({ cls: "jarvisctl-namespace-name", text: session.namespace });
 			if (context?.task_title) {
 				heading.createDiv({
@@ -908,15 +933,15 @@ class JarvisCtlControlView extends ItemView {
 				});
 			}
 
-			const aside = card.createDiv({ cls: "jarvisctl-namespace-aside" });
-			this.renderNamespaceStat(aside, "Agents", `${session.agents.length}`);
-			const stateStat = aside.createDiv({ cls: "jarvisctl-namespace-stat is-state" });
-			stateStat.createDiv({ cls: "jarvisctl-namespace-stat-label", text: "State" });
-			stateStat.createSpan({
+			const kpis = summary.createDiv({ cls: "jarvisctl-namespace-kpis" });
+			this.renderNamespaceKpi(kpis, "Agents", `${session.agents.length}`);
+			const stateKpi = kpis.createDiv({ cls: "jarvisctl-namespace-kpi is-state" });
+			stateKpi.createDiv({ cls: "jarvisctl-namespace-kpi-label", text: "State" });
+			stateKpi.createSpan({
 				cls: this.namespaceStateClass(session),
 				text: this.namespaceStateLabel(session),
 			});
-			this.renderNamespaceStat(aside, "Age", relativeAge(session.created_at_epoch_ms));
+			this.renderNamespaceKpi(kpis, "Age", relativeAge(session.created_at_epoch_ms));
 
 			const flow = card.createDiv({ cls: "jarvisctl-namespace-flow" });
 			const contractStep = flow.createDiv({ cls: "jarvisctl-namespace-step is-contract" });
@@ -954,10 +979,10 @@ class JarvisCtlControlView extends ItemView {
 		}
 	}
 
-	private renderNamespaceStat(parent: HTMLElement, label: string, value: string): void {
-		const stat = parent.createDiv({ cls: "jarvisctl-namespace-stat" });
-		stat.createDiv({ cls: "jarvisctl-namespace-stat-label", text: label });
-		stat.createDiv({ cls: "jarvisctl-namespace-stat-value", text: value });
+	private renderNamespaceKpi(parent: HTMLElement, label: string, value: string): void {
+		const stat = parent.createDiv({ cls: "jarvisctl-namespace-kpi" });
+		stat.createDiv({ cls: "jarvisctl-namespace-kpi-label", text: label });
+		stat.createDiv({ cls: "jarvisctl-namespace-kpi-value", text: value });
 	}
 
 	private renderDetailsPanel(parent: HTMLElement): void {
