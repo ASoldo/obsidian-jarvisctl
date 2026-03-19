@@ -19,7 +19,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-observer";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control", "jarvisctl-control-live"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-19-n8n-control-plane";
+const BUILD_STAMP = "2026-03-19-namespace-workflow-stack";
 
 interface JarvisRuntimeFeedEntry {
 	id: string;
@@ -835,11 +835,6 @@ class JarvisCtlControlView extends ItemView {
 		}
 
 		const list = body.createDiv({ cls: "jarvisctl-namespace-table" });
-		const tableHead = list.createDiv({ cls: "jarvisctl-namespace-row is-head" });
-		tableHead.createDiv({ cls: "jarvisctl-namespace-cell -name", text: "Namespace" });
-		tableHead.createDiv({ cls: "jarvisctl-namespace-cell", text: "Agents" });
-		tableHead.createDiv({ cls: "jarvisctl-namespace-cell", text: "State" });
-		tableHead.createDiv({ cls: "jarvisctl-namespace-cell", text: "Age" });
 
 		for (const session of this.sessions) {
 			const isSelected = this.selectedNamespace === session.namespace;
@@ -854,53 +849,66 @@ class JarvisCtlControlView extends ItemView {
 				this.render();
 			});
 
-			const nameCell = card.createDiv({ cls: "jarvisctl-namespace-cell -name" });
-			nameCell.createDiv({ cls: "jarvisctl-namespace-name", text: session.namespace });
-			const flow = nameCell.createDiv({ cls: "jarvisctl-namespace-flow" });
+			const main = card.createDiv({ cls: "jarvisctl-namespace-main" });
+			const heading = main.createDiv({ cls: "jarvisctl-namespace-heading" });
+			heading.createDiv({ cls: "jarvisctl-namespace-name", text: session.namespace });
 			if (context?.task_title) {
-				flow.createDiv({
-					cls: "jarvisctl-namespace-flow-item is-task",
+				heading.createDiv({
+					cls: "jarvisctl-namespace-task",
 					text: context.task_title,
 				});
 			}
-			flow.createDiv({
-				cls: "jarvisctl-namespace-flow-item is-runtime",
-				text: this.describeSession(session),
+
+			const flow = main.createDiv({ cls: "jarvisctl-namespace-flow" });
+			const contractStep = flow.createDiv({ cls: "jarvisctl-namespace-step is-contract" });
+			contractStep.createDiv({ cls: "jarvisctl-namespace-step-rail" });
+			const contractCard = contractStep.createDiv({ cls: "jarvisctl-namespace-step-card" });
+			contractCard.createDiv({ cls: "jarvisctl-namespace-step-label", text: "Execution Contract" });
+			contractCard.createDiv({
+				cls: "jarvisctl-namespace-step-value",
+				text:
+					context?.task_title ??
+					context?.task_note?.split("/").pop() ??
+					"No linked ticket or task",
 			});
 			if (context?.task_note) {
-				flow.createDiv({
-					cls: "jarvisctl-namespace-flow-item is-note",
+				const contractMeta = contractCard.createDiv({ cls: "jarvisctl-namespace-step-meta" });
+				contractMeta.createSpan({
+					cls: "jarvisctl-namespace-token is-note",
 					text: basename(context.task_note),
 				});
 			}
 
-			card.createDiv({
-				cls: "jarvisctl-namespace-cell",
-				text: `${session.agents.length}`,
+			const runtimeStep = flow.createDiv({ cls: "jarvisctl-namespace-step is-runtime" });
+			runtimeStep.createDiv({ cls: "jarvisctl-namespace-step-rail" });
+			const runtimeCard = runtimeStep.createDiv({ cls: "jarvisctl-namespace-step-card" });
+			runtimeCard.createDiv({ cls: "jarvisctl-namespace-step-label", text: "Runtime" });
+			const runtimeTokens = runtimeCard.createDiv({ cls: "jarvisctl-namespace-step-meta" });
+			for (const token of this.describeSessionTokens(session)) {
+				runtimeTokens.createSpan({ cls: "jarvisctl-namespace-token", text: token });
+			}
+			const runtimeValue = context?.live_message ?? context?.last_activity ?? this.describeSession(session);
+			runtimeCard.createDiv({
+				cls: "jarvisctl-namespace-step-value is-secondary",
+				text: runtimeValue,
 			});
 
-			const running = this.countRunningAgents(session);
-			const stateCell = card.createDiv({ cls: "jarvisctl-namespace-cell -state" });
-			const stateText =
-				context?.thread_status === "running" && context?.turn_status
-					? `turn ${context.turn_status}`
-					: context?.thread_status
-						? context.thread_status
-						: context?.turn_status
-							? context.turn_status
-							: running > 0
-								? `${running}/${session.agents.length} live`
-								: "idle";
-			stateCell.createSpan({
-				cls: running > 0 ? "jarvisctl-chip is-live" : "jarvisctl-chip is-idle",
-				text: stateText,
+			const aside = card.createDiv({ cls: "jarvisctl-namespace-aside" });
+			this.renderNamespaceStat(aside, "Agents", `${session.agents.length}`);
+			const stateStat = aside.createDiv({ cls: "jarvisctl-namespace-stat is-state" });
+			stateStat.createDiv({ cls: "jarvisctl-namespace-stat-label", text: "State" });
+			stateStat.createSpan({
+				cls: this.namespaceStateClass(session),
+				text: this.namespaceStateLabel(session),
 			});
-
-			card.createDiv({
-				cls: "jarvisctl-namespace-cell",
-				text: relativeAge(session.created_at_epoch_ms),
-			});
+			this.renderNamespaceStat(aside, "Age", relativeAge(session.created_at_epoch_ms));
 		}
+	}
+
+	private renderNamespaceStat(parent: HTMLElement, label: string, value: string): void {
+		const stat = parent.createDiv({ cls: "jarvisctl-namespace-stat" });
+		stat.createDiv({ cls: "jarvisctl-namespace-stat-label", text: label });
+		stat.createDiv({ cls: "jarvisctl-namespace-stat-value", text: value });
 	}
 
 	private renderDetailsPanel(parent: HTMLElement): void {
@@ -1426,17 +1434,47 @@ class JarvisCtlControlView extends ItemView {
 	private describeSession(session: JarvisSessionMetadata): string {
 		const context = this.getRuntimeContext(session);
 		if (context?.workload) {
-			const parts = [
-				context.workload,
-				context.launch_mode,
-				context.thread_status,
-				this.countSubagents(session) ? `${this.countSubagents(session)} subagents` : null,
-			].filter((part): part is string => Boolean(part));
-			return parts.join(" · ");
+			return this.describeSessionTokens(session).join(" · ");
 		}
 		return this.looksLikeCodexSession(session)
 			? "codex"
 			: session.backend;
+	}
+
+	private describeSessionTokens(session: JarvisSessionMetadata): string[] {
+		const context = this.getRuntimeContext(session);
+		return [
+			context?.workload ?? null,
+			context?.launch_mode ?? null,
+			context?.thread_status ?? null,
+			this.countSubagents(session) ? `${this.countSubagents(session)} subagents` : null,
+			this.looksLikeCodexSession(session) && !context?.workload ? "codex" : null,
+			!context?.workload ? session.backend : null,
+		].filter((part): part is string => Boolean(part));
+	}
+
+	private namespaceStateLabel(session: JarvisSessionMetadata): string {
+		const context = this.getRuntimeContext(session);
+		const running = this.countRunningAgents(session);
+		return context?.thread_status === "running" && context?.turn_status
+			? `turn ${context.turn_status}`
+			: context?.thread_status
+				? context.thread_status
+				: context?.turn_status
+					? context.turn_status
+					: running > 0
+						? `${running}/${session.agents.length} live`
+						: "idle";
+	}
+
+	private namespaceStateClass(session: JarvisSessionMetadata): string {
+		const context = this.getRuntimeContext(session);
+		if (context?.last_error) {
+			return "jarvisctl-chip is-error";
+		}
+		return this.countRunningAgents(session) > 0
+			? "jarvisctl-chip is-live"
+			: "jarvisctl-chip is-idle";
 	}
 
 	private isCodexSession(session: JarvisSessionMetadata): boolean {
