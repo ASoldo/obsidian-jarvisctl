@@ -39,13 +39,14 @@
     background:
       linear-gradient(
         180deg,
-        color-mix(in srgb, var(--cp-panel) 94%, transparent),
-        color-mix(in srgb, var(--cp-panel-strong) 96%, transparent)
+        color-mix(in srgb, var(--cp-panel) 98%, #050b15 2%),
+        color-mix(in srgb, var(--cp-panel-strong) 99%, #020617 1%)
       );
     box-shadow:
       0 16px 36px color-mix(in srgb, #020617 20%, transparent),
       inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
-    @apply rounded-2xl;
+    isolation: isolate;
+    @apply relative overflow-hidden rounded-2xl;
   }
 
   .cp-topbar {
@@ -189,9 +190,14 @@
     grid-template-rows: auto minmax(0, 1fr);
   }
 
+  .cp-subpanel {
+    @apply grid min-h-0 min-w-0;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
   .cp-panel__header {
     border-bottom: 1px solid var(--cp-border);
-    background: color-mix(in srgb, var(--cp-panel-strong) 80%, transparent);
+    background: color-mix(in srgb, var(--cp-panel-strong) 96%, #050b15 4%);
     @apply flex items-center justify-between gap-3 px-4 py-3;
   }
 
@@ -208,12 +214,20 @@
   }
 
   .cp-panel__body {
-    @apply min-w-0 p-4;
+    @apply min-h-0 min-w-0 p-4;
   }
 
   .cp-panel__body--scroll,
   .cp-main-panel__body {
-    @apply min-h-0 overflow-auto;
+    @apply min-h-0 min-w-0;
+  }
+
+  .cp-panel__body--scroll {
+    @apply overflow-auto overscroll-contain;
+  }
+
+  .cp-main-panel__body {
+    @apply overflow-hidden;
   }
 
   .cp-tab-strip {
@@ -236,7 +250,7 @@
 
   .cp-chip {
     border: 1px solid var(--cp-border);
-    background: color-mix(in srgb, var(--cp-panel) 80%, transparent);
+    background: color-mix(in srgb, var(--cp-panel) 95%, #040914 5%);
     color: var(--cp-text-dim);
     @apply inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em];
   }
@@ -322,8 +336,8 @@
   .cp-runtime-item,
   .cp-resource-item {
     border: 1px solid var(--cp-border);
-    background: color-mix(in srgb, var(--cp-panel) 86%, transparent);
-    @apply grid gap-2 rounded-xl px-3 py-3 text-left transition;
+    background: color-mix(in srgb, var(--cp-panel) 97%, #040914 3%);
+    @apply grid min-w-0 gap-2 rounded-xl px-3 py-3 text-left transition;
   }
 
   .cp-repo-item:hover,
@@ -388,7 +402,7 @@
   .cp-empty-state {
     color: var(--cp-text-dim);
     border: 1px dashed color-mix(in srgb, var(--cp-border) 84%, transparent);
-    background: color-mix(in srgb, var(--cp-panel) 42%, transparent);
+    background: color-mix(in srgb, var(--cp-panel) 94%, #040914 6%);
     @apply rounded-xl px-3 py-4 text-sm leading-relaxed;
   }
 
@@ -399,11 +413,11 @@
   .cp-grid-surface {
     background:
       radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--cp-border) 18%, transparent) 1px, transparent 0) 0 0 / 18px 18px,
-      linear-gradient(180deg, color-mix(in srgb, var(--cp-panel) 80%, transparent), color-mix(in srgb, var(--cp-panel-strong) 88%, transparent));
+      linear-gradient(180deg, color-mix(in srgb, var(--cp-panel) 97%, #040914 3%), color-mix(in srgb, var(--cp-panel-strong) 98%, #020617 2%));
   }
 
   .cp-topology-tab {
-    @apply grid gap-4;
+    @apply grid min-h-0 min-w-0 content-start gap-4 overflow-auto pr-1;
   }
 
   .cp-topology-canvas {
@@ -476,7 +490,7 @@
   .cp-inspector__grid,
   .cp-snapshot-grid,
   .cp-metrics-grid {
-    @apply grid gap-3;
+    @apply grid min-w-0 gap-3;
   }
 
   .cp-inspector__grid {
@@ -485,8 +499,8 @@
 
   .cp-kv-card {
     border: 1px solid var(--cp-border);
-    background: color-mix(in srgb, var(--cp-panel) 88%, transparent);
-    @apply grid min-w-0 gap-2 rounded-2xl px-4 py-3;
+    background: color-mix(in srgb, var(--cp-panel) 98%, #050b15 2%);
+    @apply grid min-w-0 gap-2 rounded-2xl px-4 py-3 overflow-hidden;
   }
 
   .cp-kv-card--wide {
@@ -511,7 +525,7 @@
   }
 
   .cp-runtime-tab {
-    @apply grid min-h-0 gap-4;
+    @apply grid min-h-0 min-w-0 content-start gap-4 overflow-auto pr-1;
   }
 
   .cp-runtime-toolbar {
@@ -533,7 +547,7 @@
   .cp-snapshot-grid > .cp-kv-card { grid-column: span 3; }
 
   .cp-runtime-grid {
-    @apply grid min-h-0 gap-4;
+    @apply grid min-h-0 min-w-0 items-stretch gap-4;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
@@ -546,7 +560,7 @@
   .cp-branch-list,
   .cp-agent-list,
   .cp-bottom-list {
-    @apply grid gap-3;
+    @apply grid min-w-0 gap-3;
   }
 
   .cp-feed-card,
@@ -555,8 +569,8 @@
   .cp-reasoning-row,
   .cp-agent-card {
     border: 1px solid var(--cp-border);
-    background: color-mix(in srgb, var(--cp-panel) 86%, transparent);
-    @apply grid gap-2 rounded-xl px-3 py-3;
+    background: color-mix(in srgb, var(--cp-panel) 97%, #040914 3%);
+    @apply grid min-w-0 gap-2 rounded-xl px-3 py-3 overflow-hidden;
   }
 
   .cp-feed-card__top,
@@ -585,8 +599,8 @@
 
   .cp-console {
     border: 1px solid color-mix(in srgb, var(--cp-border) 86%, transparent);
-    background: color-mix(in srgb, #081120 64%, var(--cp-panel) 36%);
-    @apply grid gap-1 rounded-xl p-3;
+    background: color-mix(in srgb, #081120 84%, var(--cp-panel) 16%);
+    @apply grid min-w-0 gap-1 rounded-xl p-3 overflow-auto;
   }
 
   .cp-console--dense {
@@ -601,7 +615,7 @@
 
   .cp-branch-root {
     border: 1px dashed color-mix(in srgb, var(--cp-border) 80%, transparent);
-    background: color-mix(in srgb, var(--cp-panel) 72%, transparent);
+    background: color-mix(in srgb, var(--cp-panel) 95%, #040914 5%);
     @apply rounded-xl px-4 py-3;
   }
 
@@ -653,8 +667,8 @@
 
   .cp-branch-card__body {
     border: 1px solid var(--cp-border);
-    background: color-mix(in srgb, var(--cp-panel) 86%, transparent);
-    @apply grid gap-2 rounded-xl px-3 py-3;
+    background: color-mix(in srgb, var(--cp-panel) 97%, #040914 3%);
+    @apply grid min-w-0 gap-2 rounded-xl px-3 py-3 overflow-hidden;
   }
 
   .cp-branch-actions {
@@ -663,8 +677,8 @@
 
   .cp-branch-action {
     border: 1px solid color-mix(in srgb, var(--cp-border) 86%, transparent);
-    background: color-mix(in srgb, var(--cp-panel-strong) 58%, transparent);
-    @apply grid gap-2 rounded-xl px-3 py-2;
+    background: color-mix(in srgb, var(--cp-panel-strong) 96%, #020617 4%);
+    @apply grid min-w-0 gap-2 rounded-xl px-3 py-2 overflow-hidden;
   }
 
   .cp-branch-action__head {
@@ -679,7 +693,7 @@
   .cp-applications,
   .cp-table-shell,
   .cp-table-shell__body {
-    @apply grid gap-3;
+    @apply grid min-h-0 min-w-0 gap-3;
   }
 
   .cp-table-shell__head {
@@ -691,7 +705,7 @@
 
   .cp-table-row {
     border: 1px solid var(--cp-border);
-    background: color-mix(in srgb, var(--cp-panel) 84%, transparent);
+    background: color-mix(in srgb, var(--cp-panel) 96%, #040914 4%);
     @apply grid items-center gap-3 rounded-xl px-3 py-3;
     grid-template-columns: minmax(0, 1.3fr) 108px 108px 164px 220px;
   }
@@ -701,11 +715,12 @@
   }
 
   .cp-main-panel__body > * {
-    @apply min-h-0;
+    @apply min-h-0 min-w-0;
   }
 
   .cp-workflow-lane {
-    @apply relative grid gap-4 rounded-2xl border border-[var(--cp-border)] p-4;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--cp-panel) 97%, #040914 3%), color-mix(in srgb, var(--cp-panel-strong) 98%, #020617 2%));
+    @apply relative grid min-h-0 gap-4 overflow-auto rounded-2xl border border-[var(--cp-border)] p-4;
   }
 
   .cp-workflow-line {
@@ -725,8 +740,8 @@
 
   .cp-workflow-step__card {
     border: 1px solid var(--cp-border);
-    background: color-mix(in srgb, var(--cp-panel) 88%, transparent);
-    @apply grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-3 transition;
+    background: color-mix(in srgb, var(--cp-panel) 97%, #040914 3%);
+    @apply grid min-w-0 grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-3 transition;
   }
 
   .cp-workflow-step.is-active .cp-workflow-step__card {
@@ -762,7 +777,7 @@
   }
 
   .cp-bottom-console {
-    @apply h-full;
+    @apply h-full min-h-0;
   }
 
   .cp-metrics-grid {
@@ -771,8 +786,8 @@
 
   .cp-metric-card {
     border: 1px solid var(--cp-border);
-    background: color-mix(in srgb, var(--cp-panel) 86%, transparent);
-    @apply grid gap-2 rounded-xl px-4 py-4;
+    background: color-mix(in srgb, var(--cp-panel) 97%, #040914 3%);
+    @apply grid min-w-0 gap-2 rounded-xl px-4 py-4;
   }
 
   .cp-metric-card__value {

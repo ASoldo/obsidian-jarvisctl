@@ -44,7 +44,7 @@ const emit = defineEmits<{
 			</div>
 		</div>
 
-		<div class="cp-panel__body cp-panel__body--scroll cp-main-panel__body">
+		<div class="cp-panel__body cp-main-panel__body">
 			<TopologyTab v-if="mainTab === 'topology'" :session="session" />
 			<ApplicationsTab v-else-if="mainTab === 'applications'" :host="host" :sessions="sessions" />
 			<RuntimeTab v-else :host="host" :session="session" :activity-sections="activitySections" />
