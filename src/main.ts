@@ -11,7 +11,7 @@ import {
 } from "obsidian";
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { isAbsolute, join } from "node:path";
+import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -19,7 +19,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-live";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-19-codex-tools";
+const BUILD_STAMP = "2026-03-19-runtime-context";
 
 interface JarvisAgentMetadata {
 	name: string;
@@ -33,7 +33,20 @@ interface JarvisSessionMetadata {
 	created_at_epoch_ms: number;
 	working_directory?: string | null;
 	shell_command: string;
+	context?: JarvisRuntimeContext | null;
 	agents: JarvisAgentMetadata[];
+}
+
+interface JarvisRuntimeContext {
+	workload?: string | null;
+	task_id?: string | null;
+	task_title?: string | null;
+	task_note?: string | null;
+	launch_mode?: string | null;
+	codex_session_id?: string | null;
+	prompt_file?: string | null;
+	record_file?: string | null;
+	transcript_path?: string | null;
 }
 
 interface TerminalProfile {
@@ -241,7 +254,23 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			return;
 		}
 
-		const request = await promptForCodexLaunch(this.app, file.basename, fresh);
+		await this.launchCodexForNotePath(join(this.getVaultBasePath(), file.path), file.basename, fresh);
+	}
+
+	async launchCodexForTaskNote(taskNotePath: string, fresh: boolean): Promise<void> {
+		await this.launchCodexForNotePath(
+			taskNotePath,
+			basename(taskNotePath, ".md"),
+			fresh,
+		);
+	}
+
+	private async launchCodexForNotePath(
+		taskNotePath: string,
+		noteLabel: string,
+		fresh: boolean,
+	): Promise<void> {
+		const request = await promptForCodexLaunch(this.app, noteLabel, fresh);
 		if (!request) {
 			return;
 		}
@@ -249,7 +278,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		const args = [
 			"codex",
 			"--task-note",
-			join(this.getVaultBasePath(), file.path),
+			taskNotePath,
 		];
 		if (fresh) {
 			args.push("--fresh");
@@ -260,15 +289,40 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			args.push("--message", message);
 		}
 
-		for (const image of this.resolveImagePaths(file, request.imagePaths)) {
+		for (const image of this.resolveImagePaths(taskNotePath, request.imagePaths)) {
 			args.push("--image", image);
 		}
 
 		await this.openTerminalCommand(
 			[this.getTerminalJarvisCtlPath(), ...args],
-			`${fresh ? "Fresh" : "Continue"} Codex ${file.basename}`,
+			`${fresh ? "Fresh" : "Continue"} Codex ${noteLabel}`,
 			this.getVaultBasePath(),
 		);
+	}
+
+	async openTranscript(transcriptPath: string, namespace: string): Promise<void> {
+		await this.openTerminalCommand(
+			[
+				this.settings.shellExecutable.trim() || "/usr/bin/zsh",
+				"--login",
+				"-lc",
+				`if command -v less >/dev/null 2>&1; then less -R +G ${shellQuote(transcriptPath)}; else tail -n 200 ${shellQuote(transcriptPath)}; fi`,
+			],
+			`Transcript ${namespace}`,
+			dirname(transcriptPath),
+		);
+	}
+
+	async openTaskNote(taskNotePath: string): Promise<void> {
+		const file = this.resolveVaultFile(taskNotePath);
+		if (!file) {
+			new Notice(`Task note is outside the current vault: ${taskNotePath}`);
+			return;
+		}
+
+		const leaf = this.app.workspace.getLeaf("tab");
+		await leaf.openFile(file, { active: true });
+		this.app.workspace.revealLeaf(leaf);
 	}
 
 	async openNamespaceAttach(session: JarvisSessionMetadata): Promise<void> {
@@ -478,9 +532,9 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		throw new Error("Vault base path is unavailable on this adapter");
 	}
 
-	private resolveImagePaths(file: TFile, rawPaths: string[]): string[] {
+	private resolveImagePaths(taskNotePath: string, rawPaths: string[]): string[] {
 		const basePath = this.getVaultBasePath();
-		const noteDir = file.parent?.path ? join(basePath, file.parent.path) : basePath;
+		const noteDir = dirname(taskNotePath);
 
 		return rawPaths.map((rawPath) => {
 			const trimmed = rawPath.trim();
@@ -499,6 +553,17 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			}
 			return resolved;
 		});
+	}
+
+	private resolveVaultFile(absolutePath: string): TFile | null {
+		const basePath = this.getVaultBasePath();
+		const relativePath = relative(basePath, absolutePath);
+		if (relativePath.startsWith("..")) {
+			return null;
+		}
+		const normalized = relativePath.replaceAll("\\", "/");
+		const file = this.app.vault.getAbstractFileByPath(normalized);
+		return file instanceof TFile ? file : null;
 	}
 }
 
@@ -716,6 +781,7 @@ class JarvisCtlControlView extends ItemView {
 
 		for (const session of this.sessions) {
 			const isSelected = this.selectedNamespace === session.namespace;
+			const context = this.getRuntimeContext(session);
 			const card = list.createDiv({
 				cls: isSelected
 					? "jarvisctl-namespace-row is-selected"
@@ -728,12 +794,22 @@ class JarvisCtlControlView extends ItemView {
 
 			const nameCell = card.createDiv({ cls: "jarvisctl-namespace-cell -name" });
 			nameCell.createDiv({ cls: "jarvisctl-namespace-name", text: session.namespace });
+			if (context?.task_title) {
+				nameCell.createDiv({
+					cls: "jarvisctl-namespace-task",
+					text: context.task_title,
+				});
+			}
 			nameCell.createDiv({
 				cls: "jarvisctl-namespace-subtext",
-				text: this.looksLikeCodexSession(session)
-					? `codex / ${session.backend}`
-					: session.backend,
+				text: this.describeSession(session),
 			});
+			if (context?.task_note) {
+				nameCell.createDiv({
+					cls: "jarvisctl-namespace-note",
+					text: basename(context.task_note),
+				});
+			}
 
 			card.createDiv({
 				cls: "jarvisctl-namespace-cell",
@@ -794,6 +870,29 @@ class JarvisCtlControlView extends ItemView {
 				await this.plugin.openNamespaceAttach(session);
 			});
 		}, "-primary");
+		const context = this.getRuntimeContext(session);
+		if (context?.task_note && this.isCodexSession(session)) {
+			this.makeButton(actions, "Continue", async () => {
+				await this.withAction(`Continuing ${session.namespace}`, async () => {
+					await this.plugin.launchCodexForTaskNote(context.task_note ?? "", false);
+				});
+			});
+			this.makeButton(actions, "Fresh", async () => {
+				await this.withAction(`Starting fresh ${session.namespace}`, async () => {
+					await this.plugin.launchCodexForTaskNote(context.task_note ?? "", true);
+				});
+			});
+			this.makeButton(actions, "Open ticket", async () => {
+				await this.plugin.openTaskNote(context.task_note ?? "");
+			});
+		}
+		if (context?.transcript_path) {
+			this.makeButton(actions, "Transcript", async () => {
+				await this.withAction(`Opening transcript for ${session.namespace}`, async () => {
+					await this.plugin.openTranscript(context.transcript_path ?? "", session.namespace);
+				});
+			});
+		}
 		this.makeButton(actions, "Tell agent0", async () => {
 			await this.plugin.promptAndTell(session.namespace, "agent0");
 		});
@@ -811,6 +910,21 @@ class JarvisCtlControlView extends ItemView {
 		}, "-danger");
 
 		const detailGrid = body.createDiv({ cls: "jarvisctl-detail-grid" });
+		if (context?.task_title) {
+			this.renderDetailBox(detailGrid, "Task", context.task_title, "-wide");
+		}
+		if (context?.task_note) {
+			this.renderDetailBox(detailGrid, "Ticket Note", context.task_note, "-wide");
+		}
+		if (context?.codex_session_id) {
+			this.renderDetailBox(detailGrid, "Codex Session", context.codex_session_id);
+		}
+		if (context?.transcript_path) {
+			this.renderDetailBox(detailGrid, "Transcript", context.transcript_path, "-wide");
+		}
+		if (context?.launch_mode) {
+			this.renderDetailBox(detailGrid, "Launch Mode", context.launch_mode);
+		}
 		this.renderDetailBox(detailGrid, "Working Dir", session.working_directory ?? "n/a", "-wide");
 		this.renderDetailBox(detailGrid, "Command", session.shell_command, "-wide");
 		this.renderDetailBox(detailGrid, "Backend", session.backend);
@@ -917,6 +1031,25 @@ class JarvisCtlControlView extends ItemView {
 
 	private countRunningAgents(session: JarvisSessionMetadata): number {
 		return session.agents.filter((agent) => agent.running).length;
+	}
+
+	private getRuntimeContext(session: JarvisSessionMetadata): JarvisRuntimeContext | null {
+		return session.context ?? null;
+	}
+
+	private describeSession(session: JarvisSessionMetadata): string {
+		const context = this.getRuntimeContext(session);
+		if (context?.workload) {
+			const mode = context.launch_mode ? ` / ${context.launch_mode}` : "";
+			return `${context.workload}${mode} / ${session.backend}`;
+		}
+		return this.looksLikeCodexSession(session)
+			? `codex / ${session.backend}`
+			: session.backend;
+	}
+
+	private isCodexSession(session: JarvisSessionMetadata): boolean {
+		return this.getRuntimeContext(session)?.workload === "codex" || this.looksLikeCodexSession(session);
 	}
 
 	private looksLikeCodexSession(session: JarvisSessionMetadata): boolean {
