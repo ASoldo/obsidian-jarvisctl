@@ -19,7 +19,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-observer";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control", "jarvisctl-control-live"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-19-snapshot-panels";
+const BUILD_STAMP = "2026-03-19-scroll-stable-panels";
 
 interface JarvisRuntimeFeedEntry {
 	id: string;
@@ -615,6 +615,7 @@ class JarvisCtlControlView extends ItemView {
 	private statusMessage = "Idle";
 	private errorMessage: string | null = null;
 	private actionInFlight = false;
+	private scrollState: Record<string, number> = {};
 
 	constructor(leaf: WorkspaceLeaf, plugin: JarvisCtlControlPlugin) {
 		super(leaf);
@@ -753,6 +754,7 @@ class JarvisCtlControlView extends ItemView {
 
 	private render(): void {
 		const container = this.contentEl;
+		this.scrollState = this.captureScrollState();
 		container.empty();
 		container.addClass("jarvisctl-control-view");
 
@@ -763,6 +765,54 @@ class JarvisCtlControlView extends ItemView {
 		}
 		this.renderBody(shell);
 		this.renderStatusLine(shell);
+		this.restoreScrollState();
+	}
+
+	private captureScrollState(): Record<string, number> {
+		const selectors: Record<string, string | null> = {
+			root: null,
+			rail: ".jarvisctl-namespace-table",
+			detail: ".jarvisctl-panel-body-detail",
+			feed: ".jarvisctl-feed-list",
+			activity: ".jarvisctl-activity-list",
+		};
+		const state: Record<string, number> = {};
+		for (const [key, selector] of Object.entries(selectors)) {
+			const element =
+				selector === null
+					? this.contentEl
+					: (this.contentEl.querySelector(selector) as HTMLElement | null);
+			if (element) {
+				state[key] = element.scrollTop;
+			}
+		}
+		return state;
+	}
+
+	private restoreScrollState(): void {
+		const state = { ...this.scrollState };
+		window.requestAnimationFrame(() => {
+			const selectors: Record<string, string | null> = {
+				root: null,
+				rail: ".jarvisctl-namespace-table",
+				detail: ".jarvisctl-panel-body-detail",
+				feed: ".jarvisctl-feed-list",
+				activity: ".jarvisctl-activity-list",
+			};
+			for (const [key, selector] of Object.entries(selectors)) {
+				const top = state[key];
+				if (typeof top !== "number") {
+					continue;
+				}
+				const element =
+					selector === null
+						? this.contentEl
+						: (this.contentEl.querySelector(selector) as HTMLElement | null);
+				if (element) {
+					element.scrollTop = top;
+				}
+			}
+		});
 	}
 
 	private renderTopBar(parent: HTMLElement): void {
