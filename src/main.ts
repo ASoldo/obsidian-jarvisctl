@@ -13,80 +13,23 @@ import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { promisify } from "node:util";
+import { createApp, reactive, type App as VueApplication } from "vue";
+
+import ControlPlaneApp from "./ui/App.vue";
+import type { JarvisDashboardHost } from "./ui/bridge";
+import type {
+	JarvisActivitySection,
+	JarvisAgentMetadata,
+	JarvisDashboardViewState,
+	JarvisSessionMetadata,
+} from "./types/domain";
 
 const execFileAsync = promisify(execFile);
 
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-observer";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control", "jarvisctl-control-live"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-19-control-plane-polish";
-
-interface JarvisRuntimeFeedEntry {
-	id: string;
-	kind: string;
-	title: string;
-	timestamp_epoch_ms: number;
-	actor?: string | null;
-	detail?: string | null;
-	status?: string | null;
-}
-
-interface JarvisRuntimeSubagentMetadata {
-	thread_id: string;
-	tool: string;
-	status: string;
-	updated_at_epoch_ms: number;
-	parent_thread_id?: string | null;
-	model?: string | null;
-	reasoning_effort?: string | null;
-	prompt_preview?: string | null;
-	latest_message?: string | null;
-}
-
-interface JarvisActivitySection {
-	kind: string;
-	label: string;
-	summary: string | null;
-	lines: string[];
-}
-
-interface JarvisAgentMetadata {
-	name: string;
-	pid: number;
-	running: boolean;
-}
-
-interface JarvisSessionMetadata {
-	namespace: string;
-	backend: string;
-	created_at_epoch_ms: number;
-	working_directory?: string | null;
-	shell_command: string;
-	context?: JarvisRuntimeContext | null;
-	agents: JarvisAgentMetadata[];
-}
-
-interface JarvisRuntimeContext {
-	workload?: string | null;
-	task_id?: string | null;
-	task_title?: string | null;
-	task_note?: string | null;
-	launch_mode?: string | null;
-	codex_session_id?: string | null;
-	prompt_file?: string | null;
-	record_file?: string | null;
-	transcript_path?: string | null;
-	event_log_path?: string | null;
-	thread_id?: string | null;
-	thread_status?: string | null;
-	turn_id?: string | null;
-	turn_status?: string | null;
-	live_message?: string | null;
-	last_activity?: string | null;
-	last_error?: string | null;
-	recent_events?: JarvisRuntimeFeedEntry[] | null;
-	subagents?: JarvisRuntimeSubagentMetadata[] | null;
-}
+const BUILD_STAMP = "2026-03-19-vue-control-plane";
 
 interface TerminalProfile {
 	args?: string[];
@@ -226,21 +169,11 @@ export default class JarvisCtlControlPlugin extends Plugin {
 	async activateView(): Promise<void> {
 		await this.detachStaleLeaves();
 		const leaf = this.app.workspace.getLeaf("tab");
-
 		await leaf.setViewState({
 			type: VIEW_TYPE_JARVISCTL_CONTROL,
 			active: true,
 		});
 		this.app.workspace.revealLeaf(leaf);
-	}
-
-	private isSideLeaf(leaf: WorkspaceLeaf): boolean {
-		const workspace = this.app.workspace as unknown as {
-			leftSplit?: unknown;
-			rightSplit?: unknown;
-		};
-		const root = "getRoot" in leaf && typeof leaf.getRoot === "function" ? leaf.getRoot() : null;
-		return root === workspace.leftSplit || root === workspace.rightSplit;
 	}
 
 	private async detachStaleLeaves(): Promise<void> {
@@ -297,11 +230,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 	}
 
 	async launchCodexForTaskNote(taskNotePath: string, fresh: boolean): Promise<void> {
-		await this.launchCodexForNotePath(
-			taskNotePath,
-			basename(taskNotePath, ".md"),
-			fresh,
-		);
+		await this.launchCodexForNotePath(taskNotePath, basename(taskNotePath, ".md"), fresh);
 	}
 
 	private async launchCodexForNotePath(
@@ -314,11 +243,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			return;
 		}
 
-		const args = [
-			"codex",
-			"--task-note",
-			taskNotePath,
-		];
+		const args = ["codex", "--task-note", taskNotePath];
 		if (fresh) {
 			args.push("--fresh");
 		}
@@ -365,19 +290,17 @@ export default class JarvisCtlControlPlugin extends Plugin {
 	}
 
 	async openNamespaceAttach(session: JarvisSessionMetadata): Promise<void> {
-		const jarvisctlPath = this.getTerminalJarvisCtlPath();
 		await this.openTerminalCommand(
-			[jarvisctlPath, "attach", "--namespace", session.namespace],
+			[this.getTerminalJarvisCtlPath(), "attach", "--namespace", session.namespace],
 			`Attach ${session.namespace}`,
 			session.working_directory ?? this.getVaultBasePath(),
 		);
 	}
 
 	async openAgentExec(session: JarvisSessionMetadata, agent: JarvisAgentMetadata): Promise<void> {
-		const jarvisctlPath = this.getTerminalJarvisCtlPath();
 		await this.openTerminalCommand(
 			[
-				jarvisctlPath,
+				this.getTerminalJarvisCtlPath(),
 				"exec",
 				"--namespace",
 				session.namespace,
@@ -389,11 +312,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		);
 	}
 
-	async openTerminalCommand(
-		commandParts: string[],
-		title: string,
-		cwd: string,
-	): Promise<void> {
+	async openTerminalCommand(commandParts: string[], title: string, cwd: string): Promise<void> {
 		if (!(this.app as unknown as { plugins?: { plugins?: Record<string, unknown> } }).plugins?.plugins?.terminal) {
 			new Notice("Obsidian Terminal plugin is not enabled.");
 			return;
@@ -469,10 +388,6 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		return BUILD_STAMP;
 	}
 
-	getLastExecPath(): string | null {
-		return this.lastExecPath;
-	}
-
 	writeDebugSnapshot(snapshot: Record<string, unknown>): void {
 		try {
 			const pluginDir = join(
@@ -520,9 +435,8 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		};
 
 		try {
-			const basePath = this.getVaultBasePath();
 			const raw = readFileSync(
-				join(basePath, this.app.vault.configDir, "plugins", "terminal", "data.json"),
+				join(this.getVaultBasePath(), this.app.vault.configDir, "plugins", "terminal", "data.json"),
 				"utf8",
 			);
 			const parsed = JSON.parse(raw) as TerminalPluginData;
@@ -544,11 +458,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		return fallback;
 	}
 
-	buildCommandProfile(
-		shellExecutable: string,
-		wrappedCommand: string,
-		title: string,
-	): TerminalProfile {
+	buildCommandProfile(shellExecutable: string, wrappedCommand: string, title: string): TerminalProfile {
 		const base = this.getBaseIntegratedTerminalProfile();
 		return {
 			...base,
@@ -562,9 +472,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 	}
 
 	getVaultBasePath(): string {
-		const adapter = this.app.vault.adapter as unknown as {
-			getBasePath?: () => string;
-		};
+		const adapter = this.app.vault.adapter as unknown as { getBasePath?: () => string };
 		if (typeof adapter.getBasePath === "function") {
 			return adapter.getBasePath();
 		}
@@ -608,20 +516,26 @@ export default class JarvisCtlControlPlugin extends Plugin {
 
 class JarvisCtlControlView extends ItemView {
 	private readonly plugin: JarvisCtlControlPlugin;
-	private sessions: JarvisSessionMetadata[] = [];
-	private selectedNamespace: string | null = null;
 	private refreshHandle: number | null = null;
-	private lastRefreshLabel = "never";
-	private statusMessage = "Idle";
-	private errorMessage: string | null = null;
 	private actionInFlight = false;
-	private scrollState: Record<string, number> = {};
-	private headerMetricsEl: HTMLElement | null = null;
+	private vueApp: VueApplication<Element> | null = null;
+	private mountEl: HTMLElement | null = null;
+	private readonly state = reactive<JarvisDashboardViewState>({
+		sessions: [],
+		selectedNamespace: null,
+		statusMessage: "Idle",
+		lastRefreshLabel: "never",
+		errorMessage: null,
+		buildStamp: BUILD_STAMP,
+	});
+	private readonly host: JarvisDashboardHost;
 
 	constructor(leaf: WorkspaceLeaf, plugin: JarvisCtlControlPlugin) {
 		super(leaf);
 		this.plugin = plugin;
 		this.navigation = true;
+		this.host = this.createHost();
+
 		this.addAction("refresh-cw", "Refresh namespaces", () => {
 			void this.refreshSessions();
 		});
@@ -665,17 +579,20 @@ class JarvisCtlControlView extends ItemView {
 	async onOpen(): Promise<void> {
 		this.contentEl.empty();
 		this.contentEl.addClass("jarvisctl-control-view");
-		this.mountHeaderMetrics();
-		this.statusMessage = "Opening runtime surface";
-		this.errorMessage = null;
-		this.safeRender("view-open");
+		this.mountEl = this.contentEl.createDiv({ cls: "jarvisctl-vue-root" });
+		this.vueApp = createApp(ControlPlaneApp, { host: this.host });
+		this.vueApp.mount(this.mountEl);
+		this.state.statusMessage = "Opening runtime surface";
+		this.plugin.writeDebugSnapshot({ event: "view-open" });
 		void this.refreshSessions();
 		this.startPolling();
 	}
 
 	async onClose(): Promise<void> {
 		this.stopPolling();
-		this.unmountHeaderMetrics();
+		this.vueApp?.unmount();
+		this.vueApp = null;
+		this.mountEl = null;
 		this.contentEl.empty();
 		this.contentEl.removeClass("jarvisctl-control-view");
 	}
@@ -684,6 +601,112 @@ class JarvisCtlControlView extends ItemView {
 		this.stopPolling();
 		this.startPolling();
 		await this.refreshSessions();
+	}
+
+	private createHost(): JarvisDashboardHost {
+		return {
+			state: this.state,
+			selectNamespace: (namespace: string) => {
+				this.state.selectedNamespace = namespace;
+			},
+			refresh: async () => {
+				await this.refreshSessions();
+			},
+			openDashboard: async () => {
+				await this.plugin.openTerminalCommand(
+					[this.plugin.getTerminalJarvisCtlPath()],
+					"JarvisCtl Dashboard",
+					this.plugin.getVaultBasePath(),
+				);
+			},
+			attach: async (session) => {
+				await this.runAction(`Opening attach for ${session.namespace}`, async () => {
+					await this.plugin.openNamespaceAttach(session);
+				});
+			},
+			continueTicket: async (session) => {
+				if (!session.context?.task_note) {
+					new Notice("This namespace does not expose a ticket note.");
+					return;
+				}
+				await this.runAction(`Continuing ${session.namespace}`, async () => {
+					await this.plugin.launchCodexForTaskNote(session.context?.task_note ?? "", false);
+				});
+			},
+			freshTicket: async (session) => {
+				if (!session.context?.task_note) {
+					new Notice("This namespace does not expose a ticket note.");
+					return;
+				}
+				await this.runAction(`Starting fresh ${session.namespace}`, async () => {
+					await this.plugin.launchCodexForTaskNote(session.context?.task_note ?? "", true);
+				});
+			},
+			openTicket: async (session) => {
+				if (!session.context?.task_note) {
+					new Notice("This namespace does not expose a ticket note.");
+					return;
+				}
+				await this.plugin.openTaskNote(session.context.task_note);
+			},
+			openTranscript: async (session) => {
+				if (!session.context?.transcript_path) {
+					new Notice("This namespace does not expose a transcript.");
+					return;
+				}
+				await this.runAction(`Opening transcript for ${session.namespace}`, async () => {
+					await this.plugin.openTranscript(session.context?.transcript_path ?? "", session.namespace);
+				});
+			},
+			tellAgent: async (session, agentName) => {
+				await this.plugin.promptAndTell(session.namespace, agentName ?? session.agents[0]?.name ?? "agent0");
+				await this.refreshSessions(false);
+			},
+			copyAttach: async (session) => {
+				await navigator.clipboard.writeText(
+					`${this.plugin.getTerminalJarvisCtlPath()} attach --namespace ${session.namespace}`,
+				);
+				new Notice(`Copied attach command for ${session.namespace}`);
+			},
+			closeNamespace: async (session) => {
+				await this.runAction(`Closing ${session.namespace}`, async () => {
+					await this.plugin.runJarvisCtl(["delete", "--namespace", session.namespace]);
+				}, true);
+			},
+			execAgent: async (session, agentName) => {
+				const agent = session.agents.find((entry) => entry.name === agentName);
+				if (!agent) {
+					new Notice(`Agent ${agentName} is not present in ${session.namespace}.`);
+					return;
+				}
+				await this.runAction(`Opening ${session.namespace}:${agent.name}`, async () => {
+					await this.plugin.openAgentExec(session, agent);
+				});
+			},
+			interruptAgent: async (session, agentName) => {
+				await this.runAction(`Interrupting ${session.namespace}:${agentName}`, async () => {
+					await this.plugin.runJarvisCtl([
+						"interrupt",
+						"--namespace",
+						session.namespace,
+						"--agent",
+						agentName,
+					]);
+				}, true);
+			},
+			copyExec: async (session, agentName) => {
+				await navigator.clipboard.writeText(
+					`${this.plugin.getTerminalJarvisCtlPath()} exec --namespace ${session.namespace} --agent ${agentName}`,
+				);
+				new Notice(`Copied exec command for ${agentName}`);
+			},
+			readActivitySections: (session, limit = 10) => {
+				if (!session.context?.event_log_path) {
+					return [];
+				}
+				return this.readActivitySectionsFromPath(session.context.event_log_path, limit);
+			},
+		};
 	}
 
 	private startPolling(): void {
@@ -701,734 +724,64 @@ class JarvisCtlControlView extends ItemView {
 
 	private async refreshSessions(noticeOnError = true): Promise<void> {
 		try {
-			this.sessions = await this.plugin.fetchSessions();
+			const sessions = await this.plugin.fetchSessions();
+			this.state.sessions = sessions;
 			if (
-				this.selectedNamespace === null ||
-				!this.sessions.some((session) => session.namespace === this.selectedNamespace)
+				!this.state.selectedNamespace ||
+				!sessions.some((session) => session.namespace === this.state.selectedNamespace)
 			) {
-				this.selectedNamespace = this.sessions[0]?.namespace ?? null;
+				this.state.selectedNamespace = sessions[0]?.namespace ?? null;
 			}
-			this.lastRefreshLabel = new Date().toLocaleTimeString();
-			this.statusMessage = "Live data";
-			this.errorMessage = null;
-			this.safeRender("refresh-success");
+			this.state.lastRefreshLabel = new Date().toLocaleTimeString();
+			this.state.statusMessage = "Live data";
+			this.state.errorMessage = null;
+			this.plugin.writeDebugSnapshot({
+				event: "refresh-success",
+				sessions_count: sessions.length,
+				session_names: sessions.map((session) => session.namespace),
+				selected_namespace: this.state.selectedNamespace,
+			});
 		} catch (error) {
 			console.error(error);
-			this.errorMessage = formatError(error);
-			this.statusMessage = "Refresh failed";
-			this.safeRender("refresh-error");
+			this.state.errorMessage = formatError(error);
+			this.state.statusMessage = "Refresh failed";
+			this.plugin.writeDebugSnapshot({
+				event: "refresh-error",
+				sessions_count: this.state.sessions.length,
+				session_names: this.state.sessions.map((session) => session.namespace),
+				selected_namespace: this.state.selectedNamespace,
+				error_message: this.state.errorMessage,
+			});
 			if (noticeOnError) {
 				new Notice(`JarvisCtl Control refresh failed: ${formatError(error)}`);
 			}
 		}
 	}
 
-	private safeRender(event: string): void {
-		try {
-			this.render();
-			this.plugin.writeDebugSnapshot({
-				event,
-				render_status: "ok",
-				sessions_count: this.sessions.length,
-				session_names: this.sessions.map((session) => session.namespace),
-				selected_namespace: this.selectedNamespace,
-				error_message: this.errorMessage,
-			});
-		} catch (error) {
-			console.error(error);
-			this.errorMessage = formatError(error);
-			const container = this.contentEl;
-			container.empty();
-			container.addClass("jarvisctl-control-view");
-			const shell = container.createDiv({ cls: "jarvisctl-shell" });
-			this.renderErrorBanner(shell, `Render failed: ${this.errorMessage}`);
-			this.renderStatusLine(shell);
-			this.syncHeaderMetrics();
-			this.plugin.writeDebugSnapshot({
-				event,
-				render_status: "failed",
-				sessions_count: this.sessions.length,
-				session_names: this.sessions.map((session) => session.namespace),
-				selected_namespace: this.selectedNamespace,
-				error_message: this.errorMessage,
-			});
-		}
-	}
-
-	private render(): void {
-		const container = this.contentEl;
-		this.scrollState = this.captureScrollState();
-		container.empty();
-		container.addClass("jarvisctl-control-view");
-
-		const shell = container.createDiv({ cls: "jarvisctl-shell" });
-		if (this.errorMessage) {
-			this.renderErrorBanner(shell, this.errorMessage);
-		}
-		this.renderBody(shell);
-		this.renderStatusLine(shell);
-		this.syncHeaderMetrics();
-		this.restoreScrollState();
-	}
-
-	private mountHeaderMetrics(): void {
-		this.syncHeaderMetrics();
-	}
-
-	private unmountHeaderMetrics(): void {
-		this.headerMetricsEl?.remove();
-		this.headerMetricsEl = null;
-	}
-
-	private syncHeaderMetrics(): void {
-		const header = this.findViewHeader();
-		if (!header) {
-			return;
-		}
-		const actions = header.querySelector(".view-actions");
-		if (!actions?.parentElement) {
-			return;
-		}
-		if (!this.headerMetricsEl || !this.headerMetricsEl.isConnected) {
-			this.headerMetricsEl = createDiv({ cls: "jarvisctl-header-metrics" });
-			actions.parentElement.insertBefore(this.headerMetricsEl, actions);
-		}
-		this.headerMetricsEl.empty();
-
-		const agentCount = this.sessions.reduce(
-			(total, session) => total + session.agents.length,
-			0,
-		);
-		const subagentCount = this.sessions.reduce(
-			(total, session) => total + this.countSubagents(session),
-			0,
-		);
-		const selectedSession = this.getSelectedSession();
-		for (const [label, value] of [
-			["Namespaces", `${this.sessions.length}`],
-			["Live Agents", `${agentCount}`],
-			["Subagents", `${subagentCount}`],
-			["Focus", selectedSession?.namespace ?? "none"],
-		] as const) {
-			const chip = this.headerMetricsEl.createDiv({ cls: "jarvisctl-header-metric" });
-			chip.createSpan({ cls: "jarvisctl-header-metric-label", text: label });
-			chip.createSpan({ cls: "jarvisctl-header-metric-value", text: value });
-		}
-		this.headerMetricsEl.setAttr("title", `Jarvis Control · build ${this.plugin.getBuildStamp()}`);
-	}
-
-	private findViewHeader(): HTMLElement | null {
-		const root = this.containerEl.closest(".workspace-leaf-content");
-		if (root) {
-			return root.querySelector(".view-header");
-		}
-		return this.containerEl.parentElement?.querySelector(".view-header") ?? null;
-	}
-
-	private captureScrollState(): Record<string, number> {
-		const selectors: Record<string, string | null> = {
-			root: null,
-			rail: ".jarvisctl-namespace-table",
-			detail: ".jarvisctl-panel-body-detail",
-			feed: ".jarvisctl-feed-list",
-			activity: ".jarvisctl-activity-list",
-		};
-		const state: Record<string, number> = {};
-		for (const [key, selector] of Object.entries(selectors)) {
-			const element =
-				selector === null
-					? this.contentEl
-					: (this.contentEl.querySelector(selector) as HTMLElement | null);
-			if (element) {
-				state[key] = element.scrollTop;
-			}
-		}
-		return state;
-	}
-
-	private restoreScrollState(): void {
-		const state = { ...this.scrollState };
-		window.requestAnimationFrame(() => {
-			const selectors: Record<string, string | null> = {
-				root: null,
-				rail: ".jarvisctl-namespace-table",
-				detail: ".jarvisctl-panel-body-detail",
-				feed: ".jarvisctl-feed-list",
-				activity: ".jarvisctl-activity-list",
-			};
-			for (const [key, selector] of Object.entries(selectors)) {
-				const top = state[key];
-				if (typeof top !== "number") {
-					continue;
-				}
-				const element =
-					selector === null
-						? this.contentEl
-						: (this.contentEl.querySelector(selector) as HTMLElement | null);
-				if (element) {
-					element.scrollTop = top;
-				}
-			}
-		});
-	}
-
-	private renderErrorBanner(parent: HTMLElement, message: string): void {
-		const banner = parent.createDiv({ cls: "jarvisctl-error-banner" });
-		banner.createDiv({ cls: "jarvisctl-error-title", text: "Runtime refresh failed" });
-		banner.createDiv({ cls: "jarvisctl-error-message", text: message });
-		banner.createDiv({
-			cls: "jarvisctl-error-hint",
-			text: `Binary: ${this.plugin.getTerminalJarvisCtlPath()}`,
-		});
-	}
-
-	private renderBody(parent: HTMLElement): void {
-		const layout = parent.createDiv({ cls: "jarvisctl-layout" });
-		this.renderNamespacePanel(layout);
-		this.renderDetailsPanel(layout);
-	}
-
-	private renderNamespacePanel(parent: HTMLElement): void {
-		const panel = parent.createDiv({ cls: "jarvisctl-panel jarvisctl-panel-rail" });
-		const header = panel.createDiv({ cls: "jarvisctl-panel-header" });
-		header.createDiv({ cls: "jarvisctl-panel-title", text: "Namespaces" });
-		const headerMeta = header.createDiv({ cls: "jarvisctl-panel-meta" });
-		headerMeta.createSpan({
-			cls: "jarvisctl-chip",
-			text: `${this.sessions.length} active`,
-		});
-
-		const body = panel.createDiv({ cls: "jarvisctl-panel-body jarvisctl-panel-body-rail" });
-		if (this.sessions.length === 0) {
-			const empty = body.createDiv({ cls: "jarvisctl-empty" });
-			empty.createEl("h3", { text: "No active namespaces" });
-			empty.createEl("p", {
-				text: "Start a namespace with jarvisctl run or move work into Ready for Codex to populate this surface.",
-			});
-			return;
-		}
-
-		const list = body.createDiv({ cls: "jarvisctl-namespace-table" });
-
-		for (const session of this.sessions) {
-			const isSelected = this.selectedNamespace === session.namespace;
-			const context = this.getRuntimeContext(session);
-			const card = list.createDiv({
-				cls: isSelected
-					? "jarvisctl-namespace-row is-selected"
-					: "jarvisctl-namespace-row",
-			});
-			card.addEventListener("click", () => {
-				this.selectedNamespace = session.namespace;
-				this.render();
-			});
-
-			const summary = card.createDiv({ cls: "jarvisctl-namespace-summary" });
-			const heading = summary.createDiv({ cls: "jarvisctl-namespace-heading" });
-			heading.createDiv({ cls: "jarvisctl-namespace-name", text: session.namespace });
-			if (context?.task_title) {
-				heading.createDiv({
-					cls: "jarvisctl-namespace-task",
-					text: context.task_title,
-				});
-			}
-
-			const kpis = summary.createDiv({ cls: "jarvisctl-namespace-kpis" });
-			this.renderNamespaceKpi(kpis, "Agents", `${session.agents.length}`);
-			const stateKpi = kpis.createDiv({ cls: "jarvisctl-namespace-kpi is-state" });
-			stateKpi.createDiv({ cls: "jarvisctl-namespace-kpi-label", text: "State" });
-			stateKpi.createSpan({
-				cls: this.namespaceStateClass(session),
-				text: this.namespaceStateLabel(session),
-			});
-			this.renderNamespaceKpi(kpis, "Age", relativeAge(session.created_at_epoch_ms));
-
-			const flow = card.createDiv({ cls: "jarvisctl-namespace-flow" });
-			const contractStep = flow.createDiv({ cls: "jarvisctl-namespace-step is-contract" });
-			contractStep.createDiv({ cls: "jarvisctl-namespace-step-rail" });
-			const contractCard = contractStep.createDiv({ cls: "jarvisctl-namespace-step-card" });
-			contractCard.createDiv({ cls: "jarvisctl-namespace-step-label", text: "Execution Contract" });
-			contractCard.createDiv({
-				cls: "jarvisctl-namespace-step-value",
-				text:
-					context?.task_title ??
-					context?.task_note?.split("/").pop() ??
-					"No linked ticket or task",
-			});
-			if (context?.task_note) {
-				const contractMeta = contractCard.createDiv({ cls: "jarvisctl-namespace-step-meta" });
-				contractMeta.createSpan({
-					cls: "jarvisctl-namespace-token is-note",
-					text: basename(context.task_note),
-				});
-			}
-
-			const runtimeStep = flow.createDiv({ cls: "jarvisctl-namespace-step is-runtime" });
-			runtimeStep.createDiv({ cls: "jarvisctl-namespace-step-rail" });
-			const runtimeCard = runtimeStep.createDiv({ cls: "jarvisctl-namespace-step-card" });
-			runtimeCard.createDiv({ cls: "jarvisctl-namespace-step-label", text: "Runtime" });
-			const runtimeTokens = runtimeCard.createDiv({ cls: "jarvisctl-namespace-step-meta" });
-			for (const token of this.describeSessionTokens(session)) {
-				runtimeTokens.createSpan({ cls: "jarvisctl-namespace-token", text: token });
-			}
-			const runtimeValue = context?.live_message ?? context?.last_activity ?? this.describeSession(session);
-			runtimeCard.createDiv({
-				cls: "jarvisctl-namespace-step-value is-secondary",
-				text: runtimeValue,
-			});
-		}
-	}
-
-	private renderNamespaceKpi(parent: HTMLElement, label: string, value: string): void {
-		const stat = parent.createDiv({ cls: "jarvisctl-namespace-kpi" });
-		stat.createDiv({ cls: "jarvisctl-namespace-kpi-label", text: label });
-		stat.createDiv({ cls: "jarvisctl-namespace-kpi-value", text: value });
-	}
-
-	private renderDetailsPanel(parent: HTMLElement): void {
-		const panel = parent.createDiv({ cls: "jarvisctl-panel jarvisctl-panel-main" });
-		const header = panel.createDiv({ cls: "jarvisctl-panel-header" });
-		const session = this.getSelectedSession();
-		header.createDiv({
-			cls: "jarvisctl-panel-title",
-			text: session?.namespace ?? "Namespace Detail",
-		});
-		if (session) {
-			const headerMeta = header.createDiv({ cls: "jarvisctl-panel-meta" });
-			headerMeta.createSpan({ cls: "jarvisctl-chip", text: session.backend });
-			if (this.looksLikeCodexSession(session)) {
-				headerMeta.createSpan({ cls: "jarvisctl-chip", text: "codex" });
-			}
-			headerMeta.createSpan({
-				cls:
-					this.countRunningAgents(session) > 0
-						? "jarvisctl-chip is-live"
-						: "jarvisctl-chip is-idle",
-				text: `${this.countRunningAgents(session)}/${session.agents.length} live`,
-			});
-		}
-
-		const body = panel.createDiv({ cls: "jarvisctl-panel-body jarvisctl-panel-body-detail" });
-		if (!session) {
-			const empty = body.createDiv({ cls: "jarvisctl-empty" });
-			empty.createEl("h3", { text: "Nothing selected" });
-			empty.createEl("p", { text: "Select a namespace to inspect agents and operator actions." });
-			return;
-		}
-
-		const actions = body.createDiv({ cls: "jarvisctl-toolbar" });
-		this.makeButton(actions, "Attach", async () => {
-			await this.withAction(`Opening attach for ${session.namespace}`, async () => {
-				await this.plugin.openNamespaceAttach(session);
-			});
-		}, "-primary");
-		const context = this.getRuntimeContext(session);
-		if (context?.task_note && this.isCodexSession(session)) {
-			this.makeButton(actions, "Continue", async () => {
-				await this.withAction(`Continuing ${session.namespace}`, async () => {
-					await this.plugin.launchCodexForTaskNote(context.task_note ?? "", false);
-				});
-			});
-			this.makeButton(actions, "Fresh", async () => {
-				await this.withAction(`Starting fresh ${session.namespace}`, async () => {
-					await this.plugin.launchCodexForTaskNote(context.task_note ?? "", true);
-				});
-			});
-			this.makeButton(actions, "Open ticket", async () => {
-				await this.plugin.openTaskNote(context.task_note ?? "");
-			});
-		}
-		if (context?.transcript_path) {
-			this.makeButton(actions, "Transcript", async () => {
-				await this.withAction(`Opening transcript for ${session.namespace}`, async () => {
-					await this.plugin.openTranscript(context.transcript_path ?? "", session.namespace);
-				});
-			});
-		}
-		this.makeButton(actions, "Tell agent0", async () => {
-			await this.plugin.promptAndTell(session.namespace, "agent0");
-		});
-		this.makeButton(actions, "Copy attach", async () => {
-			await navigator.clipboard.writeText(
-				`${this.plugin.getTerminalJarvisCtlPath()} attach --namespace ${session.namespace}`,
-			);
-			new Notice(`Copied attach command for ${session.namespace}`);
-		});
-		this.makeButton(actions, "Close namespace", async () => {
-			await this.withAction(`Closing ${session.namespace}`, async () => {
-				await this.plugin.runJarvisCtl(["delete", "--namespace", session.namespace]);
-				await this.refreshSessions(false);
-			});
-		}, "-danger");
-
-		this.renderSessionSnapshot(body, session);
-
-		const runtimeWorkbench = body.createDiv({ cls: "jarvisctl-runtime-workbench" });
-		const runtimeUpper = runtimeWorkbench.createDiv({ cls: "jarvisctl-runtime-upper" });
-		this.renderRuntimeFeed(runtimeUpper, session);
-		this.renderObservedActivity(runtimeUpper, session);
-
-		const runtimeLower = runtimeWorkbench.createDiv({ cls: "jarvisctl-runtime-lower" });
-		this.renderSubagentTree(runtimeLower, session);
-		this.renderAgentSection(runtimeLower, session);
-	}
-
-	private renderRuntimeFeed(parent: HTMLElement, session: JarvisSessionMetadata): void {
-		const context = this.getRuntimeContext(session);
-		const events = (context?.recent_events ?? []).slice(-12);
-		const section = parent.createDiv({ cls: "jarvisctl-runtime-section" });
-		const header = section.createDiv({ cls: "jarvisctl-section-header" });
-		header.createDiv({ cls: "jarvisctl-panel-title", text: "Runtime Feed" });
-		const meta = header.createDiv({ cls: "jarvisctl-panel-meta" });
-		meta.createSpan({ cls: "jarvisctl-chip", text: `${events.length} events` });
-		if (context?.turn_status) {
-			meta.createSpan({ cls: "jarvisctl-chip", text: `turn ${context.turn_status}` });
-		}
-
-		const body = section.createDiv({ cls: "jarvisctl-section-body jarvisctl-section-body-tight" });
-		if (events.length === 0) {
-			const empty = body.createDiv({ cls: "jarvisctl-empty -compact" });
-			empty.createEl("h3", { text: "No runtime events yet" });
-			empty.createEl("p", {
-				text: "As Codex starts emitting thread, turn, command, and subagent activity, it will appear here.",
-			});
-			return;
-		}
-
-		const feed = body.createDiv({ cls: "jarvisctl-feed-list" });
-		for (const event of events) {
-			const card = feed.createDiv({
-				cls: `jarvisctl-feed-card is-${event.kind} ${event.status ? `has-${event.status}` : ""}`.trim(),
-			});
-			const cardHead = card.createDiv({ cls: "jarvisctl-feed-head" });
-			const chips = cardHead.createDiv({ cls: "jarvisctl-feed-chips" });
-			chips.createSpan({ cls: "jarvisctl-chip", text: event.kind });
-			if (event.status) {
-				chips.createSpan({
-					cls: feedStatusClass(event.status),
-					text: event.status,
-				});
-			}
-			if (event.actor) {
-				chips.createSpan({ cls: "jarvisctl-chip", text: event.actor });
-			}
-			cardHead.createDiv({
-				cls: "jarvisctl-feed-time",
-				text: new Date(event.timestamp_epoch_ms).toLocaleTimeString(),
-			});
-			card.createDiv({ cls: "jarvisctl-feed-title", text: event.title });
-			if (event.detail) {
-				card.createEl("p", { cls: "jarvisctl-feed-detail", text: event.detail });
-			}
-		}
-	}
-
-	private renderObservedActivity(parent: HTMLElement, session: JarvisSessionMetadata): void {
-		const context = this.getRuntimeContext(session);
-		const section = parent.createDiv({ cls: "jarvisctl-runtime-section" });
-		const header = section.createDiv({ cls: "jarvisctl-section-header" });
-		header.createDiv({ cls: "jarvisctl-panel-title", text: "Observed Activity" });
-		const meta = header.createDiv({ cls: "jarvisctl-panel-meta" });
-		const blocks = context?.event_log_path ? this.readActivitySections(context.event_log_path, 10) : [];
-		meta.createSpan({ cls: "jarvisctl-chip", text: `${blocks.length} sections` });
-		if (context?.event_log_path) {
-			meta.createSpan({ cls: "jarvisctl-chip", text: "event log" });
-		}
-
-		const body = section.createDiv({ cls: "jarvisctl-section-body" });
-		if (!context?.event_log_path) {
-			const empty = body.createDiv({ cls: "jarvisctl-empty -compact" });
-			empty.createEl("h3", { text: "No live console yet" });
-			empty.createEl("p", {
-				text: "This namespace has no exported event log path, so live tail view is unavailable.",
-			});
-			return;
-		}
-		if (blocks.length === 0) {
-			const empty = body.createDiv({ cls: "jarvisctl-empty -compact" });
-			empty.createEl("h3", { text: "Waiting for activity" });
-			empty.createEl("p", {
-				text: "The event log exists, but no grouped activity has been written yet.",
-			});
-			return;
-		}
-
-		const activity = body.createDiv({ cls: "jarvisctl-activity-list" });
-		for (const block of blocks) {
-			const card = activity.createDiv({
-				cls: `jarvisctl-activity-block is-${block.kind}`,
-			});
-			const head = card.createDiv({ cls: "jarvisctl-activity-head" });
-			head.createSpan({
-				cls: "jarvisctl-chip",
-				text: block.label,
-			});
-			if (block.summary) {
-				head.createDiv({
-					cls: "jarvisctl-activity-summary",
-					text: block.summary,
-				});
-			}
-			if (block.lines.length > 0) {
-				const blockBody = card.createDiv({ cls: "jarvisctl-activity-body" });
-				for (const line of block.lines) {
-					blockBody.createDiv({
-						cls: consoleLineClass(line),
-						text: line,
-					});
-				}
-			}
-		}
-	}
-
-	private renderSubagentTree(parent: HTMLElement, session: JarvisSessionMetadata): void {
-		const context = this.getRuntimeContext(session);
-		const subagents = (context?.subagents ?? []).slice().sort((left, right) =>
-			left.updated_at_epoch_ms - right.updated_at_epoch_ms,
-		);
-		const section = parent.createDiv({ cls: "jarvisctl-runtime-section" });
-		const header = section.createDiv({ cls: "jarvisctl-section-header" });
-		header.createDiv({ cls: "jarvisctl-panel-title", text: "Subagent Branches" });
-		const meta = header.createDiv({ cls: "jarvisctl-panel-meta" });
-		meta.createSpan({ cls: "jarvisctl-chip", text: `${subagents.length} tracked` });
-
-		const body = section.createDiv({ cls: "jarvisctl-section-body" });
-		if (subagents.length === 0) {
-			const empty = body.createDiv({ cls: "jarvisctl-empty -compact" });
-			empty.createEl("h3", { text: "No subagents yet" });
-			empty.createEl("p", {
-				text: "Spawned Codex collaborators will appear here with their thread ids, status, and latest note.",
-			});
-			return;
-		}
-
-		const tree = body.createDiv({ cls: "jarvisctl-subagent-tree" });
-		const root = tree.createDiv({ cls: "jarvisctl-subagent-root" });
-		root.createDiv({ cls: "jarvisctl-card-title", text: "Main thread" });
-		const rootMeta = root.createDiv({ cls: "jarvisctl-agent-meta" });
-		rootMeta.createSpan({ text: shortThreadId(context?.thread_id ?? "main") });
-		if (context?.thread_status) {
-			rootMeta.createSpan({ text: context.thread_status });
-		}
-
-		const childMap = new Map<string, JarvisRuntimeSubagentMetadata[]>();
-		for (const subagent of subagents) {
-			const parentId = subagent.parent_thread_id ?? context?.thread_id ?? "__root__";
-			const bucket = childMap.get(parentId) ?? [];
-			bucket.push(subagent);
-			childMap.set(parentId, bucket);
-		}
-
-		const rootThreadId = context?.thread_id ?? "__root__";
-		const roots = childMap.get(rootThreadId) ?? childMap.get("__root__") ?? subagents;
-		const rendered = new Set<string>();
-		for (const subagent of roots) {
-			this.renderSubagentNode(tree, subagent, childMap, rendered, 0);
-		}
-		for (const subagent of subagents) {
-			if (!rendered.has(subagent.thread_id)) {
-				this.renderSubagentNode(tree, subagent, childMap, rendered, 0);
-			}
-		}
-	}
-
-	private renderSubagentNode(
-		parent: HTMLElement,
-		subagent: JarvisRuntimeSubagentMetadata,
-		childMap: Map<string, JarvisRuntimeSubagentMetadata[]>,
-		rendered: Set<string>,
-		depth: number,
-	): void {
-		if (rendered.has(subagent.thread_id)) {
-			return;
-		}
-		rendered.add(subagent.thread_id);
-
-		const node = parent.createDiv({ cls: "jarvisctl-subagent-node" });
-		node.style.setProperty("--jarvis-depth", `${depth}`);
-		const top = node.createDiv({ cls: "jarvisctl-subagent-top" });
-		const summary = top.createDiv({ cls: "jarvisctl-subagent-summary" });
-		summary.createDiv({
-			cls: "jarvisctl-card-title",
-			text: `agent ${shortThreadId(subagent.thread_id)}`,
-		});
-		const meta = summary.createDiv({ cls: "jarvisctl-agent-meta" });
-		meta.createSpan({ text: subagent.tool });
-		if (subagent.model) {
-			meta.createSpan({ text: subagent.model });
-		}
-		if (subagent.reasoning_effort) {
-			meta.createSpan({ text: subagent.reasoning_effort });
-		}
-
-		const status = top.createDiv({ cls: "jarvisctl-feed-chips" });
-		status.createSpan({
-			cls: feedStatusClass(subagent.status),
-			text: subagent.status,
-		});
-		status.createSpan({
-			cls: "jarvisctl-chip",
-			text: new Date(subagent.updated_at_epoch_ms).toLocaleTimeString(),
-		});
-
-		if (subagent.prompt_preview) {
-			node.createEl("p", {
-				cls: "jarvisctl-subagent-detail",
-				text: subagent.prompt_preview,
-			});
-		}
-		if (subagent.latest_message) {
-			node.createDiv({
-				cls: "jarvisctl-subagent-message",
-				text: subagent.latest_message,
-			});
-		}
-
-		const children = childMap.get(subagent.thread_id) ?? [];
-		for (const child of children) {
-			this.renderSubagentNode(parent, child, childMap, rendered, depth + 1);
-		}
-	}
-
-	private renderAgentSection(parent: HTMLElement, session: JarvisSessionMetadata): void {
-		const section = parent.createDiv({ cls: "jarvisctl-runtime-section" });
-		const header = section.createDiv({ cls: "jarvisctl-section-header" });
-		header.createDiv({ cls: "jarvisctl-panel-title", text: "Agents" });
-		const meta = header.createDiv({ cls: "jarvisctl-panel-meta" });
-		meta.createSpan({ cls: "jarvisctl-chip", text: `${session.agents.length} total` });
-
-		const agentList = section.createDiv({ cls: "jarvisctl-agent-list" });
-		for (const agent of session.agents) {
-			const row = agentList.createDiv({ cls: "jarvisctl-agent-row" });
-			const left = row.createDiv();
-			left.createDiv({ cls: "jarvisctl-card-title", text: agent.name });
-			const metaRow = left.createDiv({ cls: "jarvisctl-agent-meta" });
-			metaRow.createSpan({ text: `PID ${agent.pid}` });
-			metaRow.createSpan({ text: agent.running ? "running" : "idle" });
-
-			const rowActions = row.createDiv({ cls: "jarvisctl-agent-actions" });
-			this.makeButton(rowActions, "Tell", async () => {
-				await this.plugin.promptAndTell(session.namespace, agent.name);
-			});
-			this.makeButton(rowActions, "Exec", async () => {
-				await this.withAction(`Opening ${session.namespace}:${agent.name}`, async () => {
-					await this.plugin.openAgentExec(session, agent);
-				});
-			}, "-primary");
-			this.makeButton(rowActions, "Interrupt", async () => {
-				await this.withAction(`Interrupting ${session.namespace}:${agent.name}`, async () => {
-					await this.plugin.runJarvisCtl([
-						"interrupt",
-						"--namespace",
-						session.namespace,
-						"--agent",
-						agent.name,
-					]);
-					await this.refreshSessions(false);
-				});
-			});
-			this.makeButton(rowActions, "Copy exec", async () => {
-				await navigator.clipboard.writeText(
-					`${this.plugin.getTerminalJarvisCtlPath()} exec --namespace ${session.namespace} --agent ${agent.name}`,
-				);
-				new Notice(`Copied exec command for ${agent.name}`);
-			});
-		}
-	}
-
-	private renderSessionSnapshot(parent: HTMLElement, session: JarvisSessionMetadata): void {
-		const context = this.getRuntimeContext(session);
-		const section = parent.createDiv({ cls: "jarvisctl-runtime-section" });
-		const header = section.createDiv({ cls: "jarvisctl-section-header" });
-		header.createDiv({ cls: "jarvisctl-panel-title", text: "Session Snapshot" });
-		const meta = header.createDiv({ cls: "jarvisctl-panel-meta" });
-		meta.createSpan({ cls: "jarvisctl-chip", text: session.backend });
-		if (context?.launch_mode) {
-			meta.createSpan({ cls: "jarvisctl-chip", text: context.launch_mode });
-		}
-		if (context?.thread_status) {
-			meta.createSpan({ cls: feedStatusClass(context.thread_status), text: context.thread_status });
-		}
-
-		const body = section.createDiv({ cls: "jarvisctl-section-body" });
-		const grid = body.createDiv({ cls: "jarvisctl-snapshot-grid" });
-		const addFact = (label: string, value: string | null | undefined, modifier = ""): void => {
-			if (!value) {
-				return;
-			}
-			const fact = grid.createDiv({
-				cls: modifier ? `jarvisctl-snapshot-item ${modifier}` : "jarvisctl-snapshot-item",
-			});
-			fact.createSpan({ cls: "jarvisctl-detail-box-label", text: label });
-			const valueEl = fact.createDiv({ cls: "jarvisctl-detail-box-value", text: value });
-			valueEl.setAttr("title", value);
-		};
-
-		addFact("Task", context?.task_title, "-hero");
-		addFact("Codex Session", context?.codex_session_id);
-		addFact("Thread", context?.thread_status, "-metric");
-		addFact("Turn", context?.turn_status, "-metric");
-		addFact("Launch Mode", context?.launch_mode, "-metric");
-		addFact("Backend", session.backend, "-metric");
-		addFact("Created", new Date(session.created_at_epoch_ms).toLocaleString(), "-metric");
-		addFact("Last Activity", context?.last_activity, "-story");
-		addFact("Live Message", context?.live_message, "-story");
-		addFact("Last Error", context?.last_error, "-story is-error");
-		addFact("Ticket Note", context?.task_note, "-path");
-		addFact("Transcript", context?.transcript_path, "-path");
-		addFact("Event Log", context?.event_log_path, "-path");
-		addFact("Working Dir", session.working_directory ?? "n/a", "-path");
-		addFact("Command", session.shell_command, "-path");
-	}
-
-	private renderStatusLine(parent: HTMLElement): void {
-		const status = parent.createDiv({ cls: "jarvisctl-statusline" });
-		status.createSpan({ text: `Status: ${this.statusMessage}` });
-		status.createSpan({ text: `Last refresh: ${this.lastRefreshLabel}` });
-	}
-
-	private makeButton(
-		parent: HTMLElement,
-		label: string,
-		handler: () => Promise<void>,
-		modifier = "",
-	): HTMLButtonElement {
-		const button = parent.createEl("button", {
-			cls: modifier ? `jarvisctl-button ${modifier}` : "jarvisctl-button",
-			text: label,
-		});
-		button.disabled = this.actionInFlight;
-		button.addEventListener("click", (event) => {
-			event.stopPropagation();
-			void handler();
-		});
-		return button;
-	}
-
-	private async withAction(status: string, callback: () => Promise<void>): Promise<void> {
+	private async runAction(
+		status: string,
+		callback: () => Promise<void>,
+		refreshAfter = false,
+	): Promise<void> {
 		this.actionInFlight = true;
-		this.statusMessage = status;
-		this.safeRender("action-start");
+		this.state.statusMessage = status;
 		try {
 			await callback();
-			this.statusMessage = "Action completed";
-			new Notice(status);
+			if (refreshAfter) {
+				await this.refreshSessions(false);
+			}
+			this.state.statusMessage = "Action completed";
 		} catch (error) {
 			console.error(error);
-			this.statusMessage = "Action failed";
+			this.state.statusMessage = "Action failed";
 			new Notice(`JarvisCtl Control action failed: ${formatError(error)}`);
 		} finally {
 			this.actionInFlight = false;
-			this.safeRender("action-finish");
 		}
 	}
 
 	private getSelectedSession(): JarvisSessionMetadata | undefined {
-		return this.sessions.find((session) => session.namespace === this.selectedNamespace);
-	}
-
-	private countRunningAgents(session: JarvisSessionMetadata): number {
-		return session.agents.filter((agent) => agent.running).length;
+		return this.state.sessions.find((session) => session.namespace === this.state.selectedNamespace);
 	}
 
 	private readLogTail(path: string, maxLines: number): string[] {
@@ -1436,12 +789,11 @@ class JarvisCtlControlView extends ItemView {
 			if (!existsSync(path)) {
 				return [];
 			}
-			const raw = readFileSync(path, "utf8");
-			return raw
+			return readFileSync(path, "utf8")
 				.replaceAll("\r", "")
 				.split("\n")
 				.map((line) => line.trimEnd())
-				.filter((line, index, lines) => line.length > 0 || index === lines.length - 1)
+				.filter((line) => line.length > 0)
 				.slice(-maxLines);
 		} catch (error) {
 			console.warn("JarvisCtl Control could not read event log", error);
@@ -1449,8 +801,8 @@ class JarvisCtlControlView extends ItemView {
 		}
 	}
 
-	private readActivitySections(path: string, maxSections: number): JarvisActivitySection[] {
-		const lines = this.readLogTail(path, 120);
+	private readActivitySectionsFromPath(path: string, maxSections: number): JarvisActivitySection[] {
+		const lines = this.readLogTail(path, 160);
 		if (lines.length === 0) {
 			return [];
 		}
@@ -1496,68 +848,6 @@ class JarvisCtlControlView extends ItemView {
 			.filter((section) => section.summary !== null || section.lines.length > 0)
 			.slice(-maxSections);
 	}
-
-	private countSubagents(session: JarvisSessionMetadata): number {
-		return this.getRuntimeContext(session)?.subagents?.length ?? 0;
-	}
-
-	private getRuntimeContext(session: JarvisSessionMetadata): JarvisRuntimeContext | null {
-		return session.context ?? null;
-	}
-
-	private describeSession(session: JarvisSessionMetadata): string {
-		const context = this.getRuntimeContext(session);
-		if (context?.workload) {
-			return this.describeSessionTokens(session).join(" · ");
-		}
-		return this.looksLikeCodexSession(session)
-			? "codex"
-			: session.backend;
-	}
-
-	private describeSessionTokens(session: JarvisSessionMetadata): string[] {
-		const context = this.getRuntimeContext(session);
-		return [
-			context?.workload ?? null,
-			context?.launch_mode ?? null,
-			context?.thread_status ?? null,
-			this.countSubagents(session) ? `${this.countSubagents(session)} subagents` : null,
-			this.looksLikeCodexSession(session) && !context?.workload ? "codex" : null,
-			!context?.workload ? session.backend : null,
-		].filter((part): part is string => Boolean(part));
-	}
-
-	private namespaceStateLabel(session: JarvisSessionMetadata): string {
-		const context = this.getRuntimeContext(session);
-		const running = this.countRunningAgents(session);
-		return context?.thread_status === "running" && context?.turn_status
-			? `turn ${context.turn_status}`
-			: context?.thread_status
-				? context.thread_status
-				: context?.turn_status
-					? context.turn_status
-					: running > 0
-						? `${running}/${session.agents.length} live`
-						: "idle";
-	}
-
-	private namespaceStateClass(session: JarvisSessionMetadata): string {
-		const context = this.getRuntimeContext(session);
-		if (context?.last_error) {
-			return "jarvisctl-chip is-error";
-		}
-		return this.countRunningAgents(session) > 0
-			? "jarvisctl-chip is-live"
-			: "jarvisctl-chip is-idle";
-	}
-
-	private isCodexSession(session: JarvisSessionMetadata): boolean {
-		return this.getRuntimeContext(session)?.workload === "codex" || this.looksLikeCodexSession(session);
-	}
-
-	private looksLikeCodexSession(session: JarvisSessionMetadata): boolean {
-		return /\bcodex\b/i.test(session.shell_command);
-	}
 }
 
 class JarvisCtlControlSettingTab extends PluginSettingTab {
@@ -1571,7 +861,6 @@ class JarvisCtlControlSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-
 		containerEl.createEl("h2", { text: "JarvisCtl Control" });
 
 		new Setting(containerEl)
@@ -1773,11 +1062,7 @@ class JarvisCodexLaunchModal extends Modal {
 	}
 }
 
-function promptForTell(
-	app: App,
-	namespace: string,
-	agent: string,
-): Promise<JarvisTellRequest | null> {
+function promptForTell(app: App, namespace: string, agent: string): Promise<JarvisTellRequest | null> {
 	return new Promise((resolve) => {
 		new JarvisTextModal(
 			app,
@@ -1806,12 +1091,20 @@ function promptForCodexLaunch(
 	});
 }
 
+function isMissingExecutable(error: unknown): boolean {
+	if (!error || typeof error !== "object") {
+		return false;
+	}
+	const code = "code" in error ? String(error.code) : "";
+	return code === "ENOENT";
+}
+
 function shellQuote(value: string): string {
-	return `'${value.replace(/'/g, `'\\''`)}'`;
+	return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
 function escapeForDoubleQuotes(value: string): string {
-	return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+	return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
 }
 
 function formatError(error: unknown): string {
@@ -1821,113 +1114,34 @@ function formatError(error: unknown): string {
 	return String(error);
 }
 
-function isMissingExecutable(error: unknown): boolean {
-	if (!(error instanceof Error)) {
-		return false;
-	}
-	const errorWithCode = error as Error & { code?: string };
-	return errorWithCode.code === "ENOENT";
-}
-
-function feedStatusClass(status: string): string {
-	switch (status) {
-		case "inProgress":
-		case "completed":
-		case "running":
-			return "jarvisctl-chip is-live";
-		case "failed":
-		case "errored":
-		case "shutdown":
-			return "jarvisctl-chip is-error";
-		default:
-			return "jarvisctl-chip is-idle";
-	}
-}
-
-function shortThreadId(threadId: string): string {
-	const [head] = threadId.split("-");
-	return head || threadId;
-}
-
-function consoleLineClass(line: string): string {
-	const normalized = line.trim();
-	if (normalized.startsWith("[error]") || normalized.startsWith("[stderr]")) {
-		return "jarvisctl-console-line is-error";
-	}
-	if (normalized.startsWith("[assistant]")) {
-		return "jarvisctl-console-line is-assistant";
-	}
-	if (normalized.startsWith("[command")) {
-		return "jarvisctl-console-line is-command";
-	}
-	if (normalized.startsWith("[operator]")) {
-		return "jarvisctl-console-line is-operator";
-	}
-	if (normalized.startsWith("[session]") || normalized.startsWith("[thread]") || normalized.startsWith("[turn]")) {
-		return "jarvisctl-console-line is-system";
-	}
-	return "jarvisctl-console-line";
-}
-
 function activityKind(tag: string): string {
-	const normalized = tag.toLowerCase();
-	if (normalized.startsWith("command")) {
-		return "command";
+	const value = tag.toLowerCase();
+	if (["assistant", "operator", "command", "thread", "turn", "subagent", "session"].includes(value)) {
+		return value;
 	}
-	if (normalized.startsWith("assistant")) {
-		return "assistant";
-	}
-	if (normalized.startsWith("operator")) {
-		return "operator";
-	}
-	if (normalized.startsWith("thread") || normalized.startsWith("turn") || normalized.startsWith("session")) {
-		return "system";
-	}
-	if (normalized.startsWith("error") || normalized.startsWith("stderr")) {
+	if (value.includes("error")) {
 		return "error";
 	}
 	return "output";
 }
 
 function activityLabel(tag: string): string {
-	const normalized = tag.toLowerCase();
-	if (normalized === "command completed") {
-		return "Command";
+	switch (tag.toLowerCase()) {
+		case "assistant":
+			return "Assistant";
+		case "operator":
+			return "Operator";
+		case "command":
+			return "Command";
+		case "thread":
+			return "Thread";
+		case "turn":
+			return "Turn";
+		case "subagent":
+			return "Subagent";
+		case "session":
+			return "Session";
+		default:
+			return tag;
 	}
-	if (normalized === "assistant") {
-		return "Assistant";
-	}
-	if (normalized === "operator") {
-		return "Operator";
-	}
-	if (normalized === "thread") {
-		return "Thread";
-	}
-	if (normalized === "turn") {
-		return "Turn";
-	}
-	if (normalized === "session") {
-		return "Session";
-	}
-	if (normalized === "error" || normalized === "stderr") {
-		return "Error";
-	}
-	return tag;
-}
-
-function relativeAge(epochMs: number): string {
-	const diffSeconds = Math.max(0, Math.floor((Date.now() - epochMs) / 1000));
-	if (diffSeconds < 60) {
-		return `${diffSeconds}s`;
-	}
-	const diffMinutes = Math.floor(diffSeconds / 60);
-	if (diffMinutes < 60) {
-		return `${diffMinutes}m`;
-	}
-	const diffHours = Math.floor(diffMinutes / 60);
-	if (diffHours < 24) {
-		return `${diffHours}h`;
-	}
-	const diffDays = Math.floor(diffHours / 24);
-	return `${diffDays}d`;
 }

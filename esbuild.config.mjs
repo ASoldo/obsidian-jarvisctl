@@ -1,4 +1,5 @@
 import esbuild from "esbuild";
+import Vue from "unplugin-vue/esbuild";
 
 const production = process.argv.includes("production");
 
@@ -6,12 +7,20 @@ const context = await esbuild.context({
   entryPoints: ["src/main.ts"],
   bundle: true,
   format: "cjs",
-  platform: "node",
-  target: "node20",
+  platform: "browser",
+  target: "chrome120",
   outfile: "main.js",
   sourcemap: !production,
   minify: production,
   external: ["obsidian", "electron", "node:child_process", "node:fs", "node:path", "node:util"],
+  plugins: [Vue()],
+  loader: {
+    ".vue": "js",
+  },
+  define: {
+    __VUE_OPTIONS_API__: "false",
+    __VUE_PROD_DEVTOOLS__: "false",
+  },
   logLevel: "info",
 });
 

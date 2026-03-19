@@ -4,14 +4,28 @@
   "private": true,
   "description": "Argocd-style Obsidian control tab for jarvisctl namespaces and agents",
   "scripts": {
-    "build": "node esbuild.config.mjs production",
-    "dev": "node esbuild.config.mjs development",
+    "build:css": "tailwindcss -i ./src/styles.css -o ./styles.css --minify",
+    "build:js": "node esbuild.config.mjs production",
+    "build": "npm run build:css && npm run build:js",
+    "typecheck": "vue-tsc --noEmit",
+    "dev:css": "tailwindcss -i ./src/styles.css -o ./styles.css --watch",
+    "dev:js": "node esbuild.config.mjs development",
+    "dev": "concurrently -k \"npm:dev:css\" \"npm:dev:js\"",
     "install-local": "mkdir -p /home/rootster/documents/codex/.obsidian/plugins/jarvisctl-control && cp manifest.json main.js styles.css /home/rootster/documents/codex/.obsidian/plugins/jarvisctl-control/"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.2.2",
     "@types/node": "^24.6.0",
+    "@vue/compiler-sfc": "^3.5.30",
+    "concurrently": "^9.2.1",
     "esbuild": "^0.25.9",
     "obsidian": "^1.8.10",
-    "typescript": "^5.9.2"
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5.9.2",
+    "unplugin-vue": "^7.1.1",
+    "vue-tsc": "^3.2.6"
+  },
+  "dependencies": {
+    "vue": "^3.5.30"
   }
 }
