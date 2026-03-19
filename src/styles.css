@@ -157,13 +157,17 @@
     @apply h-10 w-10 px-0;
   }
 
+  .cp-icon-button--small {
+    @apply h-8 w-8 px-0 text-sm;
+  }
+
   .cp-dashboard-grid {
     @apply grid min-h-0 gap-3;
-    grid-template-columns: minmax(236px, 268px) minmax(0, 1.78fr) minmax(308px, 348px);
+    grid-template-columns: minmax(304px, 348px) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) minmax(232px, 0.72fr);
     grid-template-areas:
-      "sidebar main workflow"
-      "sidebar bottom bottom";
+      "sidebar main"
+      "sidebar bottom";
   }
 
   .cp-sidebar {
@@ -174,12 +178,6 @@
 
   .cp-main-panel {
     grid-area: main;
-    @apply grid min-h-0;
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-
-  .cp-workflow-panel {
-    grid-area: workflow;
     @apply grid min-h-0;
     grid-template-rows: auto minmax(0, 1fr);
   }
@@ -227,7 +225,17 @@
   }
 
   .cp-main-panel__body {
-    @apply overflow-hidden;
+    @apply overflow-auto overscroll-contain;
+  }
+
+  .cp-topology-workbench {
+    @apply grid min-h-full min-w-0 gap-3;
+    grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.92fr);
+  }
+
+  .cp-workflow-panel-embedded {
+    @apply grid min-h-0 min-w-0;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .cp-tab-strip {
@@ -426,12 +434,12 @@
   }
 
   .cp-topology-tab {
-    @apply grid min-h-0 min-w-0 content-start gap-3 overflow-auto pr-1;
+    @apply grid min-h-0 min-w-0 content-start gap-3 pr-1;
     grid-template-rows: minmax(320px, 1fr) auto;
   }
 
   .cp-topology-canvas {
-    @apply relative h-[430px] overflow-hidden rounded-2xl border border-[var(--cp-border)] p-4;
+    @apply relative h-[430px] overflow-auto rounded-2xl border border-[var(--cp-border)] p-4;
   }
 
   .cp-topology-svg {
@@ -545,7 +553,7 @@
   }
 
   .cp-runtime-tab {
-    @apply grid min-h-0 min-w-0 content-start gap-3 overflow-auto pr-1;
+    @apply grid min-h-0 min-w-0 content-start gap-3 pb-4 pr-1;
   }
 
   .cp-runtime-toolbar {
@@ -823,6 +831,10 @@
     @apply min-h-0;
   }
 
+  .cp-bottom-panel.is-collapsed {
+    grid-template-rows: auto;
+  }
+
   .cp-bottom-console {
     @apply h-full min-h-0;
   }
@@ -893,12 +905,15 @@
 
   @media (max-width: 1480px) {
     .cp-dashboard-grid {
-      grid-template-columns: minmax(228px, 260px) minmax(0, 1fr);
-      grid-template-rows: minmax(0, 1fr) minmax(240px, auto) minmax(220px, 0.72fr);
+      grid-template-columns: minmax(280px, 316px) minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) minmax(220px, 0.72fr);
       grid-template-areas:
         "sidebar main"
-        "sidebar workflow"
         "sidebar bottom";
+    }
+
+    .cp-topology-workbench {
+      grid-template-columns: 1fr;
     }
   }
 
@@ -909,11 +924,10 @@
 
     .cp-dashboard-grid {
       grid-template-columns: 1fr;
-      grid-template-rows: auto auto auto auto;
+      grid-template-rows: auto auto auto;
       grid-template-areas:
         "sidebar"
         "main"
-        "workflow"
         "bottom";
     }
 

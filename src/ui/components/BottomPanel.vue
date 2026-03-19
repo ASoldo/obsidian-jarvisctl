@@ -18,10 +18,12 @@ const props = defineProps<{
 	session: JarvisSessionMetadata | null;
 	activitySections: JarvisActivitySection[];
 	bottomTab: BottomTab;
+	collapsed?: boolean;
 }>();
 
 const emit = defineEmits<{
 	(event: "update:bottomTab", value: BottomTab): void;
+	(event: "toggle-collapsed"): void;
 }>();
 
 const logLines = computed(() => flattenActivityLines(props.activitySections).slice(-40));
@@ -31,7 +33,7 @@ const metrics = computed(() => metricsSnapshot(props.session));
 </script>
 
 <template>
-	<section class="cp-panel cp-bottom-panel">
+	<section :class="['cp-panel', 'cp-bottom-panel', props.collapsed && 'is-collapsed']">
 		<div class="cp-panel__header cp-panel__header--tabs">
 			<div class="cp-tab-strip">
 				<button
@@ -53,10 +55,18 @@ const metrics = computed(() => metricsSnapshot(props.session));
 				<span class="cp-chip">Tokens: {{ session?.context?.recent_events?.length ?? 0 }}</span>
 				<span class="cp-chip">Latency: {{ session?.context?.turn_status === 'inProgress' ? 'active' : 'steady' }}</span>
 				<span class="cp-chip">GPU: n/a</span>
+				<button
+					type="button"
+					class="cp-icon-button cp-icon-button--small"
+					:title="props.collapsed ? 'Expand observability panel' : 'Collapse observability panel'"
+					@click="emit('toggle-collapsed')"
+				>
+					{{ props.collapsed ? "+" : "−" }}
+				</button>
 			</div>
 		</div>
 
-		<div class="cp-panel__body cp-panel__body--scroll">
+		<div v-show="!props.collapsed" class="cp-panel__body cp-panel__body--scroll">
 			<div v-if="!session" class="cp-empty-state">Select a namespace to inspect logs, events, reasoning, and metrics.</div>
 
 			<div v-else-if="bottomTab === 'logs'" class="cp-bottom-console">

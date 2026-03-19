@@ -4,6 +4,7 @@ import type { JarvisDashboardHost } from "../bridge";
 import ApplicationsTab from "./ApplicationsTab.vue";
 import RuntimeTab from "./RuntimeTab.vue";
 import TopologyTab from "./TopologyTab.vue";
+import WorkflowPanel from "./WorkflowPanel.vue";
 
 type MainTab = "topology" | "applications" | "runtime";
 
@@ -45,7 +46,10 @@ const emit = defineEmits<{
 		</div>
 
 		<div class="cp-panel__body cp-main-panel__body">
-			<TopologyTab v-if="mainTab === 'topology'" :session="session" />
+			<div v-if="mainTab === 'topology'" class="cp-topology-workbench">
+				<TopologyTab :session="session" />
+				<WorkflowPanel :session="session" embedded />
+			</div>
 			<ApplicationsTab v-else-if="mainTab === 'applications'" :host="host" :sessions="sessions" />
 			<RuntimeTab v-else :host="host" :session="session" :activity-sections="activitySections" />
 		</div>

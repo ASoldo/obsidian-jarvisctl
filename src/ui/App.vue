@@ -5,7 +5,6 @@ import BottomPanel from "./components/BottomPanel.vue";
 import MainPanel from "./components/MainPanel.vue";
 import Sidebar from "./components/Sidebar.vue";
 import TopBar from "./components/TopBar.vue";
-import WorkflowPanel from "./components/WorkflowPanel.vue";
 import { buildRepositoryGroups } from "./helpers";
 
 type MainTab = "topology" | "applications" | "runtime";
@@ -19,6 +18,7 @@ const searchQuery = ref("");
 const selectedRepository = ref<string | null>(null);
 const mainTab = ref<MainTab>("runtime");
 const bottomTab = ref<BottomTab>("reasoning");
+const bottomCollapsed = ref(false);
 
 const allSessions = computed(() => props.host.state.sessions);
 const repositories = computed(() => buildRepositoryGroups(allSessions.value));
@@ -152,13 +152,13 @@ function handleContinue(): void {
 				@update:main-tab="mainTab = $event"
 			/>
 
-			<WorkflowPanel :session="selectedSession" />
-
 			<BottomPanel
 				:session="selectedSession"
 				:activity-sections="selectedActivitySections"
 				:bottom-tab="bottomTab"
+				:collapsed="bottomCollapsed"
 				@update:bottom-tab="bottomTab = $event"
+				@toggle-collapsed="bottomCollapsed = !bottomCollapsed"
 			/>
 		</div>
 	</div>

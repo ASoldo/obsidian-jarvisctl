@@ -7,6 +7,7 @@ import ExpandableText from "./ExpandableText.vue";
 
 const props = defineProps<{
 	session: JarvisSessionMetadata | null;
+	embedded?: boolean;
 }>();
 
 const steps = computed(() => buildWorkflow(props.session));
@@ -26,7 +27,7 @@ const selectedStep = computed<WorkflowStepModel | null>(
 </script>
 
 <template>
-	<aside class="cp-panel cp-workflow-panel">
+	<component :is="embedded ? 'section' : 'aside'" :class="[embedded ? 'cp-subpanel cp-workflow-panel-embedded' : 'cp-panel cp-workflow-panel']">
 		<div class="cp-panel__header">
 			<div>
 				<p class="cp-panel__eyebrow">Automation Workflow</p>
@@ -95,5 +96,5 @@ const selectedStep = computed<WorkflowStepModel | null>(
 				</div>
 			</template>
 		</div>
-	</aside>
+	</component>
 </template>
