@@ -67,6 +67,16 @@ export function shortPath(value: string | null | undefined): string {
 	return `...${value.slice(-45)}`;
 }
 
+export function compactId(value: string | null | undefined, head = 8, tail = 4): string {
+	if (!value) {
+		return "n/a";
+	}
+	if (value.length <= head + tail + 1) {
+		return value;
+	}
+	return `${value.slice(0, head)}...${value.slice(-tail)}`;
+}
+
 export function truncate(value: string | null | undefined, length = 140): string {
 	if (!value) {
 		return "";
@@ -188,51 +198,55 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 		return { nodes: [], edges: [] };
 	}
 
+	const subagents = (session.context?.subagents ?? []).slice(0, 3);
+	const eventCount = session.context?.recent_events?.length ?? 0;
+	const branchCount = subagents.length;
+
 	const nodes: TopologyNodeModel[] = [
 		{
 			id: "ticket",
 			label: "Trigger",
 			type: "trigger",
 			status: session.context?.task_note ? "ready" : "idle",
-			x: 84,
-			y: 70,
-			meta: shortPath(session.context?.task_note),
+			x: 48,
+			y: 78,
+			meta: "execution contract",
 		},
 		{
 			id: "main",
 			label: session.namespace,
 			type: "agent",
 			status: sessionStateLabel(session),
-			x: 292,
-			y: 118,
-			meta: session.context?.codex_session_id ?? session.agents[0]?.name ?? "agent0",
+			x: 268,
+			y: 126,
+			meta: `${compactId(session.context?.codex_session_id, 8, 4)} · ${sessionStateLabel(session)}`,
 		},
 		{
 			id: "events",
 			label: "Runtime Feed",
 			type: "processor",
-			status: (session.context?.recent_events?.length ?? 0) > 0 ? "healthy" : "idle",
-			x: 110,
-			y: 250,
-			meta: `${session.context?.recent_events?.length ?? 0} events`,
+			status: eventCount > 0 ? "healthy" : "idle",
+			x: 154,
+			y: 312,
+			meta: `${eventCount} recent events`,
 		},
 		{
 			id: "activity",
 			label: "Observed Activity",
 			type: "analysis",
 			status: session.context?.event_log_path ? "healthy" : "idle",
-			x: 348,
-			y: 258,
-			meta: shortPath(session.context?.event_log_path),
+			x: 372,
+			y: 312,
+			meta: session.context?.event_log_path ? "event log tail" : "awaiting event log",
 		},
 		{
 			id: "transcript",
 			label: "Transcript",
 			type: "resource",
 			status: session.context?.transcript_path ? "ready" : "idle",
-			x: 520,
-			y: 170,
-			meta: shortPath(session.context?.transcript_path),
+			x: 590,
+			y: 250,
+			meta: session.context?.transcript_path ? "jsonl export" : "not exported",
 		},
 	];
 
@@ -243,21 +257,39 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 		{ id: "main-transcript", from: "main", to: "transcript", tone: "warning" },
 	];
 
-	for (const [index, subagent] of (session.context?.subagents ?? []).slice(0, 4).entries()) {
+	for (const [index, subagent] of subagents.entries()) {
 		nodes.push({
 			id: subagent.thread_id,
 			label: `Branch ${index + 1}`,
 			type: "agent",
 			status: subagent.status,
-			x: 522,
-			y: 48 + index * 78,
-			meta: truncate(subagent.latest_message ?? subagent.prompt_preview, 44),
+			x: 586,
+			y: 52 + index * 82,
+			meta: `${subagent.tool} · ${compactId(subagent.thread_id, 6, 4)}`,
 		});
 		edges.push({
 			id: `main-${subagent.thread_id}`,
 			from: "main",
 			to: subagent.thread_id,
 			tone: index % 2 === 0 ? "accent" : "primary",
+		});
+	}
+
+	if (branchCount === 0) {
+		nodes.push({
+			id: "branches",
+			label: "Branch Queue",
+			type: "agent",
+			status: "idle",
+			x: 590,
+			y: 92,
+			meta: "no spawned subagents",
+		});
+		edges.push({
+			id: "main-branches",
+			from: "main",
+			to: "branches",
+			tone: "muted",
 		});
 	}
 
@@ -281,7 +313,7 @@ export function buildWorkflow(session: JarvisSessionMetadata | null): WorkflowSt
 			label: "Start Thread",
 			status: session.context?.thread_status ?? "idle",
 			icon: "C",
-			detail: session.context?.codex_session_id ?? "pending",
+			detail: compactId(session.context?.codex_session_id, 8, 4),
 		},
 		{
 			id: "feed",
@@ -298,7 +330,10 @@ export function buildWorkflow(session: JarvisSessionMetadata | null): WorkflowSt
 			label: `Branch ${index + 1}`,
 			status: subagent.status,
 			icon: "B",
-			detail: truncate(subagent.latest_message ?? subagent.prompt_preview, 72),
+			detail: truncate(
+				`${subagent.tool} · ${subagent.latest_message ?? subagent.prompt_preview ?? "awaiting branch detail"}`,
+				44,
+			),
 		});
 	}
 
@@ -307,7 +342,7 @@ export function buildWorkflow(session: JarvisSessionMetadata | null): WorkflowSt
 		label: "Summarize Runtime",
 		status: session.context?.last_activity ? "running" : "idle",
 		icon: "R",
-		detail: truncate(session.context?.last_activity ?? session.context?.live_message, 72),
+		detail: truncate(session.context?.last_activity ?? session.context?.live_message, 44),
 	});
 
 	return steps;

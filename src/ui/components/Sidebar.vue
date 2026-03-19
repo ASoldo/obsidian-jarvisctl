@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { RepositoryGroupModel } from "../helpers";
-import { relativeAge, sessionTone } from "../helpers";
+import { relativeAge, sessionTone, shortPath, truncate } from "../helpers";
 import type { JarvisSessionMetadata } from "../../types/domain";
 import StatusBadge from "./StatusBadge.vue";
 
@@ -57,7 +57,7 @@ const emit = defineEmits<{
 							<span class="cp-repo-item__name">{{ repository.label }}</span>
 							<span class="cp-repo-item__count">{{ repository.sessions.length }}</span>
 						</div>
-						<p class="cp-repo-item__path">{{ repository.path }}</p>
+						<p class="cp-repo-item__path" :title="repository.path">{{ shortPath(repository.path) }}</p>
 					</button>
 				</div>
 			</section>
@@ -76,13 +76,14 @@ const emit = defineEmits<{
 							'cp-runtime-item',
 							selectedNamespace === session.namespace && 'is-active',
 						]"
+						:title="session.context?.task_title ?? session.namespace"
 						@click="emit('select-namespace', session.namespace)"
 					>
 						<div class="cp-runtime-item__top">
 							<div>
 								<div class="cp-runtime-item__title">{{ session.namespace }}</div>
 								<div class="cp-runtime-item__subtitle">
-									{{ session.context?.task_title ?? "Live runtime namespace" }}
+									{{ truncate(session.context?.task_title ?? "Live runtime namespace", 42) }}
 								</div>
 							</div>
 							<StatusBadge
@@ -112,7 +113,9 @@ const emit = defineEmits<{
 						@click="emit('open-ticket', selectedSession)"
 					>
 						<div class="cp-resource-item__label">Execution Contract</div>
-						<div class="cp-resource-item__value">{{ selectedSession.context?.task_note }}</div>
+						<div class="cp-resource-item__value" :title="selectedSession.context?.task_note ?? ''">
+							{{ shortPath(selectedSession.context?.task_note) }}
+						</div>
 					</button>
 					<button
 						v-if="selectedSession.context?.transcript_path"
@@ -121,11 +124,15 @@ const emit = defineEmits<{
 						@click="emit('open-transcript', selectedSession)"
 					>
 						<div class="cp-resource-item__label">Transcript</div>
-						<div class="cp-resource-item__value">{{ selectedSession.context?.transcript_path }}</div>
+						<div class="cp-resource-item__value" :title="selectedSession.context?.transcript_path ?? ''">
+							{{ shortPath(selectedSession.context?.transcript_path) }}
+						</div>
 					</button>
 					<div class="cp-resource-item">
 						<div class="cp-resource-item__label">Event Log</div>
-						<div class="cp-resource-item__value">{{ selectedSession.context?.event_log_path ?? "n/a" }}</div>
+						<div class="cp-resource-item__value" :title="selectedSession.context?.event_log_path ?? ''">
+							{{ shortPath(selectedSession.context?.event_log_path) }}
+						</div>
 					</div>
 				</div>
 				<div v-else class="cp-empty-state">

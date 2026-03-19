@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import type { JarvisSessionMetadata } from "../../types/domain";
-import { buildTopology, formatDateTime, nodeTone } from "../helpers";
+import { buildTopology, formatDateTime, nodeTone, sessionStateLabel } from "../helpers";
 import StatusBadge from "./StatusBadge.vue";
 
 const props = defineProps<{
@@ -28,7 +28,7 @@ function center(nodeId: string): { x: number; y: number } {
 	if (!node) {
 		return { x: 0, y: 0 };
 	}
-	return { x: node.x + 78, y: node.y + 26 };
+	return { x: node.x + 74, y: node.y + 34 };
 }
 
 function edgePath(fromId: string, toId: string): string {
@@ -42,7 +42,7 @@ function edgePath(fromId: string, toId: string): string {
 <template>
 	<div class="cp-topology-tab">
 		<div class="cp-topology-canvas cp-grid-surface">
-			<svg class="cp-topology-svg" viewBox="0 0 700 360" preserveAspectRatio="none">
+			<svg class="cp-topology-svg" viewBox="0 0 820 430" preserveAspectRatio="xMidYMid meet">
 				<path
 					v-for="edge in graph.edges"
 					:key="edge.id"
@@ -63,8 +63,12 @@ function edgePath(fromId: string, toId: string): string {
 				:style="{ left: `${node.x}px`, top: `${node.y}px` }"
 				@click="selectedNodeId = node.id"
 			>
+				<div class="cp-topology-node__head">
+					<div class="cp-topology-node__type">{{ node.type }}</div>
+					<div class="cp-topology-node__state">{{ node.status }}</div>
+				</div>
 				<div class="cp-topology-node__title">{{ node.label }}</div>
-				<div class="cp-topology-node__meta">{{ node.meta ?? "runtime" }}</div>
+				<div class="cp-topology-node__meta" :title="node.meta ?? 'runtime'">{{ node.meta ?? "runtime" }}</div>
 			</button>
 		</div>
 
@@ -82,8 +86,8 @@ function edgePath(fromId: string, toId: string): string {
 					<div class="cp-kv-card__value">{{ session.namespace }}</div>
 				</div>
 				<div class="cp-kv-card">
-					<div class="cp-kv-card__label">Session</div>
-					<div class="cp-kv-card__value">{{ session.context?.codex_session_id ?? "n/a" }}</div>
+					<div class="cp-kv-card__label">State</div>
+					<div class="cp-kv-card__value">{{ sessionStateLabel(session) }}</div>
 				</div>
 				<div class="cp-kv-card">
 					<div class="cp-kv-card__label">Created</div>

@@ -104,7 +104,7 @@
   .cp-stat-chip {
     border: 1px solid var(--cp-border);
     background: color-mix(in srgb, var(--cp-panel) 88%, transparent);
-    @apply grid min-w-[88px] gap-0.5 rounded-xl px-3 py-2;
+    @apply grid min-w-[78px] gap-0.5 rounded-xl px-2.5 py-2;
   }
 
   .cp-stat-chip--focus {
@@ -159,8 +159,8 @@
 
   .cp-dashboard-grid {
     @apply grid min-h-0 gap-3;
-    grid-template-columns: minmax(280px, 320px) minmax(0, 1fr) minmax(280px, 320px);
-    grid-template-rows: minmax(0, 1fr) minmax(240px, 0.78fr);
+    grid-template-columns: minmax(236px, 268px) minmax(0, 1.78fr) minmax(308px, 348px);
+    grid-template-rows: minmax(0, 1fr) minmax(232px, 0.72fr);
     grid-template-areas:
       "sidebar main workflow"
       "sidebar bottom bottom";
@@ -198,7 +198,7 @@
   .cp-panel__header {
     border-bottom: 1px solid var(--cp-border);
     background: color-mix(in srgb, var(--cp-panel-strong) 96%, #050b15 4%);
-    @apply flex items-center justify-between gap-3 px-4 py-3;
+    @apply flex items-center justify-between gap-3 px-4 py-2.5;
   }
 
   .cp-panel__header--tabs {
@@ -206,7 +206,7 @@
   }
 
   .cp-panel__title {
-    @apply text-lg font-semibold leading-tight;
+    @apply text-[14px] font-semibold leading-tight;
   }
 
   .cp-panel__meta {
@@ -214,7 +214,7 @@
   }
 
   .cp-panel__body {
-    @apply min-h-0 min-w-0 p-4;
+    @apply min-h-0 min-w-0 p-3;
   }
 
   .cp-panel__body--scroll,
@@ -310,7 +310,7 @@
   }
 
   .cp-sidebar-section {
-    @apply grid gap-3;
+    @apply grid gap-2.5;
   }
 
   .cp-panel__body--scroll {
@@ -329,7 +329,7 @@
   .cp-repo-list,
   .cp-runtime-list,
   .cp-resource-list {
-    @apply grid gap-2;
+    @apply grid gap-1.5;
   }
 
   .cp-repo-item,
@@ -337,7 +337,7 @@
   .cp-resource-item {
     border: 1px solid var(--cp-border);
     background: color-mix(in srgb, var(--cp-panel) 97%, #040914 3%);
-    @apply grid min-w-0 gap-2 rounded-xl px-3 py-3 text-left transition;
+    @apply grid min-w-0 gap-1.5 rounded-xl px-2.5 py-2.5 text-left transition;
   }
 
   .cp-repo-item:hover,
@@ -354,7 +354,7 @@
 
   .cp-repo-item__top,
   .cp-runtime-item__top {
-    @apply flex items-start justify-between gap-3;
+    @apply flex items-center justify-between gap-2;
   }
 
   .cp-repo-item__name,
@@ -366,7 +366,7 @@
   .cp-reasoning-row__title,
   .cp-inspector__title,
   .cp-workflow-inspector__title {
-    @apply text-sm font-semibold leading-tight;
+    @apply text-[13px] font-semibold leading-tight;
   }
 
   .cp-runtime-item__subtitle,
@@ -380,7 +380,7 @@
   .cp-agent-card__meta,
   .cp-table-row__subtitle {
     color: var(--cp-text-dim);
-    @apply min-w-0 break-words text-[12px] leading-[1.5];
+    @apply min-w-0 break-words text-[11px] leading-[1.35];
   }
 
   .cp-repo-item__count {
@@ -388,7 +388,16 @@
   }
 
   .cp-runtime-item__meta {
-    @apply flex flex-wrap gap-2 text-[10px] font-medium uppercase tracking-[0.08em];
+    @apply grid grid-cols-3 gap-2 text-[9px] font-medium uppercase tracking-[0.08em];
+  }
+
+  .cp-runtime-item__subtitle,
+  .cp-repo-item__path,
+  .cp-resource-item__value {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    overflow: hidden;
   }
 
   .cp-resource-item__value,
@@ -417,11 +426,12 @@
   }
 
   .cp-topology-tab {
-    @apply grid min-h-0 min-w-0 content-start gap-4 overflow-auto pr-1;
+    @apply grid min-h-0 min-w-0 content-start gap-3 overflow-auto pr-1;
+    grid-template-rows: minmax(320px, 1fr) auto;
   }
 
   .cp-topology-canvas {
-    @apply relative h-[380px] overflow-hidden rounded-2xl border border-[var(--cp-border)] p-4;
+    @apply relative h-[430px] overflow-hidden rounded-2xl border border-[var(--cp-border)] p-4;
   }
 
   .cp-topology-svg {
@@ -447,13 +457,13 @@
     border: 1px solid var(--cp-border);
     background: linear-gradient(
       180deg,
-      color-mix(in srgb, var(--cp-panel-strong) 92%, transparent),
-      color-mix(in srgb, var(--cp-panel) 96%, transparent)
+      color-mix(in srgb, var(--cp-panel-strong) 98%, #050b15 2%),
+      color-mix(in srgb, var(--cp-panel) 99%, #020617 1%)
     );
     box-shadow:
       0 12px 28px color-mix(in srgb, #020617 22%, transparent),
       inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
-    @apply absolute w-[156px] rounded-xl px-3 py-2 text-left transition;
+    @apply absolute z-[1] grid w-[148px] gap-1 rounded-xl px-3 py-2.5 text-left transition;
   }
 
   .cp-topology-node.is-active {
@@ -471,12 +481,22 @@
   .cp-topology-node--slate { border-color: var(--cp-border); }
 
   .cp-topology-node__title {
-    @apply text-sm font-semibold;
+    @apply text-[13px] font-semibold leading-tight;
   }
 
   .cp-topology-node__meta {
     color: var(--cp-text-dim);
-    @apply mt-1 break-words text-[11px] leading-[1.45];
+    @apply overflow-hidden text-[10px] leading-[1.3] text-ellipsis whitespace-nowrap;
+  }
+
+  .cp-topology-node__head {
+    @apply flex items-center justify-between gap-2;
+  }
+
+  .cp-topology-node__type,
+  .cp-topology-node__state {
+    color: var(--cp-text-dim);
+    @apply text-[9px] font-semibold uppercase tracking-[0.12em];
   }
 
   .cp-inspector {
@@ -525,11 +545,11 @@
   }
 
   .cp-runtime-tab {
-    @apply grid min-h-0 min-w-0 content-start gap-4 overflow-auto pr-1;
+    @apply grid min-h-0 min-w-0 content-start gap-3 overflow-auto pr-1;
   }
 
   .cp-runtime-toolbar {
-    @apply flex flex-wrap items-center justify-between gap-3;
+    @apply flex flex-wrap items-center justify-between gap-2;
   }
 
   .cp-runtime-toolbar__actions {
@@ -720,28 +740,37 @@
 
   .cp-workflow-lane {
     background: linear-gradient(180deg, color-mix(in srgb, var(--cp-panel) 97%, #040914 3%), color-mix(in srgb, var(--cp-panel-strong) 98%, #020617 2%));
-    @apply relative grid min-h-0 gap-4 overflow-auto rounded-2xl border border-[var(--cp-border)] p-4;
+    @apply relative grid min-h-0 gap-3 overflow-auto rounded-2xl border border-[var(--cp-border)] p-3;
   }
 
   .cp-workflow-line {
-    @apply absolute left-[19px] top-8 bottom-8 w-px;
+    @apply absolute left-[15px] top-8 bottom-8 w-px;
     background: linear-gradient(to bottom, color-mix(in srgb, var(--cp-sky) 54%, transparent), color-mix(in srgb, var(--cp-border) 88%, transparent));
   }
 
   .cp-workflow-step {
-    @apply relative grid grid-cols-[22px_minmax(0,1fr)] gap-3 text-left;
+    @apply relative grid grid-cols-[24px_minmax(0,1fr)] gap-2 text-left;
+  }
+
+  .cp-workflow-step__rail {
+    @apply relative flex min-h-full items-start justify-center;
   }
 
   .cp-workflow-step__dot {
     border: 2px solid color-mix(in srgb, var(--cp-sky) 70%, white 30%);
     background: color-mix(in srgb, var(--cp-panel) 66%, var(--cp-sky) 34%);
-    @apply relative z-[1] mt-4 h-4 w-4 rounded-full;
+    @apply relative z-[1] mt-3 h-3.5 w-3.5 rounded-full;
+  }
+
+  .cp-workflow-step__count {
+    color: var(--cp-text-dim);
+    @apply absolute left-1/2 top-[-2px] -translate-x-1/2 rounded-full bg-[color:var(--cp-panel-strong)] px-1.5 py-0.5 text-[9px] font-semibold;
   }
 
   .cp-workflow-step__card {
     border: 1px solid var(--cp-border);
     background: color-mix(in srgb, var(--cp-panel) 97%, #040914 3%);
-    @apply grid min-w-0 grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-3 transition;
+    @apply grid min-w-0 grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-2 rounded-xl px-2.5 py-2.5 transition;
   }
 
   .cp-workflow-step.is-active .cp-workflow-step__card {
@@ -752,7 +781,7 @@
   .cp-workflow-step__icon {
     border: 1px solid color-mix(in srgb, var(--cp-blue) 36%, var(--cp-border) 64%);
     background: color-mix(in srgb, var(--cp-blue) 14%, transparent);
-    @apply flex h-9 w-9 items-center justify-center rounded-xl text-xs font-bold;
+    @apply flex h-8 w-8 items-center justify-center rounded-lg text-[11px] font-bold;
   }
 
   .cp-workflow-step__body {
@@ -760,16 +789,34 @@
   }
 
   .cp-workflow-step__title {
-    @apply text-sm font-semibold;
+    @apply text-[12px] font-semibold leading-tight;
+  }
+
+  .cp-workflow-step__detail {
+    @apply overflow-hidden text-[10px] leading-[1.25] text-ellipsis whitespace-nowrap;
   }
 
   .cp-workflow-inspector {
-    border-top: 1px solid var(--cp-border);
-    @apply grid gap-2 pt-3;
+    border: 1px solid var(--cp-border);
+    background: color-mix(in srgb, var(--cp-panel) 98%, #040914 2%);
+    @apply grid gap-2 rounded-xl px-3 py-3;
   }
 
   .cp-workflow-inspector__header {
     @apply flex items-center justify-between gap-3;
+  }
+
+  .cp-workflow-inspector__meta {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .cp-workflow-inspector__resource {
+    @apply grid gap-1 border-t border-[color:var(--cp-border)] pt-2;
+  }
+
+  .cp-workflow-shell {
+    @apply grid min-h-0 gap-3;
+    grid-template-rows: minmax(0, 1fr) auto;
   }
 
   .cp-bottom-panel .cp-panel__body {
@@ -846,8 +893,8 @@
 
   @media (max-width: 1480px) {
     .cp-dashboard-grid {
-      grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
-      grid-template-rows: minmax(0, 1fr) minmax(260px, auto) minmax(240px, 0.72fr);
+      grid-template-columns: minmax(228px, 260px) minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) minmax(240px, auto) minmax(220px, 0.72fr);
       grid-template-areas:
         "sidebar main"
         "sidebar workflow"
