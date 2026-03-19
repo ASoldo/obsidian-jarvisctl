@@ -987,14 +987,20 @@ class JarvisCtlControlView extends ItemView {
 		this.renderDetailBox(detailGrid, "Backend", session.backend);
 		this.renderDetailBox(detailGrid, "Created", new Date(session.created_at_epoch_ms).toLocaleString());
 
-		this.renderRuntimeFeed(body, session);
+		this.renderObserverSurface(body, session);
 		this.renderSubagentTree(body, session);
 		this.renderAgentSection(body, session);
 	}
 
+	private renderObserverSurface(parent: HTMLElement, session: JarvisSessionMetadata): void {
+		const observer = parent.createDiv({ cls: "jarvisctl-observer-grid" });
+		this.renderRuntimeFeed(observer, session);
+		this.renderLiveConsole(observer, session);
+	}
+
 	private renderRuntimeFeed(parent: HTMLElement, session: JarvisSessionMetadata): void {
 		const context = this.getRuntimeContext(session);
-		const events = (context?.recent_events ?? []).slice(-10);
+		const events = (context?.recent_events ?? []).slice(-12);
 		const section = parent.createDiv({ cls: "jarvisctl-runtime-section" });
 		const header = section.createDiv({ cls: "jarvisctl-section-header" });
 		header.createDiv({ cls: "jarvisctl-panel-title", text: "Runtime Feed" });
@@ -1039,6 +1045,45 @@ class JarvisCtlControlView extends ItemView {
 			if (event.detail) {
 				card.createEl("p", { cls: "jarvisctl-feed-detail", text: event.detail });
 			}
+		}
+	}
+
+	private renderLiveConsole(parent: HTMLElement, session: JarvisSessionMetadata): void {
+		const context = this.getRuntimeContext(session);
+		const section = parent.createDiv({ cls: "jarvisctl-runtime-section" });
+		const header = section.createDiv({ cls: "jarvisctl-section-header" });
+		header.createDiv({ cls: "jarvisctl-panel-title", text: "Live Console" });
+		const meta = header.createDiv({ cls: "jarvisctl-panel-meta" });
+		const lines = context?.event_log_path ? this.readLogTail(context.event_log_path, 28) : [];
+		meta.createSpan({ cls: "jarvisctl-chip", text: `${lines.length} lines` });
+		if (context?.event_log_path) {
+			meta.createSpan({ cls: "jarvisctl-chip", text: "event log" });
+		}
+
+		const body = section.createDiv({ cls: "jarvisctl-section-body" });
+		if (!context?.event_log_path) {
+			const empty = body.createDiv({ cls: "jarvisctl-empty -compact" });
+			empty.createEl("h3", { text: "No live console yet" });
+			empty.createEl("p", {
+				text: "This namespace has no exported event log path, so live tail view is unavailable.",
+			});
+			return;
+		}
+		if (lines.length === 0) {
+			const empty = body.createDiv({ cls: "jarvisctl-empty -compact" });
+			empty.createEl("h3", { text: "Waiting for output" });
+			empty.createEl("p", {
+				text: "The event log exists, but no output has been written yet.",
+			});
+			return;
+		}
+
+		const consoleEl = body.createDiv({ cls: "jarvisctl-console" });
+		for (const line of lines) {
+			consoleEl.createDiv({
+				cls: consoleLineClass(line),
+				text: line.length > 0 ? line : " ",
+			});
 		}
 	}
 
@@ -1259,6 +1304,24 @@ class JarvisCtlControlView extends ItemView {
 
 	private countRunningAgents(session: JarvisSessionMetadata): number {
 		return session.agents.filter((agent) => agent.running).length;
+	}
+
+	private readLogTail(path: string, maxLines: number): string[] {
+		try {
+			if (!existsSync(path)) {
+				return [];
+			}
+			const raw = readFileSync(path, "utf8");
+			return raw
+				.replaceAll("\r", "")
+				.split("\n")
+				.map((line) => line.trimEnd())
+				.filter((line, index, lines) => line.length > 0 || index === lines.length - 1)
+				.slice(-maxLines);
+		} catch (error) {
+			console.warn("JarvisCtl Control could not read event log", error);
+			return [`[error] ${formatError(error)}`];
+		}
 	}
 
 	private countSubagents(session: JarvisSessionMetadata): number {
@@ -1580,6 +1643,26 @@ function feedStatusClass(status: string): string {
 function shortThreadId(threadId: string): string {
 	const [head] = threadId.split("-");
 	return head || threadId;
+}
+
+function consoleLineClass(line: string): string {
+	const normalized = line.trim();
+	if (normalized.startsWith("[error]") || normalized.startsWith("[stderr]")) {
+		return "jarvisctl-console-line is-error";
+	}
+	if (normalized.startsWith("[assistant]")) {
+		return "jarvisctl-console-line is-assistant";
+	}
+	if (normalized.startsWith("[command")) {
+		return "jarvisctl-console-line is-command";
+	}
+	if (normalized.startsWith("[operator]")) {
+		return "jarvisctl-console-line is-operator";
+	}
+	if (normalized.startsWith("[session]") || normalized.startsWith("[thread]") || normalized.startsWith("[turn]")) {
+		return "jarvisctl-console-line is-system";
+	}
+	return "jarvisctl-console-line";
 }
 
 function relativeAge(epochMs: number): string {

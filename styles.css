@@ -357,6 +357,12 @@
   padding: 8px;
 }
 
+.jarvisctl-observer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 8px;
+}
+
 .jarvisctl-feed-list {
   display: grid;
   gap: 6px;
@@ -425,6 +431,48 @@
 .jarvisctl-subagent-tree {
   display: grid;
   gap: 6px;
+}
+
+.jarvisctl-console {
+  display: grid;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 10px;
+  border: 1px solid var(--jarvis-border);
+  background: color-mix(in srgb, #0b1220 55%, var(--jarvis-surface) 45%);
+  font-family: var(--font-monospace);
+  font-size: 11px;
+  line-height: 1.45;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.jarvisctl-console-line {
+  padding: 3px 6px;
+  border-radius: 6px;
+  color: color-mix(in srgb, var(--text-normal) 86%, #cbd5e1 14%);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.jarvisctl-console-line.is-system {
+  color: color-mix(in srgb, var(--jarvis-blue) 58%, white 42%);
+}
+
+.jarvisctl-console-line.is-assistant {
+  color: color-mix(in srgb, var(--jarvis-teal) 72%, white 28%);
+}
+
+.jarvisctl-console-line.is-command {
+  color: color-mix(in srgb, var(--jarvis-amber) 74%, white 26%);
+}
+
+.jarvisctl-console-line.is-operator {
+  color: color-mix(in srgb, var(--jarvis-indigo) 76%, white 24%);
+}
+
+.jarvisctl-console-line.is-error {
+  color: color-mix(in srgb, var(--jarvis-red) 76%, white 24%);
 }
 
 .jarvisctl-subagent-root {
@@ -636,6 +684,10 @@
 
 @container (max-width: 1080px) {
   .jarvisctl-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .jarvisctl-observer-grid {
     grid-template-columns: 1fr;
   }
 }
