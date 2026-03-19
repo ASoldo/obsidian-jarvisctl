@@ -19,7 +19,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-observer";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control", "jarvisctl-control-live"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-19-observer-pane";
+const BUILD_STAMP = "2026-03-19-control-plane-grid";
 
 interface JarvisRuntimeFeedEntry {
 	id: string;
@@ -620,6 +620,32 @@ class JarvisCtlControlView extends ItemView {
 		super(leaf);
 		this.plugin = plugin;
 		this.navigation = true;
+		this.addAction("refresh-cw", "Refresh namespaces", () => {
+			void this.refreshSessions();
+		});
+		this.addAction("layout-dashboard", "Open jarvisctl dashboard", () => {
+			void this.plugin.openTerminalCommand(
+				[this.plugin.getTerminalJarvisCtlPath()],
+				"JarvisCtl Dashboard",
+				this.plugin.getVaultBasePath(),
+			);
+		});
+		this.addAction("terminal-square", "Attach selected namespace", () => {
+			const session = this.getSelectedSession();
+			if (!session) {
+				new Notice("Select a namespace first.");
+				return;
+			}
+			void this.plugin.openNamespaceAttach(session);
+		});
+		this.addAction("file-text", "Open selected ticket", () => {
+			const taskNote = this.getSelectedSession()?.context?.task_note;
+			if (!taskNote) {
+				new Notice("Selected namespace does not expose a ticket note.");
+				return;
+			}
+			void this.plugin.openTaskNote(taskNote);
+		});
 	}
 
 	getViewType(): string {
@@ -789,22 +815,16 @@ class JarvisCtlControlView extends ItemView {
 	}
 
 	private renderNamespacePanel(parent: HTMLElement): void {
-		const panel = parent.createDiv({ cls: "jarvisctl-panel" });
+		const panel = parent.createDiv({ cls: "jarvisctl-panel jarvisctl-panel-rail" });
 		const header = panel.createDiv({ cls: "jarvisctl-panel-header" });
 		header.createDiv({ cls: "jarvisctl-panel-title", text: "Namespaces" });
-		const headerActions = header.createDiv({ cls: "jarvisctl-actions" });
-		this.makeButton(headerActions, "Refresh", async () => {
-			await this.refreshSessions();
-		}, "-primary");
-		this.makeButton(headerActions, "Dashboard", async () => {
-			await this.plugin.openTerminalCommand(
-				[this.plugin.getTerminalJarvisCtlPath()],
-				"JarvisCtl Dashboard",
-				this.plugin.getVaultBasePath(),
-			);
+		const headerMeta = header.createDiv({ cls: "jarvisctl-panel-meta" });
+		headerMeta.createSpan({
+			cls: "jarvisctl-chip",
+			text: `${this.sessions.length} active`,
 		});
 
-		const body = panel.createDiv({ cls: "jarvisctl-panel-body" });
+		const body = panel.createDiv({ cls: "jarvisctl-panel-body jarvisctl-panel-body-rail" });
 		if (this.sessions.length === 0) {
 			const empty = body.createDiv({ cls: "jarvisctl-empty" });
 			empty.createEl("h3", { text: "No active namespaces" });
@@ -842,12 +862,13 @@ class JarvisCtlControlView extends ItemView {
 					text: context.task_title,
 				});
 			}
-			nameCell.createDiv({
+			const metaRow = nameCell.createDiv({ cls: "jarvisctl-namespace-meta" });
+			metaRow.createDiv({
 				cls: "jarvisctl-namespace-subtext",
 				text: this.describeSession(session),
 			});
 			if (context?.task_note) {
-				nameCell.createDiv({
+				metaRow.createDiv({
 					cls: "jarvisctl-namespace-note",
 					text: basename(context.task_note),
 				});
@@ -860,13 +881,16 @@ class JarvisCtlControlView extends ItemView {
 
 			const running = this.countRunningAgents(session);
 			const stateCell = card.createDiv({ cls: "jarvisctl-namespace-cell -state" });
-			const stateText = context?.turn_status
-				? `turn ${context.turn_status}`
-				: context?.thread_status
-					? context.thread_status
-					: running > 0
-						? `${running}/${session.agents.length} live`
-						: "idle";
+			const stateText =
+				context?.thread_status === "running" && context?.turn_status
+					? `turn ${context.turn_status}`
+					: context?.thread_status
+						? context.thread_status
+						: context?.turn_status
+							? context.turn_status
+							: running > 0
+								? `${running}/${session.agents.length} live`
+								: "idle";
 			stateCell.createSpan({
 				cls: running > 0 ? "jarvisctl-chip is-live" : "jarvisctl-chip is-idle",
 				text: stateText,
@@ -880,7 +904,7 @@ class JarvisCtlControlView extends ItemView {
 	}
 
 	private renderDetailsPanel(parent: HTMLElement): void {
-		const panel = parent.createDiv({ cls: "jarvisctl-panel" });
+		const panel = parent.createDiv({ cls: "jarvisctl-panel jarvisctl-panel-main" });
 		const header = panel.createDiv({ cls: "jarvisctl-panel-header" });
 		const session = this.getSelectedSession();
 		header.createDiv({
@@ -902,7 +926,7 @@ class JarvisCtlControlView extends ItemView {
 			});
 		}
 
-		const body = panel.createDiv({ cls: "jarvisctl-panel-body" });
+		const body = panel.createDiv({ cls: "jarvisctl-panel-body jarvisctl-panel-body-detail" });
 		if (!session) {
 			const empty = body.createDiv({ cls: "jarvisctl-empty" });
 			empty.createEl("h3", { text: "Nothing selected" });
@@ -910,7 +934,7 @@ class JarvisCtlControlView extends ItemView {
 			return;
 		}
 
-		const actions = body.createDiv({ cls: "jarvisctl-actions" });
+		const actions = body.createDiv({ cls: "jarvisctl-toolbar" });
 		this.makeButton(actions, "Attach", async () => {
 			await this.withAction(`Opening attach for ${session.namespace}`, async () => {
 				await this.plugin.openNamespaceAttach(session);
@@ -955,54 +979,16 @@ class JarvisCtlControlView extends ItemView {
 			});
 		}, "-danger");
 
-		const detailGrid = body.createDiv({ cls: "jarvisctl-detail-grid" });
-		if (context?.task_title) {
-			this.renderDetailBox(detailGrid, "Task", context.task_title, "-wide");
-		}
-		if (context?.task_note) {
-			this.renderDetailBox(detailGrid, "Ticket Note", context.task_note, "-wide");
-		}
-		if (context?.codex_session_id) {
-			this.renderDetailBox(detailGrid, "Codex Session", context.codex_session_id);
-		}
-		if (context?.thread_status) {
-			this.renderDetailBox(detailGrid, "Thread", context.thread_status);
-		}
-		if (context?.turn_status) {
-			this.renderDetailBox(detailGrid, "Turn", context.turn_status);
-		}
-		if (context?.live_message) {
-			this.renderDetailBox(detailGrid, "Live Message", context.live_message, "-wide");
-		}
-		if (context?.last_activity) {
-			this.renderDetailBox(detailGrid, "Last Activity", context.last_activity, "-wide");
-		}
-		if (context?.last_error) {
-			this.renderDetailBox(detailGrid, "Last Error", context.last_error, "-wide");
-		}
-		if (context?.transcript_path) {
-			this.renderDetailBox(detailGrid, "Transcript", context.transcript_path, "-wide");
-		}
-		if (context?.event_log_path) {
-			this.renderDetailBox(detailGrid, "Event Log", context.event_log_path, "-wide");
-		}
-		if (context?.launch_mode) {
-			this.renderDetailBox(detailGrid, "Launch Mode", context.launch_mode);
-		}
-		this.renderDetailBox(detailGrid, "Working Dir", session.working_directory ?? "n/a", "-wide");
-		this.renderDetailBox(detailGrid, "Command", session.shell_command, "-wide");
-		this.renderDetailBox(detailGrid, "Backend", session.backend);
-		this.renderDetailBox(detailGrid, "Created", new Date(session.created_at_epoch_ms).toLocaleString());
+		this.renderSessionSnapshot(body, session);
 
-		this.renderObserverSurface(body, session);
-		this.renderSubagentTree(body, session);
-		this.renderAgentSection(body, session);
-	}
+		const runtimeWorkbench = body.createDiv({ cls: "jarvisctl-runtime-workbench" });
+		const runtimeUpper = runtimeWorkbench.createDiv({ cls: "jarvisctl-runtime-upper" });
+		this.renderRuntimeFeed(runtimeUpper, session);
+		this.renderObservedActivity(runtimeUpper, session);
 
-	private renderObserverSurface(parent: HTMLElement, session: JarvisSessionMetadata): void {
-		const observer = parent.createDiv({ cls: "jarvisctl-observer-grid" });
-		this.renderRuntimeFeed(observer, session);
-		this.renderObservedActivity(observer, session);
+		const runtimeLower = runtimeWorkbench.createDiv({ cls: "jarvisctl-runtime-lower" });
+		this.renderSubagentTree(runtimeLower, session);
+		this.renderAgentSection(runtimeLower, session);
 	}
 
 	private renderRuntimeFeed(parent: HTMLElement, session: JarvisSessionMetadata): void {
@@ -1017,7 +1003,7 @@ class JarvisCtlControlView extends ItemView {
 			meta.createSpan({ cls: "jarvisctl-chip", text: `turn ${context.turn_status}` });
 		}
 
-		const body = section.createDiv({ cls: "jarvisctl-section-body" });
+		const body = section.createDiv({ cls: "jarvisctl-section-body jarvisctl-section-body-tight" });
 		if (events.length === 0) {
 			const empty = body.createDiv({ cls: "jarvisctl-empty -compact" });
 			empty.createEl("h3", { text: "No runtime events yet" });
@@ -1268,18 +1254,49 @@ class JarvisCtlControlView extends ItemView {
 		}
 	}
 
-	private renderDetailBox(
-		parent: HTMLElement,
-		label: string,
-		value: string,
-		modifier = "",
-	): void {
-		const box = parent.createDiv({
-			cls: modifier ? `jarvisctl-detail-box ${modifier}` : "jarvisctl-detail-box",
-		});
-		box.createSpan({ cls: "jarvisctl-detail-box-label", text: label });
-		const valueEl = box.createDiv({ cls: "jarvisctl-detail-box-value", text: value });
-		valueEl.setAttr("title", value);
+	private renderSessionSnapshot(parent: HTMLElement, session: JarvisSessionMetadata): void {
+		const context = this.getRuntimeContext(session);
+		const section = parent.createDiv({ cls: "jarvisctl-runtime-section" });
+		const header = section.createDiv({ cls: "jarvisctl-section-header" });
+		header.createDiv({ cls: "jarvisctl-panel-title", text: "Session Snapshot" });
+		const meta = header.createDiv({ cls: "jarvisctl-panel-meta" });
+		meta.createSpan({ cls: "jarvisctl-chip", text: session.backend });
+		if (context?.launch_mode) {
+			meta.createSpan({ cls: "jarvisctl-chip", text: context.launch_mode });
+		}
+		if (context?.thread_status) {
+			meta.createSpan({ cls: feedStatusClass(context.thread_status), text: context.thread_status });
+		}
+
+		const body = section.createDiv({ cls: "jarvisctl-section-body" });
+		const grid = body.createDiv({ cls: "jarvisctl-snapshot-grid" });
+		const addFact = (label: string, value: string | null | undefined, modifier = ""): void => {
+			if (!value) {
+				return;
+			}
+			const fact = grid.createDiv({
+				cls: modifier ? `jarvisctl-snapshot-item ${modifier}` : "jarvisctl-snapshot-item",
+			});
+			fact.createSpan({ cls: "jarvisctl-detail-box-label", text: label });
+			const valueEl = fact.createDiv({ cls: "jarvisctl-detail-box-value", text: value });
+			valueEl.setAttr("title", value);
+		};
+
+		addFact("Task", context?.task_title, "-wide");
+		addFact("Codex Session", context?.codex_session_id);
+		addFact("Thread", context?.thread_status);
+		addFact("Turn", context?.turn_status);
+		addFact("Launch Mode", context?.launch_mode);
+		addFact("Backend", session.backend);
+		addFact("Created", new Date(session.created_at_epoch_ms).toLocaleString());
+		addFact("Last Activity", context?.last_activity, "-wide");
+		addFact("Live Message", context?.live_message, "-wide");
+		addFact("Last Error", context?.last_error, "-wide is-error");
+		addFact("Ticket Note", context?.task_note, "-wide");
+		addFact("Transcript", context?.transcript_path, "-wide");
+		addFact("Event Log", context?.event_log_path, "-wide");
+		addFact("Working Dir", session.working_directory ?? "n/a", "-wide");
+		addFact("Command", session.shell_command, "-wide");
 	}
 
 	private renderStatusLine(parent: HTMLElement): void {
@@ -1409,15 +1426,16 @@ class JarvisCtlControlView extends ItemView {
 	private describeSession(session: JarvisSessionMetadata): string {
 		const context = this.getRuntimeContext(session);
 		if (context?.workload) {
-			const mode = context.launch_mode ? ` / ${context.launch_mode}` : "";
-			const thread = context.thread_status ? ` / ${context.thread_status}` : "";
-			const subagents = this.countSubagents(session)
-				? ` / ${this.countSubagents(session)} subagents`
-				: "";
-			return `${context.workload}${mode}${thread}${subagents} / ${session.backend}`;
+			const parts = [
+				context.workload,
+				context.launch_mode,
+				context.thread_status,
+				this.countSubagents(session) ? `${this.countSubagents(session)} subagents` : null,
+			].filter((part): part is string => Boolean(part));
+			return parts.join(" · ");
 		}
 		return this.looksLikeCodexSession(session)
-			? `codex / ${session.backend}`
+			? "codex"
 			: session.backend;
 	}
 
