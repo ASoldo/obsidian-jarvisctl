@@ -16,10 +16,10 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-live";
-const LEGACY_VIEW_TYPES = ["jarvisctl-control"];
+const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-observer";
+const LEGACY_VIEW_TYPES = ["jarvisctl-control", "jarvisctl-control-live"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-19-runtime-feed";
+const BUILD_STAMP = "2026-03-19-observer-pane";
 
 interface JarvisRuntimeFeedEntry {
 	id: string;
@@ -41,6 +41,13 @@ interface JarvisRuntimeSubagentMetadata {
 	reasoning_effort?: string | null;
 	prompt_preview?: string | null;
 	latest_message?: string | null;
+}
+
+interface JarvisActivitySection {
+	kind: string;
+	label: string;
+	summary: string | null;
+	lines: string[];
 }
 
 interface JarvisAgentMetadata {
@@ -995,7 +1002,7 @@ class JarvisCtlControlView extends ItemView {
 	private renderObserverSurface(parent: HTMLElement, session: JarvisSessionMetadata): void {
 		const observer = parent.createDiv({ cls: "jarvisctl-observer-grid" });
 		this.renderRuntimeFeed(observer, session);
-		this.renderLiveConsole(observer, session);
+		this.renderObservedActivity(observer, session);
 	}
 
 	private renderRuntimeFeed(parent: HTMLElement, session: JarvisSessionMetadata): void {
@@ -1048,14 +1055,14 @@ class JarvisCtlControlView extends ItemView {
 		}
 	}
 
-	private renderLiveConsole(parent: HTMLElement, session: JarvisSessionMetadata): void {
+	private renderObservedActivity(parent: HTMLElement, session: JarvisSessionMetadata): void {
 		const context = this.getRuntimeContext(session);
 		const section = parent.createDiv({ cls: "jarvisctl-runtime-section" });
 		const header = section.createDiv({ cls: "jarvisctl-section-header" });
-		header.createDiv({ cls: "jarvisctl-panel-title", text: "Live Console" });
+		header.createDiv({ cls: "jarvisctl-panel-title", text: "Observed Activity" });
 		const meta = header.createDiv({ cls: "jarvisctl-panel-meta" });
-		const lines = context?.event_log_path ? this.readLogTail(context.event_log_path, 28) : [];
-		meta.createSpan({ cls: "jarvisctl-chip", text: `${lines.length} lines` });
+		const blocks = context?.event_log_path ? this.readActivitySections(context.event_log_path, 10) : [];
+		meta.createSpan({ cls: "jarvisctl-chip", text: `${blocks.length} sections` });
 		if (context?.event_log_path) {
 			meta.createSpan({ cls: "jarvisctl-chip", text: "event log" });
 		}
@@ -1069,21 +1076,40 @@ class JarvisCtlControlView extends ItemView {
 			});
 			return;
 		}
-		if (lines.length === 0) {
+		if (blocks.length === 0) {
 			const empty = body.createDiv({ cls: "jarvisctl-empty -compact" });
-			empty.createEl("h3", { text: "Waiting for output" });
+			empty.createEl("h3", { text: "Waiting for activity" });
 			empty.createEl("p", {
-				text: "The event log exists, but no output has been written yet.",
+				text: "The event log exists, but no grouped activity has been written yet.",
 			});
 			return;
 		}
 
-		const consoleEl = body.createDiv({ cls: "jarvisctl-console" });
-		for (const line of lines) {
-			consoleEl.createDiv({
-				cls: consoleLineClass(line),
-				text: line.length > 0 ? line : " ",
+		const activity = body.createDiv({ cls: "jarvisctl-activity-list" });
+		for (const block of blocks) {
+			const card = activity.createDiv({
+				cls: `jarvisctl-activity-block is-${block.kind}`,
 			});
+			const head = card.createDiv({ cls: "jarvisctl-activity-head" });
+			head.createSpan({
+				cls: "jarvisctl-chip",
+				text: block.label,
+			});
+			if (block.summary) {
+				head.createDiv({
+					cls: "jarvisctl-activity-summary",
+					text: block.summary,
+				});
+			}
+			if (block.lines.length > 0) {
+				const blockBody = card.createDiv({ cls: "jarvisctl-activity-body" });
+				for (const line of block.lines) {
+					blockBody.createDiv({
+						cls: consoleLineClass(line),
+						text: line,
+					});
+				}
+			}
 		}
 	}
 
@@ -1322,6 +1348,54 @@ class JarvisCtlControlView extends ItemView {
 			console.warn("JarvisCtl Control could not read event log", error);
 			return [`[error] ${formatError(error)}`];
 		}
+	}
+
+	private readActivitySections(path: string, maxSections: number): JarvisActivitySection[] {
+		const lines = this.readLogTail(path, 120);
+		if (lines.length === 0) {
+			return [];
+		}
+
+		const sections: JarvisActivitySection[] = [];
+		let current: JarvisActivitySection | null = null;
+
+		for (const rawLine of lines) {
+			const line = rawLine.trimEnd();
+			const match = line.match(/^\[([^\]]+)\]\s*(.*)$/);
+			if (match) {
+				if (current) {
+					sections.push(current);
+				}
+				const [, rawTag, remainder] = match;
+				current = {
+					kind: activityKind(rawTag),
+					label: activityLabel(rawTag),
+					summary: remainder.trim() || null,
+					lines: [],
+				};
+				continue;
+			}
+
+			if (!current) {
+				current = {
+					kind: "output",
+					label: "Output",
+					summary: null,
+					lines: [],
+				};
+			}
+			if (line.length > 0) {
+				current.lines.push(line);
+			}
+		}
+
+		if (current) {
+			sections.push(current);
+		}
+
+		return sections
+			.filter((section) => section.summary !== null || section.lines.length > 0)
+			.slice(-maxSections);
 	}
 
 	private countSubagents(session: JarvisSessionMetadata): number {
@@ -1663,6 +1737,52 @@ function consoleLineClass(line: string): string {
 		return "jarvisctl-console-line is-system";
 	}
 	return "jarvisctl-console-line";
+}
+
+function activityKind(tag: string): string {
+	const normalized = tag.toLowerCase();
+	if (normalized.startsWith("command")) {
+		return "command";
+	}
+	if (normalized.startsWith("assistant")) {
+		return "assistant";
+	}
+	if (normalized.startsWith("operator")) {
+		return "operator";
+	}
+	if (normalized.startsWith("thread") || normalized.startsWith("turn") || normalized.startsWith("session")) {
+		return "system";
+	}
+	if (normalized.startsWith("error") || normalized.startsWith("stderr")) {
+		return "error";
+	}
+	return "output";
+}
+
+function activityLabel(tag: string): string {
+	const normalized = tag.toLowerCase();
+	if (normalized === "command completed") {
+		return "Command";
+	}
+	if (normalized === "assistant") {
+		return "Assistant";
+	}
+	if (normalized === "operator") {
+		return "Operator";
+	}
+	if (normalized === "thread") {
+		return "Thread";
+	}
+	if (normalized === "turn") {
+		return "Turn";
+	}
+	if (normalized === "session") {
+		return "Session";
+	}
+	if (normalized === "error" || normalized === "stderr") {
+		return "Error";
+	}
+	return tag;
 }
 
 function relativeAge(epochMs: number): string {

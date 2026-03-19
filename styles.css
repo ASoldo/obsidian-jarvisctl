@@ -433,23 +433,69 @@
   gap: 6px;
 }
 
-.jarvisctl-console {
+.jarvisctl-activity-list {
   display: grid;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 10px;
-  border: 1px solid var(--jarvis-border);
-  background: color-mix(in srgb, #0b1220 55%, var(--jarvis-surface) 45%);
-  font-family: var(--font-monospace);
-  font-size: 11px;
-  line-height: 1.45;
+  gap: 6px;
   max-height: 420px;
   overflow: auto;
 }
 
+.jarvisctl-activity-block {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--jarvis-border);
+  background: color-mix(in srgb, #0b1220 32%, var(--jarvis-surface) 68%);
+}
+
+.jarvisctl-activity-block.is-command {
+  border-color: color-mix(in srgb, var(--jarvis-blue) 36%, var(--jarvis-border) 64%);
+}
+
+.jarvisctl-activity-block.is-assistant {
+  border-color: color-mix(in srgb, var(--jarvis-teal) 42%, var(--jarvis-border) 58%);
+}
+
+.jarvisctl-activity-block.is-operator {
+  border-color: color-mix(in srgb, var(--jarvis-indigo) 40%, var(--jarvis-border) 60%);
+}
+
+.jarvisctl-activity-block.is-system {
+  border-color: color-mix(in srgb, var(--jarvis-border-strong) 36%, var(--jarvis-border) 64%);
+}
+
+.jarvisctl-activity-block.is-error {
+  border-color: color-mix(in srgb, var(--jarvis-red) 44%, var(--jarvis-border) 56%);
+}
+
+.jarvisctl-activity-head {
+  display: grid;
+  gap: 6px;
+}
+
+.jarvisctl-activity-summary {
+  color: var(--jarvis-text-dim);
+  font-size: 11px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.jarvisctl-activity-body {
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--jarvis-border) 82%, transparent);
+  background: color-mix(in srgb, #0b1220 62%, var(--jarvis-surface) 38%);
+  font-family: var(--font-monospace);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .jarvisctl-console-line {
-  padding: 3px 6px;
-  border-radius: 6px;
+  padding: 2px 4px;
+  border-radius: 4px;
   color: color-mix(in srgb, var(--text-normal) 86%, #cbd5e1 14%);
   white-space: pre-wrap;
   word-break: break-word;
