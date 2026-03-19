@@ -132,6 +132,14 @@
   grid-template-rows: auto minmax(0, 1fr);
   min-height: var(--jarvis-pane-height);
   max-height: var(--jarvis-pane-height);
+  position: relative;
+  background:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--jarvis-border) 12%, transparent) 1px, transparent 0) 0 0 / 18px 18px,
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--jarvis-surface) 92%, transparent),
+      color-mix(in srgb, var(--jarvis-surface-2) 96%, transparent)
+    );
 }
 
 .jarvisctl-panel-header {
@@ -169,6 +177,7 @@
   height: 100%;
   overflow: auto;
   align-content: start;
+  position: relative;
 }
 
 .jarvisctl-panel-body-rail {
@@ -191,6 +200,18 @@
   gap: 6px;
   flex-wrap: wrap;
   align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 2px 0 8px;
+  margin-bottom: -2px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--jarvis-surface) 96%, transparent) 0%,
+      color-mix(in srgb, var(--jarvis-surface) 88%, transparent) 70%,
+      transparent 100%
+    );
 }
 
 .jarvisctl-button {
@@ -543,9 +564,17 @@
   gap: 0;
   border: 1px solid var(--jarvis-border);
   border-radius: 12px;
-  background: var(--jarvis-surface-2);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--jarvis-surface-2) 90%, transparent),
+      color-mix(in srgb, var(--jarvis-surface) 94%, transparent)
+    );
   overflow: hidden;
   min-width: 0;
+  box-shadow:
+    0 10px 24px color-mix(in srgb, #020617 12%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
 }
 
 .jarvisctl-section-header {
@@ -597,28 +626,65 @@
 }
 
 .jarvisctl-feed-card {
+  position: relative;
   display: grid;
   gap: 6px;
   padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid var(--jarvis-border);
-  background: color-mix(in srgb, var(--jarvis-surface) 74%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--jarvis-surface) 88%, transparent),
+      color-mix(in srgb, var(--jarvis-surface-2) 92%, transparent)
+    );
+  box-shadow:
+    0 8px 18px color-mix(in srgb, #020617 12%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
+}
+
+.jarvisctl-feed-card::before,
+.jarvisctl-activity-block::before,
+.jarvisctl-agent-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: color-mix(in srgb, var(--jarvis-border-strong) 36%, transparent);
 }
 
 .jarvisctl-feed-card.is-subagent {
   border-color: color-mix(in srgb, var(--jarvis-indigo) 36%, var(--jarvis-border) 64%);
 }
 
+.jarvisctl-feed-card.is-subagent::before {
+  background: color-mix(in srgb, var(--jarvis-indigo) 72%, white 28%);
+}
+
 .jarvisctl-feed-card.is-command {
   border-color: color-mix(in srgb, var(--jarvis-blue) 32%, var(--jarvis-border) 68%);
+}
+
+.jarvisctl-feed-card.is-command::before {
+  background: color-mix(in srgb, var(--jarvis-blue) 72%, white 28%);
 }
 
 .jarvisctl-feed-card.is-plan {
   border-color: color-mix(in srgb, var(--jarvis-teal) 28%, var(--jarvis-border) 72%);
 }
 
+.jarvisctl-feed-card.is-plan::before {
+  background: color-mix(in srgb, var(--jarvis-teal) 72%, white 28%);
+}
+
 .jarvisctl-feed-card.is-error {
   border-color: color-mix(in srgb, var(--jarvis-red) 42%, var(--jarvis-border) 58%);
+}
+
+.jarvisctl-feed-card.is-error::before {
+  background: color-mix(in srgb, var(--jarvis-red) 74%, white 26%);
 }
 
 .jarvisctl-feed-head {
@@ -671,32 +737,61 @@
 }
 
 .jarvisctl-activity-block {
+  position: relative;
   display: grid;
   gap: 6px;
   padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid var(--jarvis-border);
-  background: color-mix(in srgb, #0b1220 32%, var(--jarvis-surface) 68%);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--jarvis-surface) 86%, transparent),
+      color-mix(in srgb, #0b1220 20%, var(--jarvis-surface) 80%)
+    );
+  box-shadow:
+    0 8px 18px color-mix(in srgb, #020617 12%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
 }
 
 .jarvisctl-activity-block.is-command {
   border-color: color-mix(in srgb, var(--jarvis-blue) 36%, var(--jarvis-border) 64%);
 }
 
+.jarvisctl-activity-block.is-command::before {
+  background: color-mix(in srgb, var(--jarvis-blue) 72%, white 28%);
+}
+
 .jarvisctl-activity-block.is-assistant {
   border-color: color-mix(in srgb, var(--jarvis-teal) 42%, var(--jarvis-border) 58%);
+}
+
+.jarvisctl-activity-block.is-assistant::before {
+  background: color-mix(in srgb, var(--jarvis-teal) 72%, white 28%);
 }
 
 .jarvisctl-activity-block.is-operator {
   border-color: color-mix(in srgb, var(--jarvis-indigo) 40%, var(--jarvis-border) 60%);
 }
 
+.jarvisctl-activity-block.is-operator::before {
+  background: color-mix(in srgb, var(--jarvis-indigo) 72%, white 28%);
+}
+
 .jarvisctl-activity-block.is-system {
   border-color: color-mix(in srgb, var(--jarvis-border-strong) 36%, var(--jarvis-border) 64%);
 }
 
+.jarvisctl-activity-block.is-system::before {
+  background: color-mix(in srgb, var(--jarvis-border-strong) 60%, white 40%);
+}
+
 .jarvisctl-activity-block.is-error {
   border-color: color-mix(in srgb, var(--jarvis-red) 44%, var(--jarvis-border) 56%);
+}
+
+.jarvisctl-activity-block.is-error::before {
+  background: color-mix(in srgb, var(--jarvis-red) 74%, white 26%);
 }
 
 .jarvisctl-activity-head {
@@ -767,7 +862,16 @@
   padding: 8px 10px 8px calc(14px + var(--jarvis-depth, 0) * 22px);
   border-radius: 10px;
   border: 1px solid var(--jarvis-border);
-  background: color-mix(in srgb, var(--jarvis-surface) 78%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--jarvis-surface) 88%, transparent),
+      color-mix(in srgb, var(--jarvis-surface-2) 94%, transparent)
+    );
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb, var(--jarvis-indigo) 72%, white 28%),
+    0 8px 18px color-mix(in srgb, #020617 10%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
 }
 
 .jarvisctl-subagent-node::before {
@@ -823,6 +927,7 @@
 }
 
 .jarvisctl-agent-row {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
@@ -830,7 +935,19 @@
   padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid var(--jarvis-border);
-  background: var(--jarvis-surface-2);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--jarvis-surface) 88%, transparent),
+      color-mix(in srgb, var(--jarvis-surface-2) 94%, transparent)
+    );
+  box-shadow:
+    0 8px 18px color-mix(in srgb, #020617 10%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
+}
+
+.jarvisctl-agent-row::before {
+  background: color-mix(in srgb, var(--jarvis-teal) 72%, white 28%);
 }
 
 .jarvisctl-card-title {
