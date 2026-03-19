@@ -321,12 +321,6 @@
   );
 }
 
-.jarvisctl-namespace-main {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-
 .jarvisctl-namespace-heading {
   display: grid;
   gap: 4px;
@@ -382,7 +376,7 @@
 .jarvisctl-namespace-flow::before {
   content: "";
   position: absolute;
-  left: 6px;
+  left: 5px;
   top: 10px;
   bottom: 10px;
   width: 1px;
@@ -409,7 +403,7 @@
 .jarvisctl-namespace-step-rail::after {
   content: "";
   position: absolute;
-  left: 2px;
+  left: 1px;
   top: 9px;
   width: 8px;
   height: 8px;
@@ -499,6 +493,7 @@
 .jarvisctl-namespace-aside {
   display: grid;
   gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-content: start;
 }
 
@@ -1029,7 +1024,7 @@
   position: relative;
   display: grid;
   gap: 6px;
-  padding: 10px 10px 10px calc(22px + var(--jarvis-depth, 0) * 22px);
+  padding: 10px 10px 10px calc(26px + var(--jarvis-depth, 0) * 22px);
   border-radius: 10px;
   border: 1px solid var(--jarvis-border);
   background:
@@ -1041,7 +1036,6 @@
   overflow: hidden;
   isolation: isolate;
   box-shadow:
-    inset 3px 0 0 color-mix(in srgb, var(--jarvis-indigo) 72%, white 28%),
     0 8px 18px color-mix(in srgb, #020617 10%, transparent),
     inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
 }
@@ -1049,14 +1043,13 @@
 .jarvisctl-subagent-node::before {
   content: "";
   position: absolute;
-  left: calc(11px + var(--jarvis-depth, 0) * 22px);
-  top: 11px;
-  bottom: 11px;
-  width: 2px;
-  border-radius: 999px;
+  left: calc(12px + var(--jarvis-depth, 0) * 22px);
+  top: 10px;
+  bottom: 10px;
+  width: 1px;
   background: linear-gradient(
     to bottom,
-    color-mix(in srgb, var(--jarvis-indigo) 54%, transparent),
+    color-mix(in srgb, var(--jarvis-indigo) 42%, transparent),
     color-mix(in srgb, var(--jarvis-border) 86%, transparent)
   );
 }
@@ -1064,12 +1057,16 @@
 .jarvisctl-subagent-node::after {
   content: "";
   position: absolute;
-  left: calc(11px + var(--jarvis-depth, 0) * 22px);
-  top: 21px;
-  width: 14px;
-  height: 2px;
+  left: calc(8px + var(--jarvis-depth, 0) * 22px);
+  top: 17px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--jarvis-border) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--jarvis-indigo) 40%, var(--jarvis-border) 60%);
+  background: color-mix(in srgb, var(--jarvis-surface) 74%, var(--jarvis-indigo) 26%);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--jarvis-surface) 90%, transparent),
+    0 4px 10px color-mix(in srgb, #020617 16%, transparent);
 }
 
 .jarvisctl-subagent-top {

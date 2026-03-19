@@ -19,7 +19,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-observer";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control", "jarvisctl-control-live"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-19-activity-chip-width";
+const BUILD_STAMP = "2026-03-19-namespace-top-stats";
 
 interface JarvisRuntimeFeedEntry {
 	id: string;
@@ -899,8 +899,7 @@ class JarvisCtlControlView extends ItemView {
 				this.render();
 			});
 
-			const main = card.createDiv({ cls: "jarvisctl-namespace-main" });
-			const heading = main.createDiv({ cls: "jarvisctl-namespace-heading" });
+			const heading = card.createDiv({ cls: "jarvisctl-namespace-heading" });
 			heading.createDiv({ cls: "jarvisctl-namespace-name", text: session.namespace });
 			if (context?.task_title) {
 				heading.createDiv({
@@ -909,7 +908,17 @@ class JarvisCtlControlView extends ItemView {
 				});
 			}
 
-			const flow = main.createDiv({ cls: "jarvisctl-namespace-flow" });
+			const aside = card.createDiv({ cls: "jarvisctl-namespace-aside" });
+			this.renderNamespaceStat(aside, "Agents", `${session.agents.length}`);
+			const stateStat = aside.createDiv({ cls: "jarvisctl-namespace-stat is-state" });
+			stateStat.createDiv({ cls: "jarvisctl-namespace-stat-label", text: "State" });
+			stateStat.createSpan({
+				cls: this.namespaceStateClass(session),
+				text: this.namespaceStateLabel(session),
+			});
+			this.renderNamespaceStat(aside, "Age", relativeAge(session.created_at_epoch_ms));
+
+			const flow = card.createDiv({ cls: "jarvisctl-namespace-flow" });
 			const contractStep = flow.createDiv({ cls: "jarvisctl-namespace-step is-contract" });
 			contractStep.createDiv({ cls: "jarvisctl-namespace-step-rail" });
 			const contractCard = contractStep.createDiv({ cls: "jarvisctl-namespace-step-card" });
@@ -942,16 +951,6 @@ class JarvisCtlControlView extends ItemView {
 				cls: "jarvisctl-namespace-step-value is-secondary",
 				text: runtimeValue,
 			});
-
-			const aside = card.createDiv({ cls: "jarvisctl-namespace-aside" });
-			this.renderNamespaceStat(aside, "Agents", `${session.agents.length}`);
-			const stateStat = aside.createDiv({ cls: "jarvisctl-namespace-stat is-state" });
-			stateStat.createDiv({ cls: "jarvisctl-namespace-stat-label", text: "State" });
-			stateStat.createSpan({
-				cls: this.namespaceStateClass(session),
-				text: this.namespaceStateLabel(session),
-			});
-			this.renderNamespaceStat(aside, "Age", relativeAge(session.created_at_epoch_ms));
 		}
 	}
 
