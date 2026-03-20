@@ -29,7 +29,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-observer";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control", "jarvisctl-control-live"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-20-vue-flow-shell-polish";
+const BUILD_STAMP = "2026-03-20-vue-flow-dag-cleanup";
 
 interface TerminalProfile {
 	args?: string[];

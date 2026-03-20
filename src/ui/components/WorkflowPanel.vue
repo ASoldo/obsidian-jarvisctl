@@ -3,7 +3,14 @@ import { computed, markRaw, ref, watch } from "vue";
 import { VueFlow, Position, type Edge, type Node } from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
 import type { JarvisSessionMetadata } from "../../types/domain";
-import { buildWorkflow, centeredLanePositions, shortPath, statusTone, truncate, type WorkflowStepModel } from "../helpers";
+import {
+	buildWorkflow,
+	buildWorkflowLayout,
+	shortPath,
+	statusTone,
+	truncate,
+	type WorkflowStepModel,
+} from "../helpers";
 import StatusBadge from "./StatusBadge.vue";
 import ExpandableText from "./ExpandableText.vue";
 import FlowCardNode from "./graph/FlowCardNode.vue";
@@ -31,71 +38,30 @@ const selectedStep = computed<WorkflowStepModel | null>(
 	() => steps.value.find((step) => step.id === selectedStepId.value) ?? steps.value[0] ?? null,
 );
 
+const laidOutSteps = computed(() => buildWorkflowLayout(props.session));
+
 const flowNodes = computed<Node[]>(() => {
 	if (!props.session) {
 		return [];
 	}
-
-	const ticket = steps.value.find((step) => step.id === "ticket");
-	const thread = steps.value.find((step) => step.id === "thread");
-	const feed = steps.value.find((step) => step.id === "feed");
-	const reasoning = steps.value.find((step) => step.id === "reasoning");
-	const branches = steps.value.filter(
-		(step) => !["ticket", "thread", "feed", "reasoning"].includes(step.id),
-	);
-	const branchPositions = centeredLanePositions(Math.max(branches.length, 1), 236, 128);
-
-	const nodes: Node[] = [];
-
-	const pushNode = (
-		step: WorkflowStepModel | undefined,
-		x: number,
-		y: number,
-		sourcePosition: Position,
-		targetPosition: Position,
-		width = 240,
-	) => {
-		if (!step) {
-			return;
-		}
-		nodes.push({
-			id: step.id,
-			type: "flowCard",
-			position: { x, y },
-			draggable: false,
-			selectable: true,
-			connectable: false,
-			sourcePosition,
-			targetPosition,
-			style: { width: `${width}px` },
-			data: {
-				variant: "workflow",
-				icon: step.icon,
-				title: step.label,
-				subtitle: truncate(step.detail, 52),
-				status: step.status,
-			},
-		});
-	};
-
-	pushNode(ticket, 64, 72, Position.Bottom, Position.Left, 256);
-	pushNode(thread, 64, 224, Position.Right, Position.Top, 256);
-	pushNode(feed, 64, 376, Position.Right, Position.Top, 256);
-
-	branches.forEach((step, index) => {
-		pushNode(step, 436, branchPositions[index] ?? 236, Position.Right, Position.Left, 280);
-	});
-
-	pushNode(
-		reasoning,
-		840,
-		236,
-		Position.Left,
-		Position.Left,
-		280,
-	);
-
-	return nodes;
+	return laidOutSteps.value.map((step) => ({
+		id: step.id,
+		type: "flowCard",
+		position: { x: step.x, y: step.y },
+		draggable: false,
+		selectable: true,
+		connectable: false,
+		sourcePosition: Position.Right,
+		targetPosition: Position.Left,
+		style: { width: "276px" },
+		data: {
+			variant: "workflow",
+			icon: step.icon,
+			title: step.label,
+			subtitle: truncate(step.detail, 68),
+			status: step.status,
+		},
+	}));
 });
 
 function edgeColor(kind: "primary" | "success" | "warning" | "muted"): string {
@@ -125,18 +91,18 @@ const flowEdges = computed<Edge[]>(() => {
 		id: "ticket-thread",
 		source: "ticket",
 		target: "thread",
-		sourceHandle: "source-bottom",
-		targetHandle: "target-top",
-		type: "step",
+		sourceHandle: "source-right",
+		targetHandle: "target-left",
+		type: "smoothstep",
 		style: { stroke: edgeColor("primary"), strokeWidth: 2.2 },
 	});
 	edges.push({
 		id: "thread-feed",
 		source: "thread",
 		target: "feed",
-		sourceHandle: "source-bottom",
-		targetHandle: "target-top",
-		type: "step",
+		sourceHandle: "source-right",
+		targetHandle: "target-left",
+		type: "smoothstep",
 		style: { stroke: edgeColor("success"), strokeWidth: 2.2 },
 	});
 
@@ -147,7 +113,7 @@ const flowEdges = computed<Edge[]>(() => {
 			target: step.id,
 			sourceHandle: "source-right",
 			targetHandle: "target-left",
-			type: "step",
+			type: "smoothstep",
 			style: {
 				stroke: edgeColor(index % 2 === 0 ? "primary" : "warning"),
 				strokeWidth: 2.2,
@@ -159,7 +125,7 @@ const flowEdges = computed<Edge[]>(() => {
 			target: "reasoning",
 			sourceHandle: "source-right",
 			targetHandle: "target-left",
-			type: "step",
+			type: "smoothstep",
 			style: { stroke: edgeColor("muted"), strokeWidth: 2 },
 		});
 	});
@@ -170,7 +136,7 @@ const flowEdges = computed<Edge[]>(() => {
 		target: "reasoning",
 		sourceHandle: "source-right",
 		targetHandle: "target-left",
-		type: "step",
+		type: "smoothstep",
 		style: { stroke: edgeColor("success"), strokeWidth: 2.2 },
 	});
 

@@ -1,3 +1,4 @@
+import dagre from "@dagrejs/dagre";
 import type {
 	JarvisActivitySection,
 	JarvisRuntimeFeedEntry,
@@ -36,6 +37,55 @@ export interface RepositoryGroupModel {
 	label: string;
 	path: string;
 	sessions: JarvisSessionMetadata[];
+}
+
+interface DagNodeSpec<T> {
+	id: string;
+	width: number;
+	height: number;
+	data: T;
+}
+
+function layoutDag<T>(
+	nodes: DagNodeSpec<T>[],
+	edges: Array<{ from: string; to: string }>,
+	options?: {
+		rankdir?: "LR" | "TB";
+		nodesep?: number;
+		ranksep?: number;
+		marginx?: number;
+		marginy?: number;
+	},
+): Array<T & { x: number; y: number }> {
+	const graph = new dagre.graphlib.Graph();
+	graph.setGraph({
+		rankdir: options?.rankdir ?? "LR",
+		nodesep: options?.nodesep ?? 56,
+		ranksep: options?.ranksep ?? 120,
+		marginx: options?.marginx ?? 48,
+		marginy: options?.marginy ?? 48,
+		ranker: "tight-tree",
+	});
+	graph.setDefaultEdgeLabel(() => ({}));
+
+	for (const node of nodes) {
+		graph.setNode(node.id, { width: node.width, height: node.height });
+	}
+
+	for (const edge of edges) {
+		graph.setEdge(edge.from, edge.to);
+	}
+
+	dagre.layout(graph);
+
+	return nodes.map((node) => {
+		const layoutNode = graph.node(node.id);
+		return {
+			...node.data,
+			x: Math.round(layoutNode.x - node.width / 2),
+			y: Math.round(layoutNode.y - node.height / 2),
+		};
+	});
 }
 
 export function relativeAge(timestampEpochMs: number): string {
@@ -206,74 +256,102 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 		return { nodes: [], edges: [] };
 	}
 
-	const subagents = (session.context?.subagents ?? []).slice(0, 3);
+	const subagents = (session.context?.subagents ?? []).slice(0, 4);
 	const eventCount = session.context?.recent_events?.length ?? 0;
-	const branchPositions = centeredLanePositions(Math.max(subagents.length, 1), 220, 126);
-
-	const nodes: TopologyNodeModel[] = [
-		{
-			id: "ticket",
-			label: "Trigger",
-			type: "trigger",
-			status: session.context?.task_note ? "ready" : "idle",
-			x: 64,
-			y: 220,
-			meta: "execution contract",
-		},
-		{
-			id: "main",
-			label: session.namespace,
-			type: "agent",
-			status: sessionStateLabel(session),
-			x: 320,
-			y: 220,
-			meta: `${compactId(session.context?.codex_session_id, 8, 4)} · ${sessionStateLabel(session)}`,
-		},
-		{
-			id: "events",
-			label: "Runtime Feed",
-			type: "processor",
-			status: eventCount > 0 ? "healthy" : "idle",
-			x: 320,
-			y: 412,
-			meta: `${eventCount} recent events`,
-		},
-		{
-			id: "activity",
-			label: "Observed Activity",
-			type: "analysis",
-			status: session.context?.event_log_path ? "healthy" : "idle",
-			x: 924,
-			y: 220,
-			meta: session.context?.event_log_path ? "event log tail" : "awaiting event log",
-		},
-		{
-			id: "transcript",
-			label: "Transcript",
-			type: "resource",
-			status: session.context?.transcript_path ? "ready" : "idle",
-			x: 924,
-			y: 412,
-			meta: session.context?.transcript_path ? "jsonl export" : "not exported",
-		},
-	];
-
 	const edges: TopologyEdgeModel[] = [
 		{ id: "ticket-main", from: "ticket", to: "main", tone: "primary" },
 		{ id: "main-feed", from: "main", to: "events", tone: "success" },
-		{ id: "feed-activity", from: "events", to: "activity", tone: "accent" },
+		{ id: "feed-activity", from: "events", to: "activity", tone: "primary" },
 		{ id: "activity-transcript", from: "activity", to: "transcript", tone: "warning" },
 	];
 
+	const nodeSpecs: DagNodeSpec<TopologyNodeModel>[] = [
+		{
+			id: "ticket",
+			width: 220,
+			height: 78,
+			data: {
+				id: "ticket",
+				label: "Trigger",
+				type: "trigger",
+				status: session.context?.task_note ? "ready" : "idle",
+				x: 0,
+				y: 0,
+				meta: "execution contract",
+			},
+		},
+		{
+			id: "main",
+			width: 248,
+			height: 82,
+			data: {
+				id: "main",
+				label: session.namespace,
+				type: "agent",
+				status: sessionStateLabel(session),
+				x: 0,
+				y: 0,
+				meta: `${compactId(session.context?.codex_session_id, 8, 4)} · ${sessionStateLabel(session)}`,
+			},
+		},
+		{
+			id: "events",
+			width: 240,
+			height: 78,
+			data: {
+				id: "events",
+				label: "Runtime Feed",
+				type: "processor",
+				status: eventCount > 0 ? "healthy" : "idle",
+				x: 0,
+				y: 0,
+				meta: `${eventCount} recent events`,
+			},
+		},
+		{
+			id: "activity",
+			width: 252,
+			height: 78,
+			data: {
+				id: "activity",
+				label: "Observed Activity",
+				type: "analysis",
+				status: session.context?.event_log_path ? "healthy" : "idle",
+				x: 0,
+				y: 0,
+				meta: session.context?.event_log_path ? "event log tail" : "awaiting event log",
+			},
+		},
+		{
+			id: "transcript",
+			width: 236,
+			height: 78,
+			data: {
+				id: "transcript",
+				label: "Transcript",
+				type: "resource",
+				status: session.context?.transcript_path ? "ready" : "idle",
+				x: 0,
+				y: 0,
+				meta: session.context?.transcript_path ? "jsonl export" : "not exported",
+			},
+		},
+	];
+
 	for (const [index, subagent] of subagents.entries()) {
-		nodes.push({
+		nodeSpecs.push({
 			id: subagent.thread_id,
-			label: `Branch ${index + 1}`,
-			type: "agent",
-			status: subagent.status,
-			x: 624,
-			y: branchPositions[index] ?? 220,
-			meta: `${subagent.tool} · ${compactId(subagent.thread_id, 6, 4)}`,
+			width: 220,
+			height: 78,
+			data: {
+				id: subagent.thread_id,
+				label: `Branch ${index + 1}`,
+				type: "agent",
+				status: subagent.status,
+				x: 0,
+				y: 0,
+				meta: `${subagent.tool} · ${compactId(subagent.thread_id, 6, 4)}`,
+			},
 		});
 		edges.push({
 			id: `main-${subagent.thread_id}`,
@@ -290,14 +368,19 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 	}
 
 	if (subagents.length === 0) {
-		nodes.push({
+		nodeSpecs.push({
 			id: "branches",
-			label: "Branch Queue",
-			type: "agent",
-			status: "idle",
-			x: 624,
-			y: 220,
-			meta: "no spawned subagents",
+			width: 220,
+			height: 78,
+			data: {
+				id: "branches",
+				label: "Branch Queue",
+				type: "agent",
+				status: "idle",
+				x: 0,
+				y: 0,
+				meta: "no spawned subagents",
+			},
 		});
 		edges.push({
 			id: "main-branches",
@@ -312,6 +395,14 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 			tone: "muted",
 		});
 	}
+
+	const nodes = layoutDag(nodeSpecs, edges, {
+		rankdir: "LR",
+		nodesep: 54,
+		ranksep: 136,
+		marginx: 56,
+		marginy: 72,
+	});
 
 	return { nodes, edges };
 }
@@ -363,6 +454,50 @@ export function buildWorkflow(session: JarvisSessionMetadata | null): WorkflowSt
 	});
 
 	return steps;
+}
+
+export interface WorkflowLayoutNode extends WorkflowStepModel {
+	x: number;
+	y: number;
+}
+
+export function buildWorkflowLayout(session: JarvisSessionMetadata | null): WorkflowLayoutNode[] {
+	const steps = buildWorkflow(session);
+	if (steps.length === 0) {
+		return [];
+	}
+
+	const edges: Array<{ from: string; to: string }> = [
+		{ from: "ticket", to: "thread" },
+		{ from: "thread", to: "feed" },
+		{ from: "feed", to: "reasoning" },
+	];
+
+	for (const step of steps) {
+		if (!["ticket", "thread", "feed", "reasoning"].includes(step.id)) {
+			edges.push({ from: "thread", to: step.id });
+			edges.push({ from: step.id, to: "reasoning" });
+		}
+	}
+
+	const nodeSpecs = steps.map((step) => ({
+		id: step.id,
+		width: 276,
+		height: 96,
+		data: {
+			...step,
+			x: 0,
+			y: 0,
+		},
+	}));
+
+	return layoutDag(nodeSpecs, edges, {
+		rankdir: "LR",
+		nodesep: 44,
+		ranksep: 144,
+		marginx: 56,
+		marginy: 72,
+	});
 }
 
 export function reasoningEntries(session: JarvisSessionMetadata | null): JarvisRuntimeFeedEntry[] {

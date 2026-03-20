@@ -85,31 +85,36 @@ function backendMarker(backend: string | null | undefined): string {
 						type="button"
 						:class="[
 							'cp-runtime-item',
+							'cp-runtime-item--compact',
 							selectedNamespace === session.namespace && 'is-active',
 						]"
 						:title="session.context?.task_title ?? session.namespace"
 						@click="emit('select-namespace', session.namespace)"
 					>
-						<div class="cp-runtime-item__top">
-							<div class="cp-runtime-item__head">
-								<div class="cp-runtime-item__title">{{ session.namespace }}</div>
+						<div class="cp-runtime-item__row">
+							<div class="cp-runtime-item__title">{{ session.namespace }}</div>
+							<div class="cp-runtime-item__summary">
 								<StatusBadge
 									:label="session.context?.thread_status ?? (session.agents.some((agent) => agent.running) ? 'running' : 'idle')"
 									:tone="sessionTone(session)"
 									compact
 								/>
-							</div>
-							<div class="cp-runtime-item__subtitle">
-								{{ truncate(session.context?.task_title ?? "Live runtime namespace", 42) }}
-							</div>
-							<div class="cp-runtime-item__meta">
-								<span class="cp-runtime-item__meta-chip" :title="session.backend">
+								<span
+									class="cp-runtime-item__meta-chip"
+									:title="session.backend"
+								>
 									{{ backendMarker(session.backend) }}
 								</span>
-								<span class="cp-runtime-item__meta-chip" :title="`${session.agents.length} agents`">
+								<span
+									class="cp-runtime-item__meta-chip"
+									:title="`${session.agents.length} agents`"
+								>
 									{{ session.agents.length }}A
 								</span>
-								<span class="cp-runtime-item__meta-chip" :title="relativeAge(session.created_at_epoch_ms)">
+								<span
+									class="cp-runtime-item__meta-chip"
+									:title="relativeAge(session.created_at_epoch_ms)"
+								>
 									{{ relativeAge(session.created_at_epoch_ms) }}
 								</span>
 							</div>

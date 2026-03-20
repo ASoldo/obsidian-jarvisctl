@@ -63,44 +63,20 @@ function edgeColor(tone: string | undefined): string {
 	}
 }
 
-function edgeHandles(edgeId: string): { sourceHandle: string; targetHandle: string } {
-	switch (edgeId) {
-		case "ticket-main":
-			return { sourceHandle: "source-right", targetHandle: "target-left" };
-		case "main-feed":
-			return { sourceHandle: "source-bottom", targetHandle: "target-top" };
-		case "feed-activity":
-			return { sourceHandle: "source-right", targetHandle: "target-left" };
-		case "activity-transcript":
-			return { sourceHandle: "source-bottom", targetHandle: "target-top" };
-		default:
-			if (edgeId.startsWith("main-")) {
-				return { sourceHandle: "source-right", targetHandle: "target-left" };
-			}
-			if (edgeId.endsWith("-activity")) {
-				return { sourceHandle: "source-right", targetHandle: "target-left" };
-			}
-			return { sourceHandle: "source-right", targetHandle: "target-left" };
-	}
-}
-
 const flowEdges = computed<Edge[]>(() =>
-	graph.value.edges.map((edge) => {
-		const handles = edgeHandles(edge.id);
-		return {
-			id: edge.id,
-			source: edge.from,
-			target: edge.to,
-			sourceHandle: handles.sourceHandle,
-			targetHandle: handles.targetHandle,
-			type: "step",
-			animated: false,
-			style: {
-				stroke: edgeColor(edge.tone),
-				strokeWidth: 2.2,
-			},
-		};
-	}),
+	graph.value.edges.map((edge) => ({
+		id: edge.id,
+		source: edge.from,
+		target: edge.to,
+		sourceHandle: "source-right",
+		targetHandle: "target-left",
+		type: "smoothstep",
+		animated: false,
+		style: {
+			stroke: edgeColor(edge.tone),
+			strokeWidth: 2.4,
+		},
+	})),
 );
 
 function onNodeClick(event: { node: { id: string } }): void {
