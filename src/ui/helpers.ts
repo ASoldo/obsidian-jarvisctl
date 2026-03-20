@@ -208,8 +208,8 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 			label: "Trigger",
 			type: "trigger",
 			status: session.context?.task_note ? "ready" : "idle",
-			x: 48,
-			y: 78,
+			x: 52,
+			y: 176,
 			meta: "execution contract",
 		},
 		{
@@ -217,8 +217,8 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 			label: session.namespace,
 			type: "agent",
 			status: sessionStateLabel(session),
-			x: 268,
-			y: 126,
+			x: 278,
+			y: 164,
 			meta: `${compactId(session.context?.codex_session_id, 8, 4)} · ${sessionStateLabel(session)}`,
 		},
 		{
@@ -226,8 +226,8 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 			label: "Runtime Feed",
 			type: "processor",
 			status: eventCount > 0 ? "healthy" : "idle",
-			x: 154,
-			y: 312,
+			x: 278,
+			y: 316,
 			meta: `${eventCount} recent events`,
 		},
 		{
@@ -235,8 +235,8 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 			label: "Observed Activity",
 			type: "analysis",
 			status: session.context?.event_log_path ? "healthy" : "idle",
-			x: 372,
-			y: 312,
+			x: 734,
+			y: 164,
 			meta: session.context?.event_log_path ? "event log tail" : "awaiting event log",
 		},
 		{
@@ -244,8 +244,8 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 			label: "Transcript",
 			type: "resource",
 			status: session.context?.transcript_path ? "ready" : "idle",
-			x: 590,
-			y: 250,
+			x: 734,
+			y: 316,
 			meta: session.context?.transcript_path ? "jsonl export" : "not exported",
 		},
 	];
@@ -253,8 +253,8 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 	const edges: TopologyEdgeModel[] = [
 		{ id: "ticket-main", from: "ticket", to: "main", tone: "primary" },
 		{ id: "main-feed", from: "main", to: "events", tone: "success" },
-		{ id: "main-observed", from: "main", to: "activity", tone: "accent" },
-		{ id: "main-transcript", from: "main", to: "transcript", tone: "warning" },
+		{ id: "feed-activity", from: "events", to: "activity", tone: "accent" },
+		{ id: "activity-transcript", from: "activity", to: "transcript", tone: "warning" },
 	];
 
 	for (const [index, subagent] of subagents.entries()) {
@@ -263,8 +263,8 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 			label: `Branch ${index + 1}`,
 			type: "agent",
 			status: subagent.status,
-			x: 586,
-			y: 52 + index * 82,
+			x: 506,
+			y: 58 + index * 90,
 			meta: `${subagent.tool} · ${compactId(subagent.thread_id, 6, 4)}`,
 		});
 		edges.push({
@@ -272,6 +272,12 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 			from: "main",
 			to: subagent.thread_id,
 			tone: index % 2 === 0 ? "accent" : "primary",
+		});
+		edges.push({
+			id: `${subagent.thread_id}-activity`,
+			from: subagent.thread_id,
+			to: "activity",
+			tone: index % 2 === 0 ? "success" : "muted",
 		});
 	}
 
@@ -281,14 +287,20 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 			label: "Branch Queue",
 			type: "agent",
 			status: "idle",
-			x: 590,
-			y: 92,
+			x: 506,
+			y: 148,
 			meta: "no spawned subagents",
 		});
 		edges.push({
 			id: "main-branches",
 			from: "main",
 			to: "branches",
+			tone: "muted",
+		});
+		edges.push({
+			id: "branches-activity",
+			from: "branches",
+			to: "activity",
 			tone: "muted",
 		});
 	}

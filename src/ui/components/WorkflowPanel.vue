@@ -46,13 +46,13 @@ const graphNodes = computed<WorkflowGraphNode[]>(() => {
 		return [];
 	}
 
-	const leftColumnX = 34;
-	const rightColumnX = 316;
-	const leftWidth = 182;
-	const rightWidth = 204;
+	const leftColumnX = 32;
+	const rightColumnX = 426;
+	const leftWidth = 244;
+	const rightWidth = 236;
 	const cardHeight = 64;
 	const topY = 34;
-	const verticalGap = 86;
+	const verticalGap = 98;
 
 	const nodes: WorkflowGraphNode[] = [];
 	const ticket = steps.value.find((step) => step.id === "ticket");
@@ -89,9 +89,9 @@ const graphNodes = computed<WorkflowGraphNode[]>(() => {
 		nodes.push({
 			...step,
 			x: rightColumnX,
-			y: topY + 28 + index * 74,
+			y: topY + 20 + index * 92,
 			width: rightWidth,
-			height: 66,
+			height: 70,
 		});
 	});
 
@@ -99,7 +99,7 @@ const graphNodes = computed<WorkflowGraphNode[]>(() => {
 		nodes.push({
 			...reasoning,
 			x: rightColumnX,
-			y: topY + 28 + Math.max(branches.length, 1) * 74 + 96,
+			y: topY + 20 + Math.max(branches.length, 1) * 92 + 112,
 			width: rightWidth,
 			height: cardHeight,
 		});

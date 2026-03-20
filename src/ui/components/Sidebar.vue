@@ -18,6 +18,17 @@ const emit = defineEmits<{
 	(event: "open-ticket", session: JarvisSessionMetadata): void;
 	(event: "open-transcript", session: JarvisSessionMetadata): void;
 }>();
+
+function backendMarker(backend: string | null | undefined): string {
+	const value = (backend ?? "").toLowerCase();
+	if (value.includes("codex")) {
+		return "CX";
+	}
+	if (value.includes("native")) {
+		return "NT";
+	}
+	return "RT";
+}
 </script>
 
 <template>
@@ -93,9 +104,15 @@ const emit = defineEmits<{
 							/>
 						</div>
 						<div class="cp-runtime-item__meta">
-							<span>{{ session.backend }}</span>
-							<span>{{ session.agents.length }} agents</span>
-							<span>{{ relativeAge(session.created_at_epoch_ms) }}</span>
+							<span class="cp-runtime-item__meta-chip" :title="session.backend">
+								{{ backendMarker(session.backend) }}
+							</span>
+							<span class="cp-runtime-item__meta-chip" :title="`${session.agents.length} agents`">
+								{{ session.agents.length }}A
+							</span>
+							<span class="cp-runtime-item__meta-chip" :title="relativeAge(session.created_at_epoch_ms)">
+								{{ relativeAge(session.created_at_epoch_ms) }}
+							</span>
 						</div>
 					</button>
 				</div>

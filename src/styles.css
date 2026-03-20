@@ -432,7 +432,14 @@
   }
 
   .cp-runtime-item__meta {
-    @apply grid grid-cols-3 gap-2 text-[9px] font-medium uppercase tracking-[0.08em];
+    @apply flex flex-wrap items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.08em];
+  }
+
+  .cp-runtime-item__meta-chip {
+    border: 1px solid color-mix(in srgb, var(--cp-border) 92%, transparent);
+    background: color-mix(in srgb, var(--cp-panel-strong) 88%, #020617 12%);
+    color: var(--cp-text-dim);
+    @apply inline-flex min-w-[28px] items-center justify-center rounded-md px-1.5 py-0.5 text-[9px] font-semibold;
   }
 
   .cp-runtime-item__subtitle,
@@ -478,6 +485,10 @@
     @apply relative h-[430px] overflow-auto rounded-2xl border border-[var(--cp-border)] p-4;
   }
 
+  .cp-topology-scene {
+    @apply relative min-h-[430px] min-w-[980px];
+  }
+
   .cp-topology-svg {
     @apply absolute inset-0 h-full w-full;
   }
@@ -486,7 +497,7 @@
     fill: none;
     stroke-width: 2;
     stroke-linecap: round;
-    stroke-dasharray: 2 0;
+    stroke-linejoin: round;
     opacity: 0.8;
   }
 
@@ -507,7 +518,7 @@
     box-shadow:
       0 12px 28px color-mix(in srgb, #020617 22%, transparent),
       inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
-    @apply absolute z-[1] grid w-[148px] gap-1 rounded-xl px-3 py-2.5 text-left transition;
+    @apply absolute z-[1] grid h-[68px] w-[148px] content-center gap-1 rounded-xl px-3 py-2.5 text-left transition;
   }
 
   .cp-topology-node.is-active {
@@ -666,6 +677,10 @@
     @apply flex items-center gap-2;
   }
 
+  .cp-activity-card .cp-console {
+    @apply mt-1;
+  }
+
   .cp-console {
     border: 1px solid color-mix(in srgb, var(--cp-border) 86%, transparent);
     background: color-mix(in srgb, #081120 84%, var(--cp-panel) 16%);
@@ -699,16 +714,6 @@
 
   .cp-branch-list {
     @apply relative pl-6;
-  }
-
-  .cp-branch-list::before {
-    content: "";
-    position: absolute;
-    left: 12px;
-    top: 4px;
-    bottom: 4px;
-    width: 1px;
-    background: linear-gradient(to bottom, color-mix(in srgb, var(--cp-indigo) 60%, transparent), color-mix(in srgb, var(--cp-border) 90%, transparent));
   }
 
   .cp-branch-card {
@@ -765,6 +770,15 @@
     @apply grid min-h-0 min-w-0 gap-3;
   }
 
+  .cp-applications,
+  .cp-table-shell {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .cp-table-shell__body {
+    @apply content-start overflow-auto pr-1;
+  }
+
   .cp-table-shell__head {
     color: var(--cp-text-dim);
     border-bottom: 1px solid var(--cp-border);
@@ -792,7 +806,7 @@
   }
 
   .cp-workflow-scene {
-    @apply relative min-h-[420px] min-w-[560px];
+    @apply relative min-h-[520px] min-w-[760px];
   }
 
   .cp-workflow-svg {
@@ -834,7 +848,7 @@
   }
 
   .cp-workflow-node__head {
-    @apply grid min-w-0 grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2;
+    @apply grid min-w-0 grid-cols-[28px_minmax(0,1fr)_auto] items-start gap-2;
   }
 
   .cp-workflow-node__icon {
@@ -922,6 +936,13 @@
   .cp-expandable__body {
     color: var(--cp-text-soft);
     @apply m-0 min-w-0 whitespace-pre-wrap break-words text-[12px] leading-relaxed;
+  }
+
+  .cp-expandable__body--expanded {
+    display: block;
+    overflow: visible;
+    -webkit-line-clamp: unset;
+    -webkit-box-orient: initial;
   }
 
   .cp-inline-button {

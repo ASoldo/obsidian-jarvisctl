@@ -221,15 +221,15 @@ function subagentTone(subagent: JarvisRuntimeSubagentMetadata): "live" | "warnin
 			</div>
 			<div class="cp-panel__body cp-panel__body--scroll">
 				<div v-if="activitySections.length === 0" class="cp-empty-state">No observed log output yet.</div>
-				<div v-else class="cp-activity-list">
-					<article v-for="(sectionItem, index) in activitySections" :key="`${sectionItem.kind}-${index}`" class="cp-activity-card">
-						<div class="cp-activity-card__head">
-							<span class="cp-chip">{{ sectionItem.label }}</span>
-						</div>
-						<ExpandableText v-if="sectionItem.summary" :text="sectionItem.summary" :lines="4" />
-						<div v-if="sectionItem.lines.length > 0" class="cp-console">
-							<div v-for="(line, lineIndex) in sectionItem.lines" :key="lineIndex" class="cp-console__line">
-								{{ line }}
+					<div v-else class="cp-activity-list">
+						<article v-for="(sectionItem, index) in activitySections" :key="`${sectionItem.kind}-${index}`" class="cp-activity-card">
+							<div class="cp-activity-card__head">
+								<StatusBadge :label="sectionItem.label" :tone="statusTone(sectionItem.kind ?? sectionItem.label)" compact />
+							</div>
+							<ExpandableText v-if="sectionItem.summary" :text="sectionItem.summary" :lines="4" />
+							<div v-if="sectionItem.lines.length > 0" class="cp-console">
+								<div v-for="(line, lineIndex) in sectionItem.lines" :key="lineIndex" class="cp-console__line">
+									{{ line }}
 							</div>
 						</div>
 					</article>

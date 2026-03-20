@@ -25,6 +25,7 @@ const isExpanded = computed(() => props.alwaysExpanded || expanded.value);
 		<p
 			:class="[
 				'cp-expandable__body',
+				isExpanded && 'cp-expandable__body--expanded',
 				!isExpanded && collapsible && lines === 2 && 'cp-clamp-2',
 				!isExpanded && collapsible && lines === 3 && 'cp-clamp-3',
 				!isExpanded && collapsible && lines >= 4 && 'cp-clamp-4',
