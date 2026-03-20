@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from "vue";
+import { statusTone } from "../helpers";
 import StatusBadge from "./StatusBadge.vue";
 
 const props = defineProps<{
@@ -7,7 +9,6 @@ const props = defineProps<{
 	namespaceCount: number;
 	agentCount: number;
 	subagentCount: number;
-	focusLabel: string;
 	selectedState: string;
 }>();
 
@@ -18,21 +19,25 @@ const emit = defineEmits<{
 	(event: "open-dashboard"): void;
 	(event: "continue"): void;
 }>();
+
+const selectedTone = computed(() => statusTone(props.selectedState));
 </script>
 
 <template>
 	<header class="cp-topbar">
 		<div class="cp-topbar__env">
-			<div class="cp-topbar__label">Environment</div>
+			<div class="cp-topbar__env-copy">
+				<div class="cp-topbar__label">Environment</div>
+				<div class="cp-topbar__env-value">{{ environmentLabel }}</div>
+			</div>
 			<button
 				type="button"
 				class="cp-topbar__env-button"
-				title="Cycle repository scope"
+				:title="`Cycle repository scope (${environmentLabel})`"
+				:aria-label="`Cycle repository scope (${environmentLabel})`"
 				@click="emit('toggle-environment')"
 			>
 				<span class="cp-button__icon" aria-hidden="true">◫</span>
-				<span>{{ environmentLabel }}</span>
-				<span class="cp-topbar__caret" aria-hidden="true">▾</span>
 			</button>
 		</div>
 
@@ -57,42 +62,45 @@ const emit = defineEmits<{
 		</label>
 
 		<div class="cp-topbar__stats">
-			<div class="cp-stat-chip">
-				<span class="cp-stat-chip__label">Namespaces</span>
-				<span class="cp-stat-chip__value">{{ namespaceCount }}</span>
+			<div class="cp-topbar__metric">
+				<span class="cp-topbar__metric-label">Namespaces</span>
+				<span class="cp-topbar__metric-value">{{ namespaceCount }}</span>
 			</div>
-			<div class="cp-stat-chip">
-				<span class="cp-stat-chip__label">Live Agents</span>
-				<span class="cp-stat-chip__value">{{ agentCount }}</span>
+			<div class="cp-topbar__metric">
+				<span class="cp-topbar__metric-label">Live Agents</span>
+				<span class="cp-topbar__metric-value">{{ agentCount }}</span>
 			</div>
-			<div class="cp-stat-chip">
-				<span class="cp-stat-chip__label">Subagents</span>
-				<span class="cp-stat-chip__value">{{ subagentCount }}</span>
-			</div>
-			<div class="cp-stat-chip cp-stat-chip--focus">
-				<span class="cp-stat-chip__label">Focus</span>
-				<span class="cp-stat-chip__value">{{ focusLabel }}</span>
+			<div class="cp-topbar__metric">
+				<span class="cp-topbar__metric-label">Subagents</span>
+				<span class="cp-topbar__metric-value">{{ subagentCount }}</span>
 			</div>
 		</div>
 
 		<div class="cp-topbar__actions">
-			<StatusBadge :label="selectedState" tone="info" compact />
-			<button type="button" class="cp-ghost-button" title="Refresh runtime state" @click="emit('refresh')">
-				<span class="cp-button__icon" aria-hidden="true">↻</span>
-				<span>Sync All</span>
-			</button>
-			<button
-				type="button"
-				class="cp-ghost-button cp-ghost-button--primary"
-				title="Continue the active ticket or refresh when no ticket is selected"
-				@click="emit('continue')"
-			>
-				<span class="cp-button__icon" aria-hidden="true">⇢</span>
-				Deploy
-			</button>
-			<button type="button" class="cp-icon-button" title="Open terminal dashboard" @click="emit('open-dashboard')">
-				⌘
-			</button>
+			<StatusBadge :label="selectedState" :tone="selectedTone" compact />
+			<div class="cp-control-strip cp-control-strip--right">
+				<button
+					type="button"
+					class="cp-icon-button cp-topbar__action-button"
+					title="Sync all"
+					aria-label="Sync all"
+					@click="emit('refresh')"
+				>
+					<span class="cp-button__icon" aria-hidden="true">↻</span>
+				</button>
+				<button
+					type="button"
+					class="cp-icon-button cp-icon-button--primary cp-topbar__action-button"
+					title="Deploy"
+					aria-label="Deploy"
+					@click="emit('continue')"
+				>
+					<span class="cp-button__icon" aria-hidden="true">⇢</span>
+				</button>
+				<button type="button" class="cp-icon-button cp-topbar__action-button" title="Open terminal dashboard" aria-label="Open terminal dashboard" @click="emit('open-dashboard')">
+					<span class="cp-button__icon" aria-hidden="true">⌘</span>
+				</button>
+			</div>
 		</div>
 	</header>
 </template>

@@ -1,22 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import type { JarvisDashboardHost } from "./bridge";
-import BottomPanel from "./components/BottomPanel.vue";
 import MainPanel from "./components/MainPanel.vue";
 import Sidebar from "./components/Sidebar.vue";
 import TopBar from "./components/TopBar.vue";
 import { buildRepositoryGroups } from "./helpers";
-
-type MainTab =
-	| "topology"
-	| "workflow"
-	| "applications"
-	| "snapshot"
-	| "feed"
-	| "activity"
-	| "branches"
-	| "agents";
-type BottomTab = "logs" | "events" | "reasoning" | "metrics";
 
 const props = defineProps<{
 	host: JarvisDashboardHost;
@@ -24,9 +12,6 @@ const props = defineProps<{
 
 const searchQuery = ref("");
 const selectedRepository = ref<string | null>(null);
-const mainTab = ref<MainTab>("snapshot");
-const bottomTab = ref<BottomTab>("reasoning");
-const bottomCollapsed = ref(true);
 
 const allSessions = computed(() => props.host.state.sessions);
 const repositories = computed(() => buildRepositoryGroups(allSessions.value));
@@ -143,7 +128,6 @@ function cycleEnvironment(): void {
 			:namespace-count="allSessions.length"
 			:agent-count="liveAgentCount"
 			:subagent-count="subagentCount"
-			:focus-label="selectedSession?.namespace ?? 'none'"
 			:selected-state="selectedState"
 			@update:search-query="searchQuery = $event"
 			@toggle-environment="cycleEnvironment()"
@@ -152,7 +136,7 @@ function cycleEnvironment(): void {
 			@continue="handleContinue"
 		/>
 
-		<div :class="['cp-dashboard-grid', bottomCollapsed && 'is-bottom-collapsed']">
+		<div class="cp-dashboard-grid">
 			<Sidebar
 				:repositories="repositories"
 				:sessions="filteredSessions"
@@ -170,17 +154,6 @@ function cycleEnvironment(): void {
 				:session="selectedSession"
 				:sessions="filteredSessions"
 				:activity-sections="selectedActivitySections"
-				:main-tab="mainTab"
-				@update:main-tab="mainTab = $event"
-			/>
-
-			<BottomPanel
-				:session="selectedSession"
-				:activity-sections="selectedActivitySections"
-				:bottom-tab="bottomTab"
-				:collapsed="bottomCollapsed"
-				@update:bottom-tab="bottomTab = $event"
-				@toggle-collapsed="bottomCollapsed = !bottomCollapsed"
 			/>
 		</div>
 	</div>

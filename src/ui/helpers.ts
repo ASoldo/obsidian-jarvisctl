@@ -163,11 +163,19 @@ export function centeredLanePositions(count: number, center: number, gap: number
 }
 
 export function sessionStateLabel(session: JarvisSessionMetadata): string {
-	if ((session.context?.thread_status ?? "").length > 0) {
-		return session.context?.thread_status ?? "idle";
+	const threadStatus = session.context?.thread_status ?? "";
+	const turnStatus = session.context?.turn_status ?? "";
+	if (threadStatus.length > 0 && threadStatus.toLowerCase() !== "idle") {
+		return threadStatus;
 	}
-	if ((session.context?.turn_status ?? "").length > 0) {
-		return session.context?.turn_status ?? "idle";
+	if (turnStatus.length > 0 && turnStatus.toLowerCase() !== "idle") {
+		return turnStatus;
+	}
+	if (threadStatus.length > 0) {
+		return threadStatus;
+	}
+	if (turnStatus.length > 0) {
+		return turnStatus;
 	}
 	if (session.agents.some((agent) => agent.running)) {
 		return "running";
@@ -268,8 +276,8 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 	const nodeSpecs: DagNodeSpec<TopologyNodeModel>[] = [
 		{
 			id: "ticket",
-			width: 220,
-			height: 78,
+			width: TOPOLOGY_NODE_WIDTH,
+			height: TOPOLOGY_NODE_HEIGHT,
 			data: {
 				id: "ticket",
 				label: "Trigger",
@@ -282,8 +290,8 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 		},
 		{
 			id: "main",
-			width: 248,
-			height: 82,
+			width: TOPOLOGY_NODE_WIDTH,
+			height: TOPOLOGY_NODE_HEIGHT,
 			data: {
 				id: "main",
 				label: session.namespace,
@@ -296,8 +304,8 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 		},
 		{
 			id: "events",
-			width: 240,
-			height: 78,
+			width: TOPOLOGY_NODE_WIDTH,
+			height: TOPOLOGY_NODE_HEIGHT,
 			data: {
 				id: "events",
 				label: "Runtime Feed",
@@ -310,8 +318,8 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 		},
 		{
 			id: "activity",
-			width: 252,
-			height: 78,
+			width: TOPOLOGY_NODE_WIDTH,
+			height: TOPOLOGY_NODE_HEIGHT,
 			data: {
 				id: "activity",
 				label: "Observed Activity",
@@ -324,8 +332,8 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 		},
 		{
 			id: "transcript",
-			width: 236,
-			height: 78,
+			width: TOPOLOGY_NODE_WIDTH,
+			height: TOPOLOGY_NODE_HEIGHT,
 			data: {
 				id: "transcript",
 				label: "Transcript",
@@ -341,8 +349,8 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 	for (const [index, subagent] of subagents.entries()) {
 		nodeSpecs.push({
 			id: subagent.thread_id,
-			width: 220,
-			height: 78,
+			width: TOPOLOGY_NODE_WIDTH,
+			height: TOPOLOGY_NODE_HEIGHT,
 			data: {
 				id: subagent.thread_id,
 				label: `Branch ${index + 1}`,
@@ -370,8 +378,8 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 	if (subagents.length === 0) {
 		nodeSpecs.push({
 			id: "branches",
-			width: 220,
-			height: 78,
+			width: TOPOLOGY_NODE_WIDTH,
+			height: TOPOLOGY_NODE_HEIGHT,
 			data: {
 				id: "branches",
 				label: "Branch Queue",
@@ -398,10 +406,10 @@ export function buildTopology(session: JarvisSessionMetadata | null): {
 
 	const nodes = layoutDag(nodeSpecs, edges, {
 		rankdir: "LR",
-		nodesep: 54,
-		ranksep: 136,
-		marginx: 56,
-		marginy: 72,
+		nodesep: 34,
+		ranksep: 84,
+		marginx: 28,
+		marginy: 36,
 	});
 
 	return { nodes, edges };
@@ -461,6 +469,11 @@ export interface WorkflowLayoutNode extends WorkflowStepModel {
 	y: number;
 }
 
+export const TOPOLOGY_NODE_WIDTH = 204;
+export const TOPOLOGY_NODE_HEIGHT = 74;
+export const WORKFLOW_NODE_WIDTH = 208;
+export const WORKFLOW_NODE_HEIGHT = 74;
+
 export function buildWorkflowLayout(session: JarvisSessionMetadata | null): WorkflowLayoutNode[] {
 	const steps = buildWorkflow(session);
 	if (steps.length === 0) {
@@ -482,8 +495,8 @@ export function buildWorkflowLayout(session: JarvisSessionMetadata | null): Work
 
 	const nodeSpecs = steps.map((step) => ({
 		id: step.id,
-		width: 276,
-		height: 96,
+		width: WORKFLOW_NODE_WIDTH,
+		height: WORKFLOW_NODE_HEIGHT,
 		data: {
 			...step,
 			x: 0,
@@ -493,10 +506,10 @@ export function buildWorkflowLayout(session: JarvisSessionMetadata | null): Work
 
 	return layoutDag(nodeSpecs, edges, {
 		rankdir: "LR",
-		nodesep: 44,
-		ranksep: 144,
-		marginx: 56,
-		marginy: 72,
+		nodesep: 28,
+		ranksep: 86,
+		marginx: 28,
+		marginy: 36,
 	});
 }
 

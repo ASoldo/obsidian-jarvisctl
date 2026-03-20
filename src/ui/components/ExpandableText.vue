@@ -40,10 +40,12 @@ const isExpanded = computed(() => props.alwaysExpanded || expanded.value);
 		<button
 			v-if="collapsible && !alwaysExpanded"
 			type="button"
-			class="cp-inline-button"
+			class="cp-icon-button cp-icon-button--small cp-inline-button"
+			:title="expanded ? 'Show less' : 'Read more'"
+			:aria-label="expanded ? 'Show less' : 'Read more'"
 			@click="expanded = !expanded"
 		>
-			{{ expanded ? "Show less" : "Read more" }}
+			<span class="cp-button__icon" aria-hidden="true">{{ expanded ? "▴" : "▾" }}</span>
 		</button>
 	</div>
 </template>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { RepositoryGroupModel } from "../helpers";
-import { relativeAge, sessionTone, shortPath, truncate } from "../helpers";
+import { relativeAge, sessionTone, shortPath } from "../helpers";
 import type { JarvisSessionMetadata } from "../../types/domain";
 import StatusBadge from "./StatusBadge.vue";
 
@@ -48,9 +48,11 @@ function backendMarker(backend: string | null | undefined): string {
 					<button
 						type="button"
 						class="cp-section__meta-button"
+						title="Show all projects"
+						aria-label="Show all projects"
 						@click="emit('select-repository', null)"
 					>
-						All
+						<span class="cp-button__icon" aria-hidden="true">◎</span>
 					</button>
 				</div>
 				<div class="cp-repo-list">
@@ -65,8 +67,8 @@ function backendMarker(backend: string | null | undefined): string {
 						@click="emit('select-repository', repository.id)"
 					>
 						<div class="cp-repo-item__top">
-							<span class="cp-repo-item__name">{{ repository.label }}</span>
-							<span class="cp-repo-item__count">{{ repository.sessions.length }}</span>
+							<span class="cp-repo-item__name" :title="repository.label">{{ repository.label }}</span>
+							<span class="cp-repo-item__count-chip">{{ repository.sessions.length }}</span>
 						</div>
 						<p class="cp-repo-item__path" :title="repository.path">{{ shortPath(repository.path) }}</p>
 					</button>
@@ -92,8 +94,8 @@ function backendMarker(backend: string | null | undefined): string {
 						@click="emit('select-namespace', session.namespace)"
 					>
 						<div class="cp-runtime-item__row">
-							<div class="cp-runtime-item__title">{{ session.namespace }}</div>
-							<div class="cp-runtime-item__summary">
+							<div class="cp-runtime-item__title" :title="session.namespace">{{ session.namespace }}</div>
+							<div class="cp-runtime-item__summary cp-pill-group cp-pill-group--tight">
 								<StatusBadge
 									:label="session.context?.thread_status ?? (session.agents.some((agent) => agent.running) ? 'running' : 'idle')"
 									:tone="sessionTone(session)"
@@ -128,32 +130,36 @@ function backendMarker(backend: string | null | undefined): string {
 					<h3 class="cp-section__title">Operational Resources</h3>
 				</div>
 				<div v-if="selectedSession" class="cp-resource-list">
-					<button
-						v-if="selectedSession.context?.task_note"
-						type="button"
-						class="cp-resource-item"
-						@click="emit('open-ticket', selectedSession)"
-					>
-						<div class="cp-resource-item__label">Execution Contract</div>
-						<div class="cp-resource-item__value" :title="selectedSession.context?.task_note ?? ''">
-							{{ shortPath(selectedSession.context?.task_note) }}
-						</div>
-					</button>
-					<button
-						v-if="selectedSession.context?.transcript_path"
-						type="button"
-						class="cp-resource-item"
-						@click="emit('open-transcript', selectedSession)"
-					>
-						<div class="cp-resource-item__label">Transcript</div>
-						<div class="cp-resource-item__value" :title="selectedSession.context?.transcript_path ?? ''">
-							{{ shortPath(selectedSession.context?.transcript_path) }}
-						</div>
-					</button>
-					<div class="cp-resource-item">
-						<div class="cp-resource-item__label">Event Log</div>
-						<div class="cp-resource-item__value" :title="selectedSession.context?.event_log_path ?? ''">
-							{{ shortPath(selectedSession.context?.event_log_path) }}
+					<div v-if="selectedSession.context?.task_note" class="cp-resource-block">
+						<div class="cp-resource-block__label">Execution Contract</div>
+						<button
+							type="button"
+							class="cp-resource-item"
+							@click="emit('open-ticket', selectedSession)"
+						>
+							<div class="cp-resource-item__value" :title="selectedSession.context?.task_note ?? ''">
+								{{ shortPath(selectedSession.context?.task_note) }}
+							</div>
+						</button>
+					</div>
+					<div v-if="selectedSession.context?.transcript_path" class="cp-resource-block">
+						<div class="cp-resource-block__label">Transcript</div>
+						<button
+							type="button"
+							class="cp-resource-item"
+							@click="emit('open-transcript', selectedSession)"
+						>
+							<div class="cp-resource-item__value" :title="selectedSession.context?.transcript_path ?? ''">
+								{{ shortPath(selectedSession.context?.transcript_path) }}
+							</div>
+						</button>
+					</div>
+					<div class="cp-resource-block">
+						<div class="cp-resource-block__label">Event Log</div>
+						<div class="cp-resource-item">
+							<div class="cp-resource-item__value" :title="selectedSession.context?.event_log_path ?? ''">
+								{{ shortPath(selectedSession.context?.event_log_path) }}
+							</div>
 						</div>
 					</div>
 				</div>

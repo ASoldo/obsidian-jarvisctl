@@ -46,18 +46,17 @@ const tabs = [
 					v-for="tab in tabs"
 					:key="tab.id"
 					type="button"
-					:class="['cp-surface-tab', bottomTab === tab.id && 'is-active']"
+					:class="['cp-icon-button', bottomTab === tab.id && 'cp-icon-button--primary']"
 					:title="tab.label"
+					:aria-label="tab.label"
 					@click="emit('update:bottomTab', tab.id as BottomTab)"
 				>
-					<span class="cp-surface-tab__icon" aria-hidden="true">{{ tab.icon }}</span>
-					<span class="cp-surface-tab__label">{{ tab.label }}</span>
+					<span class="cp-button__icon" aria-hidden="true">{{ tab.icon }}</span>
 				</button>
 			</div>
 			<div class="cp-panel__meta">
 				<span class="cp-chip">Tokens: {{ session?.context?.recent_events?.length ?? 0 }}</span>
 				<span class="cp-chip">Latency: {{ session?.context?.turn_status === 'inProgress' ? 'active' : 'steady' }}</span>
-				<span class="cp-chip">GPU: n/a</span>
 				<button
 					type="button"
 					class="cp-icon-button cp-icon-button--small"

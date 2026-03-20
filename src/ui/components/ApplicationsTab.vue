@@ -55,25 +55,32 @@ defineProps<{
 						{{ formatDateTime(session.created_at_epoch_ms) }}
 					</div>
 					<div class="cp-table-row__actions">
-						<button type="button" class="cp-mini-button cp-mini-button--primary" @click="host.attach(session)">
-							Attach
-						</button>
+						<div class="cp-control-strip">
+							<button type="button" class="cp-mini-button cp-mini-button--primary cp-action-button" title="Attach namespace" @click="host.attach(session)">
+								<span class="cp-button__icon" aria-hidden="true">↗</span>
+								<span class="cp-action-button__label">Attach</span>
+							</button>
 						<button
 							type="button"
-							class="cp-mini-button"
+							class="cp-mini-button cp-action-button"
+							title="Continue ticket"
 							:disabled="!session.context?.task_note"
 							@click="host.continueTicket(session)"
 						>
-							Continue
+								<span class="cp-button__icon" aria-hidden="true">↻</span>
+								<span class="cp-action-button__label">Continue</span>
 						</button>
 						<button
 							type="button"
-							class="cp-mini-button"
+							class="cp-mini-button cp-action-button"
+							title="Open ticket note"
 							:disabled="!session.context?.task_note"
 							@click="host.openTicket(session)"
 						>
-							Ticket
+								<span class="cp-button__icon" aria-hidden="true">⌘</span>
+								<span class="cp-action-button__label">Ticket</span>
 						</button>
+						</div>
 					</div>
 				</div>
 			</div>

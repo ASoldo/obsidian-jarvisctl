@@ -1,5 +1,6 @@
 import {
 	App,
+	FuzzySuggestModal,
 	ItemView,
 	Modal,
 	Notice,
@@ -11,12 +12,16 @@ import {
 } from "obsidian";
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative } from "node:path";
 import { promisify } from "node:util";
 import { createApp, reactive, type App as VueApplication } from "vue";
 
 import ControlPlaneApp from "./ui/App.vue";
-import type { JarvisDashboardHost } from "./ui/bridge";
+import type {
+	JarvisDashboardHost,
+	JarvisOperatorMessageRequest,
+	JarvisOperatorMode,
+} from "./ui/bridge";
 import type {
 	JarvisActivitySection,
 	JarvisAgentMetadata,
@@ -29,7 +34,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-observer";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control", "jarvisctl-control-live"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-20-vue-flow-fit-and-tabs";
+const BUILD_STAMP = "2026-03-20-notebook-runtime-console";
 
 interface TerminalProfile {
 	args?: string[];
@@ -59,13 +64,16 @@ interface JarvisCtlControlSettings {
 	shellExecutable: string;
 }
 
-interface JarvisTellRequest {
-	message: string;
-}
+interface JarvisTellRequest extends Omit<JarvisOperatorMessageRequest, "targetId" | "targetKind"> {}
 
 interface JarvisCodexLaunchRequest {
 	message: string;
 	imagePaths: string[];
+}
+
+interface JarvisTellCapabilities {
+	supportsMode: boolean;
+	supportsNoEnter: boolean;
 }
 
 function defaultJarvisCtlPath(): string {
@@ -84,6 +92,8 @@ const DEFAULT_SETTINGS: JarvisCtlControlSettings = {
 export default class JarvisCtlControlPlugin extends Plugin {
 	settings: JarvisCtlControlSettings = DEFAULT_SETTINGS;
 	private lastExecPath: string | null = null;
+	private tellCapabilitiesCacheKey: string | null = null;
+	private tellCapabilitiesCache: JarvisTellCapabilities | null = null;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -201,22 +211,27 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		if (!request) {
 			return;
 		}
-		const message = request.message.trim();
-		if (!message) {
-			new Notice("Nothing was sent because the message was empty.");
-			return;
-		}
+		const session =
+			(await this.fetchSessions()).find((entry) => entry.namespace === namespace) ??
+			({
+				namespace,
+				backend: "native",
+				created_at_epoch_ms: Date.now(),
+				shell_command: "",
+				agents: [{ name: agent, pid: 0, running: false }],
+			} satisfies JarvisSessionMetadata);
 
-		await this.runJarvisCtl([
-			"tell",
-			"--namespace",
-			namespace,
-			"--agent",
-			agent,
-			"--text",
-			message,
-		]);
-		new Notice(`Sent message to ${namespace}:${agent}`);
+		await this.sendOperatorMessage(
+			session,
+			{
+				targetId: agent,
+				targetKind: "agent",
+				targetLabel: agent,
+				mode: request.mode,
+				message: request.message,
+				attachmentPath: request.attachmentPath,
+			},
+		);
 	}
 
 	async launchCodexForActiveNote(fresh: boolean): Promise<void> {
@@ -347,6 +362,131 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		this.app.workspace.revealLeaf(leaf);
 	}
 
+	async sendOperatorMessage(
+		session: JarvisSessionMetadata,
+		request: JarvisOperatorMessageRequest,
+	): Promise<void> {
+		const payload = this.buildOperatorPayload(session, request);
+		if (!payload) {
+			new Notice("Nothing was sent because the message and attachment are empty.");
+			return;
+		}
+
+		const actualAgent =
+			request.targetKind === "agent" ? request.targetId : session.agents[0]?.name ?? "agent0";
+		const capabilities = await this.getTellCapabilities();
+		const args = [
+			"tell",
+			"--namespace",
+			session.namespace,
+			"--agent",
+			actualAgent,
+			"--text",
+			payload,
+		];
+
+		let fellBackToDefaultMode = false;
+		if (capabilities.supportsMode) {
+			args.push("--mode", request.mode);
+		} else if (request.mode === "queue" && capabilities.supportsNoEnter && session.backend !== "codex-app") {
+			args.push("--no-enter");
+		} else if (request.mode !== "auto") {
+			fellBackToDefaultMode = true;
+		}
+
+		await this.runJarvisCtl(args);
+
+		const targetLabel = request.targetLabel ?? request.targetId;
+		if (fellBackToDefaultMode) {
+			new Notice(`Sent message to ${session.namespace}:${targetLabel} with default tell behavior.`);
+			return;
+		}
+
+		new Notice(
+			request.targetKind === "subagent"
+				? `Relayed message to ${targetLabel} in ${session.namespace}`
+				: `Sent message to ${session.namespace}:${targetLabel}`,
+		);
+	}
+
+	async pickVaultAttachmentPath(): Promise<string | null> {
+		const files = this.app.vault
+			.getFiles()
+			.filter((file) => !file.path.startsWith(".obsidian/"))
+			.sort((left, right) => left.path.localeCompare(right.path));
+		if (files.length === 0) {
+			new Notice("No vault files are available for attachment.");
+			return null;
+		}
+		return await new Promise<string | null>((resolve) => {
+			new JarvisVaultFilePickerModal(this.app, files, resolve).open();
+		});
+	}
+
+	async stageExternalAttachment(file: File): Promise<string | null> {
+		const nativePath = (file as unknown as { path?: string }).path;
+		if (nativePath && existsSync(nativePath)) {
+			return this.toUserFacingAttachmentPath(nativePath);
+		}
+
+		const targetPath = this.createStagedAttachmentPath(file.name || `upload-${Date.now()}`);
+		const bytes = Buffer.from(await file.arrayBuffer());
+		writeFileSync(targetPath, bytes);
+		return this.toUserFacingAttachmentPath(targetPath);
+	}
+
+	async stageClipboardAttachment(): Promise<string | null> {
+		const clipboardText = (await navigator.clipboard.readText().catch(() => "")).trim();
+		if (clipboardText.length > 0) {
+			try {
+				const resolvedPath = this.resolveClipboardPath(clipboardText);
+				if (resolvedPath) {
+					return this.toUserFacingAttachmentPath(resolvedPath);
+				}
+			} catch (error) {
+				console.warn("JarvisCtl Control could not resolve clipboard path", error);
+			}
+
+			const textPath = this.createStagedAttachmentPath(`clipboard-${Date.now()}.txt`);
+			writeFileSync(textPath, clipboardText, "utf8");
+			return this.toUserFacingAttachmentPath(textPath);
+		}
+
+		if (typeof navigator.clipboard.read !== "function") {
+			new Notice("Clipboard attachment import is unavailable in this environment.");
+			return null;
+		}
+
+		const items = await navigator.clipboard.read();
+		for (const item of items) {
+			const preferredType =
+				item.types.find((type) => type.startsWith("image/")) ??
+				item.types.find((type) => type === "text/plain") ??
+				item.types[0];
+			if (!preferredType) {
+				continue;
+			}
+			const blob = await item.getType(preferredType);
+			if (preferredType === "text/plain") {
+				const text = (await blob.text()).trim();
+				if (text.length === 0) {
+					continue;
+				}
+				const textPath = this.createStagedAttachmentPath(`clipboard-${Date.now()}.txt`);
+				writeFileSync(textPath, text, "utf8");
+				return this.toUserFacingAttachmentPath(textPath);
+			}
+
+			const extension = extensionForMimeType(preferredType);
+			const binaryPath = this.createStagedAttachmentPath(`clipboard-${Date.now()}${extension}`);
+			writeFileSync(binaryPath, Buffer.from(await blob.arrayBuffer()));
+			return this.toUserFacingAttachmentPath(binaryPath);
+		}
+
+		new Notice("Clipboard does not contain a usable file, image, or text payload.");
+		return null;
+	}
+
 	private async execJarvisCtl(args: string[]): Promise<{ stdout: string; stderr: string }> {
 		let lastError: unknown;
 		for (const candidate of this.getJarvisCtlCandidates()) {
@@ -382,6 +522,22 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		}
 		candidates.push(configuredPath);
 		return [...new Set(candidates)];
+	}
+
+	private async getTellCapabilities(): Promise<JarvisTellCapabilities> {
+		const cacheKey = this.getJarvisCtlCandidates().join("|");
+		if (this.tellCapabilitiesCacheKey === cacheKey && this.tellCapabilitiesCache) {
+			return this.tellCapabilitiesCache;
+		}
+
+		const { stdout } = await this.execJarvisCtl(["tell", "--help"]);
+		const capabilities = {
+			supportsMode: stdout.includes("--mode"),
+			supportsNoEnter: stdout.includes("--no-enter"),
+		};
+		this.tellCapabilitiesCacheKey = cacheKey;
+		this.tellCapabilitiesCache = capabilities;
+		return capabilities;
 	}
 
 	getBuildStamp(): string {
@@ -479,6 +635,42 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		throw new Error("Vault base path is unavailable on this adapter");
 	}
 
+	private buildOperatorPayload(
+		session: JarvisSessionMetadata,
+		request: JarvisOperatorMessageRequest,
+	): string | null {
+		const message = request.message.trim();
+		const parts: string[] = [];
+
+		if (request.targetKind === "subagent") {
+			parts.push(
+				`Relay this operator message to ${request.targetLabel ?? request.targetId} (${request.targetId}) and continue the active branch with that context.`,
+			);
+		}
+
+		if (message) {
+			parts.push(message);
+		}
+
+		const attachmentPath = request.attachmentPath?.trim();
+		if (attachmentPath) {
+			const resolvedPath = this.resolveOperatorAttachmentPath(session, attachmentPath);
+			const attachmentBody = this.readOperatorAttachmentBody(resolvedPath);
+			parts.push(
+				[
+					`Attached file: ${resolvedPath}`,
+					"Use the excerpt below as inline operator context.",
+					"```text",
+					attachmentBody,
+					"```",
+				].join("\n"),
+			);
+		}
+
+		const payload = parts.filter((part) => part.trim().length > 0).join("\n\n").trim();
+		return payload.length > 0 ? payload : null;
+	}
+
 	private resolveImagePaths(taskNotePath: string, rawPaths: string[]): string[] {
 		const basePath = this.getVaultBasePath();
 		const noteDir = dirname(taskNotePath);
@@ -502,6 +694,44 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		});
 	}
 
+	private resolveOperatorAttachmentPath(session: JarvisSessionMetadata, rawPath: string): string {
+		const trimmed = rawPath.trim();
+		if (!trimmed) {
+			throw new Error("Attachment path cannot be empty.");
+		}
+
+		if (isAbsolute(trimmed) && existsSync(trimmed)) {
+			return trimmed;
+		}
+
+		const candidates = [
+			session.working_directory ? join(session.working_directory, trimmed) : null,
+			join(this.getVaultBasePath(), trimmed),
+		].filter((value): value is string => Boolean(value));
+
+		const resolved = candidates.find((candidate) => existsSync(candidate));
+		if (!resolved) {
+			throw new Error(`Attachment not found: ${trimmed}`);
+		}
+		return resolved;
+	}
+
+	private readOperatorAttachmentBody(path: string): string {
+		const raw = readFileSync(path, "utf8").replaceAll("\r", "");
+		const lines = raw.split("\n");
+		const truncatedLines = lines.slice(0, 220);
+		let body = truncatedLines.join("\n");
+		let truncated = lines.length > truncatedLines.length;
+		if (body.length > 14000) {
+			body = body.slice(0, 14000);
+			truncated = true;
+		}
+		if (truncated) {
+			body = `${body}\n[attachment truncated for dashboard send]`;
+		}
+		return body;
+	}
+
 	private resolveVaultFile(absolutePath: string): TFile | null {
 		const basePath = this.getVaultBasePath();
 		const relativePath = relative(basePath, absolutePath);
@@ -511,6 +741,79 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		const normalized = relativePath.replaceAll("\\", "/");
 		const file = this.app.vault.getAbstractFileByPath(normalized);
 		return file instanceof TFile ? file : null;
+	}
+
+	private resolveClipboardPath(rawValue: string): string | null {
+		const trimmed = rawValue.trim();
+		if (!trimmed) {
+			return null;
+		}
+		if (isAbsolute(trimmed) && existsSync(trimmed)) {
+			return trimmed;
+		}
+
+		const vaultCandidate = join(this.getVaultBasePath(), trimmed);
+		if (existsSync(vaultCandidate)) {
+			return vaultCandidate;
+		}
+
+		return null;
+	}
+
+	private createStagedAttachmentPath(fileName: string): string {
+		const attachmentsDir = join(
+			this.getVaultBasePath(),
+			this.app.vault.configDir,
+			"plugins",
+			this.manifest.id,
+			"attachments",
+		);
+		mkdirSync(attachmentsDir, { recursive: true });
+		const extension = extname(fileName) || ".txt";
+		const stem = basename(fileName, extension).replace(/[^a-zA-Z0-9._-]+/g, "-") || "attachment";
+		return join(attachmentsDir, `${stem}-${Date.now()}${extension}`);
+	}
+
+	private toUserFacingAttachmentPath(absolutePath: string): string {
+		const vaultBase = this.getVaultBasePath();
+		const relativePath = relative(vaultBase, absolutePath);
+		if (!relativePath.startsWith("..")) {
+			return relativePath.replaceAll("\\", "/");
+		}
+		return absolutePath;
+	}
+}
+
+class JarvisVaultFilePickerModal extends FuzzySuggestModal<TFile> {
+	private readonly files: TFile[];
+	private readonly onChoose: (path: string | null) => void;
+	private resolved = false;
+
+	constructor(app: App, files: TFile[], onChoose: (path: string | null) => void) {
+		super(app);
+		this.files = files;
+		this.onChoose = onChoose;
+		this.setPlaceholder("Pick a vault file to attach");
+	}
+
+	getItems(): TFile[] {
+		return this.files;
+	}
+
+	getItemText(file: TFile): string {
+		return file.path;
+	}
+
+	onChooseItem(file: TFile): void {
+		this.resolved = true;
+		this.onChoose(file.path);
+	}
+
+	onClose(): void {
+		super.onClose();
+		if (!this.resolved) {
+			this.onChoose(null);
+		}
 	}
 }
 
@@ -661,6 +964,20 @@ class JarvisCtlControlView extends ItemView {
 			tellAgent: async (session, agentName) => {
 				await this.plugin.promptAndTell(session.namespace, agentName ?? session.agents[0]?.name ?? "agent0");
 				await this.refreshSessions(false);
+			},
+			sendOperatorMessage: async (session, request) => {
+				await this.runAction(`Sending context into ${session.namespace}`, async () => {
+					await this.plugin.sendOperatorMessage(session, request);
+				}, true);
+			},
+			pickVaultAttachment: async () => {
+				return await this.plugin.pickVaultAttachmentPath();
+			},
+			pickExternalAttachment: async (_session, file) => {
+				return await this.plugin.stageExternalAttachment(file);
+			},
+			pasteClipboardAttachment: async () => {
+				return await this.plugin.stageClipboardAttachment();
 			},
 			copyAttach: async (session) => {
 				await navigator.clipboard.writeText(
@@ -946,6 +1263,33 @@ class JarvisTextModal extends Modal {
 		});
 		messageEl.placeholder = "Add feedback, a correction, or a high-priority note for the running agent.";
 
+		contentEl.createEl("label", {
+			cls: "jarvisctl-modal-label",
+			text: "Mode",
+		});
+		const modeEl = contentEl.createEl("select", {
+			cls: "jarvisctl-modal-select",
+		});
+		for (const [value, label] of [
+			["auto", "Auto"],
+			["steer", "Steer now"],
+			["queue", "Queue next"],
+		] as const) {
+			const option = modeEl.createEl("option", { text: label });
+			option.value = value;
+		}
+
+		contentEl.createEl("label", {
+			cls: "jarvisctl-modal-label",
+			text: "Attachment path",
+		});
+		const attachmentEl = contentEl.createEl("input", {
+			cls: "jarvisctl-modal-input",
+			type: "text",
+		});
+		attachmentEl.placeholder =
+			"Optional file path. Relative paths resolve from the session working directory first.";
+
 		const actions = contentEl.createDiv({ cls: "jarvisctl-modal-actions" });
 		const cancel = actions.createEl("button", { text: "Cancel" });
 		cancel.addEventListener("click", () => this.finish(null));
@@ -955,7 +1299,11 @@ class JarvisTextModal extends Modal {
 			cls: "mod-cta",
 		});
 		submit.addEventListener("click", () => {
-			this.finish({ message: messageEl.value });
+			this.finish({
+				message: messageEl.value,
+				mode: modeEl.value as JarvisOperatorMode,
+				attachmentPath: attachmentEl.value,
+			});
 		});
 
 		window.setTimeout(() => messageEl.focus(), 0);
@@ -1143,5 +1491,24 @@ function activityLabel(tag: string): string {
 			return "Session";
 		default:
 			return tag;
+	}
+}
+
+function extensionForMimeType(mimeType: string): string {
+	switch (mimeType) {
+		case "image/png":
+			return ".png";
+		case "image/jpeg":
+			return ".jpg";
+		case "image/webp":
+			return ".webp";
+		case "image/gif":
+			return ".gif";
+		case "text/markdown":
+			return ".md";
+		case "application/json":
+			return ".json";
+		default:
+			return ".bin";
 	}
 }

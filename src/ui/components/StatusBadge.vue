@@ -16,10 +16,11 @@ const props = withDefaults(
 );
 
 const toneClass = computed(() => `cp-badge--${props.tone}`);
+const stateClass = computed(() => `cp-badge--state-${props.label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
 </script>
 
 <template>
-	<span :class="['cp-badge', toneClass, compact && 'cp-badge--compact']">
+	<span :class="['cp-badge', toneClass, stateClass, compact && 'cp-badge--compact']">
 		<span class="cp-badge__dot" aria-hidden="true" />
 		<span>{{ label }}</span>
 	</span>

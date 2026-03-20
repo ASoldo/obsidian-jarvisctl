@@ -9,6 +9,8 @@ import {
 	shortPath,
 	statusTone,
 	truncate,
+	WORKFLOW_NODE_HEIGHT,
+	WORKFLOW_NODE_WIDTH,
 	type WorkflowStepModel,
 } from "../helpers";
 import StatusBadge from "./StatusBadge.vue";
@@ -28,7 +30,13 @@ const nodeTypes = { flowCard: markRaw(FlowCardNode) };
 watch(
 	() => props.session?.namespace,
 	() => {
-		selectedStepId.value = steps.value[0]?.id ?? null;
+		selectedStepId.value =
+			steps.value.find((step) => {
+				const tone = statusTone(step.status);
+				return tone === "live" || tone === "warning" || tone === "error";
+			})?.id ??
+			steps.value[0]?.id ??
+			null;
 		inspectorCollapsed.value = false;
 	},
 	{ immediate: true },
@@ -53,16 +61,33 @@ const flowNodes = computed<Node[]>(() => {
 		connectable: false,
 		sourcePosition: Position.Right,
 		targetPosition: Position.Left,
-		style: { width: "276px" },
+		style: { width: `${WORKFLOW_NODE_WIDTH}px` },
 		data: {
 			variant: "workflow",
 			icon: step.icon,
 			title: step.label,
-			subtitle: truncate(step.detail, 68),
+			subtitle: truncate(step.detail, 52),
 			status: step.status,
 		},
 	}));
 });
+
+const canvasHeight = computed(() => {
+	const bottomEdge = laidOutSteps.value.reduce(
+		(max, step) => Math.max(max, step.y + WORKFLOW_NODE_HEIGHT),
+		0,
+	);
+	return `${Math.max(460, bottomEdge + 36)}px`;
+});
+
+const flowKey = computed(() =>
+	[
+		props.session?.namespace ?? "none",
+		laidOutSteps.value.length,
+		props.session?.context?.recent_events?.length ?? 0,
+		props.session?.context?.subagents?.length ?? 0,
+	].join(":"),
+);
 
 function edgeColor(kind: "primary" | "success" | "warning" | "muted"): string {
 	switch (kind) {
@@ -150,10 +175,10 @@ function onNodeClick(event: { node: { id: string } }): void {
 
 <template>
 	<component
-		:is="embedded ? 'section' : 'aside'"
+		:is="embedded ? 'div' : 'aside'"
 		:class="[embedded ? 'cp-workflow-panel-embedded' : 'cp-panel cp-workflow-panel']"
 	>
-		<div class="cp-panel__header">
+		<div v-if="!embedded" class="cp-panel__header">
 			<div>
 				<p class="cp-panel__eyebrow">Automation Workflow</p>
 				<h2 class="cp-panel__title">Execution Graph</h2>
@@ -165,29 +190,30 @@ function onNodeClick(event: { node: { id: string } }): void {
 			/>
 		</div>
 
-		<div class="cp-panel__body cp-panel__body--scroll">
+		<div :class="[embedded ? 'cp-workflow-panel__body-embedded' : 'cp-panel__body cp-panel__body--scroll']">
 			<div v-if="!session" class="cp-empty-state">Select a namespace to inspect its automation chain.</div>
 			<template v-else>
-				<div class="cp-workflow-shell">
-					<div class="cp-workflow-canvas cp-grid-surface">
-						<div class="cp-flow-scene-shell cp-flow-scene-shell--workflow">
+				<div class="flex min-h-0 flex-col gap-3">
+					<div class="cp-workflow-canvas cp-grid-surface" :style="{ height: canvasHeight }">
+						<div class="cp-flow-scene-shell cp-flow-scene-shell--workflow" :style="{ height: canvasHeight }">
 							<VueFlow
+								:key="flowKey"
 								class="cp-vue-flow cp-vue-flow--workflow"
 								:nodes="flowNodes"
 								:edges="flowEdges"
 								:node-types="nodeTypes"
-								:min-zoom="0.55"
-								:max-zoom="1.1"
+								:min-zoom="0.18"
+								:max-zoom="1.6"
 								:nodes-draggable="false"
 								:nodes-connectable="false"
 								:elements-selectable="true"
-								:zoom-on-scroll="false"
-								:zoom-on-pinch="false"
-								:pan-on-drag="false"
+								:zoom-on-scroll="true"
+								:zoom-on-pinch="true"
+								:pan-on-drag="true"
 								:pan-on-scroll="false"
-								:prevent-scrolling="false"
+								:prevent-scrolling="true"
 								:fit-view-on-init="true"
-								:fit-view-options="{ padding: 0.18, minZoom: 0.55, maxZoom: 1 }"
+								:fit-view-options="{ padding: 0.14, minZoom: 0.18, maxZoom: 1.15 }"
 								@node-click="onNodeClick"
 							>
 								<Background :gap="18" :size="1" pattern-color="color-mix(in srgb, var(--cp-border) 24%, transparent)" />
@@ -195,7 +221,10 @@ function onNodeClick(event: { node: { id: string } }): void {
 						</div>
 					</div>
 
-					<div v-if="selectedStep" class="cp-workflow-inspector">
+					<aside
+						v-if="selectedStep"
+						class="grid gap-3 rounded-2xl border border-[color:var(--cp-border)] bg-[color:var(--cp-panel)] p-4"
+					>
 						<div class="cp-workflow-inspector__header">
 							<h3 class="cp-workflow-inspector__title">{{ selectedStep.label }}</h3>
 							<div class="cp-workflow-inspector__meta">
@@ -203,7 +232,7 @@ function onNodeClick(event: { node: { id: string } }): void {
 								<StatusBadge :label="selectedStep.status" :tone="statusTone(selectedStep.status)" compact />
 								<button
 									type="button"
-									class="cp-icon-button cp-icon-button--small"
+									class="cp-icon-button cp-icon-button--circle"
 									:title="inspectorCollapsed ? 'Expand execution detail' : 'Collapse execution detail'"
 									@click="inspectorCollapsed = !inspectorCollapsed"
 								>
@@ -211,19 +240,19 @@ function onNodeClick(event: { node: { id: string } }): void {
 								</button>
 							</div>
 						</div>
-						<div v-if="!inspectorCollapsed" class="cp-workflow-inspector__stack">
+						<div v-if="!inspectorCollapsed" class="grid gap-3">
 							<ExpandableText
 								:text="selectedStep.detail ?? 'No branch detail available.'"
 								:always-expanded="true"
 							/>
-							<div class="cp-workflow-inspector__resource">
+							<div class="grid gap-2 rounded-2xl border border-[color:var(--cp-border)] bg-[color:var(--cp-panel-strong)] px-4 py-3">
 								<div class="cp-panel__eyebrow">Execution Contract</div>
 								<div class="cp-workflow-inspector__copy" :title="session.context?.task_note ?? ''">
 									{{ shortPath(session.context?.task_note) }}
 								</div>
 							</div>
 						</div>
-					</div>
+					</aside>
 				</div>
 			</template>
 		</div>

@@ -3,7 +3,14 @@ import { computed, markRaw, ref, watch } from "vue";
 import { VueFlow, Position, type Edge, type Node } from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
 import type { JarvisSessionMetadata } from "../../types/domain";
-import { buildTopology, formatDateTime, nodeTone, sessionStateLabel, statusTone } from "../helpers";
+import {
+	buildTopology,
+	formatDateTime,
+	nodeTone,
+	sessionStateLabel,
+	statusTone,
+	TOPOLOGY_NODE_HEIGHT,
+} from "../helpers";
 import StatusBadge from "./StatusBadge.vue";
 import FlowCardNode from "./graph/FlowCardNode.vue";
 
@@ -48,6 +55,24 @@ const flowNodes = computed<Node[]>(() =>
 	})),
 );
 
+const canvasHeight = computed(() => {
+	const bottomEdge = graph.value.nodes.reduce(
+		(max, node) => Math.max(max, node.y + TOPOLOGY_NODE_HEIGHT),
+		0,
+	);
+	return `${Math.max(440, bottomEdge + 36)}px`;
+});
+
+const flowKey = computed(() =>
+	[
+		props.session?.namespace ?? "none",
+		graph.value.nodes.length,
+		graph.value.edges.length,
+		props.session?.context?.recent_events?.length ?? 0,
+		props.session?.context?.subagents?.length ?? 0,
+	].join(":"),
+);
+
 function edgeColor(tone: string | undefined): string {
 	switch (tone) {
 		case "primary":
@@ -85,59 +110,67 @@ function onNodeClick(event: { node: { id: string } }): void {
 </script>
 
 <template>
-		<div class="cp-topology-tab">
-			<div class="cp-topology-canvas cp-grid-surface">
-				<div class="cp-flow-scene-shell cp-flow-scene-shell--topology">
-							<VueFlow
-								class="cp-vue-flow cp-vue-flow--topology"
-								:nodes="flowNodes"
-								:edges="flowEdges"
-								:node-types="nodeTypes"
-								:min-zoom="0.55"
-								:max-zoom="1.1"
-								:nodes-draggable="false"
-								:nodes-connectable="false"
-								:elements-selectable="true"
-								:zoom-on-scroll="false"
-								:zoom-on-pinch="false"
-								:pan-on-drag="false"
-								:pan-on-scroll="false"
-								:prevent-scrolling="false"
-								:fit-view-on-init="true"
-								:fit-view-options="{ padding: 0.18, minZoom: 0.55, maxZoom: 1 }"
-								@node-click="onNodeClick"
-							>
+	<div class="cp-topology-tab">
+		<div class="flex min-h-0 flex-col gap-3">
+			<div class="cp-topology-canvas cp-grid-surface" :style="{ height: canvasHeight }">
+				<div class="cp-flow-scene-shell cp-flow-scene-shell--topology" :style="{ height: canvasHeight }">
+					<VueFlow
+						:key="flowKey"
+						class="cp-vue-flow cp-vue-flow--topology"
+						:nodes="flowNodes"
+						:edges="flowEdges"
+						:node-types="nodeTypes"
+						:min-zoom="0.18"
+						:max-zoom="1.6"
+						:nodes-draggable="false"
+						:nodes-connectable="false"
+						:elements-selectable="true"
+						:zoom-on-scroll="true"
+						:zoom-on-pinch="true"
+						:pan-on-drag="true"
+						:pan-on-scroll="false"
+						:prevent-scrolling="true"
+						:fit-view-on-init="true"
+						:fit-view-options="{ padding: 0.14, minZoom: 0.18, maxZoom: 1.15 }"
+						@node-click="onNodeClick"
+					>
 						<Background :gap="18" :size="1" pattern-color="color-mix(in srgb, var(--cp-border) 24%, transparent)" />
 					</VueFlow>
 				</div>
 			</div>
 
-		<div v-if="session && selectedNode" class="cp-inspector">
-			<div class="cp-inspector__head">
-				<div>
-					<p class="cp-panel__eyebrow">Selected Node</p>
-					<h3 class="cp-inspector__title">{{ selectedNode.label }}</h3>
+			<aside
+				v-if="session && selectedNode"
+				class="grid gap-3 rounded-2xl border border-[color:var(--cp-border)] bg-[color:var(--cp-panel)] p-4"
+			>
+				<div class="cp-inspector__head">
+					<div>
+						<p class="cp-panel__eyebrow">Selected Node</p>
+						<h3 class="cp-inspector__title">{{ selectedNode.label }}</h3>
+					</div>
+					<StatusBadge :label="selectedNode.status" :tone="statusTone(selectedNode.status)" compact />
 				</div>
-				<StatusBadge :label="selectedNode.status" :tone="statusTone(selectedNode.status)" compact />
-			</div>
-			<div class="cp-inspector__grid">
-				<div class="cp-kv-card">
-					<div class="cp-kv-card__label">Namespace</div>
-					<div class="cp-kv-card__value">{{ session.namespace }}</div>
+				<div class="flex min-w-0 flex-col gap-3">
+					<div class="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-[color:var(--cp-border)] bg-[color:var(--cp-panel)] px-4 py-3">
+						<div class="cp-kv-card__label">Namespace</div>
+						<div class="cp-kv-card__value max-w-full text-right">{{ session.namespace }}</div>
+					</div>
+					<div class="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-[color:var(--cp-border)] bg-[color:var(--cp-panel)] px-4 py-3">
+						<div class="cp-kv-card__label">State</div>
+						<div class="cp-kv-card__value max-w-full text-right">{{ sessionStateLabel(session) }}</div>
+					</div>
+					<div class="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-[color:var(--cp-border)] bg-[color:var(--cp-panel)] px-4 py-3">
+						<div class="cp-kv-card__label">Created</div>
+						<div class="cp-kv-card__value max-w-full text-right">{{ formatDateTime(session.created_at_epoch_ms) }}</div>
+					</div>
+					<div class="grid gap-2 rounded-2xl border border-[color:var(--cp-border)] bg-[color:var(--cp-panel)] px-4 py-3">
+						<div class="cp-kv-card__label">Detail</div>
+						<div class="cp-kv-card__value">
+							{{ selectedNode.meta ?? session.context?.last_activity ?? "No detail" }}
+						</div>
+					</div>
 				</div>
-				<div class="cp-kv-card">
-					<div class="cp-kv-card__label">State</div>
-					<div class="cp-kv-card__value">{{ sessionStateLabel(session) }}</div>
-				</div>
-				<div class="cp-kv-card">
-					<div class="cp-kv-card__label">Created</div>
-					<div class="cp-kv-card__value">{{ formatDateTime(session.created_at_epoch_ms) }}</div>
-				</div>
-				<div class="cp-kv-card cp-kv-card--wide">
-					<div class="cp-kv-card__label">Detail</div>
-					<div class="cp-kv-card__value">{{ selectedNode.meta ?? session.context?.last_activity ?? "No detail" }}</div>
-				</div>
-			</div>
+			</aside>
 		</div>
 	</div>
 </template>
