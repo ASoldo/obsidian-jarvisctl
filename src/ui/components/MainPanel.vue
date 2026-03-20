@@ -9,6 +9,7 @@ import WorkflowPanel from "./WorkflowPanel.vue";
 
 type MainTab =
 	| "topology"
+	| "workflow"
 	| "applications"
 	| "snapshot"
 	| "feed"
@@ -32,6 +33,7 @@ const tabs = computed(
 	() =>
 		[
 			{ id: "topology", label: "Cluster Topology", icon: "◎" },
+			{ id: "workflow", label: "Execution Graph", icon: "⑇" },
 			{ id: "applications", label: "Applications", icon: "▤" },
 			{ id: "snapshot", label: "Session Snapshot", icon: "◇" },
 			{ id: "feed", label: "Runtime Feed", icon: "≣" },
@@ -47,7 +49,6 @@ const tabs = computed(
 		<div class="cp-panel__header cp-panel__header--tabs">
 			<div>
 				<p class="cp-panel__eyebrow">Main System Surface</p>
-				<h2 class="cp-panel__title">{{ session?.namespace ?? "Operator Surface" }}</h2>
 			</div>
 			<div class="cp-surface-tab-strip">
 				<button
@@ -66,10 +67,8 @@ const tabs = computed(
 		</div>
 
 		<div class="cp-panel__body cp-main-panel__body">
-			<div v-if="props.mainTab === 'topology'" class="cp-topology-workbench">
-				<TopologyTab :session="session" />
-				<WorkflowPanel :session="session" embedded />
-			</div>
+			<TopologyTab v-if="props.mainTab === 'topology'" :session="session" />
+			<WorkflowPanel v-else-if="props.mainTab === 'workflow'" :session="session" embedded />
 			<ApplicationsTab v-else-if="props.mainTab === 'applications'" :host="host" :sessions="sessions" />
 			<RuntimeTab
 				v-else

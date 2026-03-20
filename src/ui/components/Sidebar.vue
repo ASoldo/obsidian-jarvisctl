@@ -91,28 +91,28 @@ function backendMarker(backend: string | null | undefined): string {
 						@click="emit('select-namespace', session.namespace)"
 					>
 						<div class="cp-runtime-item__top">
-							<div>
+							<div class="cp-runtime-item__head">
 								<div class="cp-runtime-item__title">{{ session.namespace }}</div>
-								<div class="cp-runtime-item__subtitle">
-									{{ truncate(session.context?.task_title ?? "Live runtime namespace", 42) }}
-								</div>
+								<StatusBadge
+									:label="session.context?.thread_status ?? (session.agents.some((agent) => agent.running) ? 'running' : 'idle')"
+									:tone="sessionTone(session)"
+									compact
+								/>
 							</div>
-							<StatusBadge
-								:label="session.context?.thread_status ?? (session.agents.some((agent) => agent.running) ? 'running' : 'idle')"
-								:tone="sessionTone(session)"
-								compact
-							/>
-						</div>
-						<div class="cp-runtime-item__meta">
-							<span class="cp-runtime-item__meta-chip" :title="session.backend">
-								{{ backendMarker(session.backend) }}
-							</span>
-							<span class="cp-runtime-item__meta-chip" :title="`${session.agents.length} agents`">
-								{{ session.agents.length }}A
-							</span>
-							<span class="cp-runtime-item__meta-chip" :title="relativeAge(session.created_at_epoch_ms)">
-								{{ relativeAge(session.created_at_epoch_ms) }}
-							</span>
+							<div class="cp-runtime-item__subtitle">
+								{{ truncate(session.context?.task_title ?? "Live runtime namespace", 42) }}
+							</div>
+							<div class="cp-runtime-item__meta">
+								<span class="cp-runtime-item__meta-chip" :title="session.backend">
+									{{ backendMarker(session.backend) }}
+								</span>
+								<span class="cp-runtime-item__meta-chip" :title="`${session.agents.length} agents`">
+									{{ session.agents.length }}A
+								</span>
+								<span class="cp-runtime-item__meta-chip" :title="relativeAge(session.created_at_epoch_ms)">
+									{{ relativeAge(session.created_at_epoch_ms) }}
+								</span>
+							</div>
 						</div>
 					</button>
 				</div>

@@ -22,13 +22,17 @@ const isExpanded = computed(() => props.alwaysExpanded || expanded.value);
 
 <template>
 	<div v-if="text" class="cp-expandable">
+		<p v-if="isExpanded || !collapsible" class="cp-expandable__body cp-expandable__body--expanded">
+			{{ text }}
+		</p>
 		<p
+			v-else
 			:class="[
 				'cp-expandable__body',
-				isExpanded && 'cp-expandable__body--expanded',
-				!isExpanded && collapsible && lines === 2 && 'cp-clamp-2',
-				!isExpanded && collapsible && lines === 3 && 'cp-clamp-3',
-				!isExpanded && collapsible && lines >= 4 && 'cp-clamp-4',
+				lines === 2 && 'cp-clamp-2',
+				lines === 3 && 'cp-clamp-3',
+				lines === 4 && 'cp-clamp-4',
+				lines >= 5 && 'cp-clamp-6',
 			]"
 		>
 			{{ text }}

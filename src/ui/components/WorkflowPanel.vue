@@ -1,23 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, markRaw, ref, watch } from "vue";
+import { VueFlow, Position, type Edge, type Node } from "@vue-flow/core";
+import { Background } from "@vue-flow/background";
 import type { JarvisSessionMetadata } from "../../types/domain";
-import { buildWorkflow, shortPath, statusTone, type WorkflowStepModel } from "../helpers";
+import { buildWorkflow, centeredLanePositions, shortPath, statusTone, truncate, type WorkflowStepModel } from "../helpers";
 import StatusBadge from "./StatusBadge.vue";
 import ExpandableText from "./ExpandableText.vue";
-
-interface WorkflowGraphNode extends WorkflowStepModel {
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-}
-
-interface WorkflowGraphEdge {
-	id: string;
-	from: string;
-	to: string;
-	tone: "primary" | "success" | "warning" | "accent" | "muted";
-}
+import FlowCardNode from "./graph/FlowCardNode.vue";
 
 const props = defineProps<{
 	session: JarvisSessionMetadata | null;
@@ -27,6 +16,7 @@ const props = defineProps<{
 const steps = computed(() => buildWorkflow(props.session));
 const selectedStepId = ref<string | null>(null);
 const inspectorCollapsed = ref(false);
+const nodeTypes = { flowCard: markRaw(FlowCardNode) };
 
 watch(
 	() => props.session?.namespace,
@@ -41,20 +31,11 @@ const selectedStep = computed<WorkflowStepModel | null>(
 	() => steps.value.find((step) => step.id === selectedStepId.value) ?? steps.value[0] ?? null,
 );
 
-const graphNodes = computed<WorkflowGraphNode[]>(() => {
-	if (steps.value.length === 0) {
+const flowNodes = computed<Node[]>(() => {
+	if (!props.session) {
 		return [];
 	}
 
-	const leftColumnX = 32;
-	const rightColumnX = 426;
-	const leftWidth = 244;
-	const rightWidth = 236;
-	const cardHeight = 64;
-	const topY = 34;
-	const verticalGap = 98;
-
-	const nodes: WorkflowGraphNode[] = [];
 	const ticket = steps.value.find((step) => step.id === "ticket");
 	const thread = steps.value.find((step) => step.id === "thread");
 	const feed = steps.value.find((step) => step.id === "feed");
@@ -62,114 +43,149 @@ const graphNodes = computed<WorkflowGraphNode[]>(() => {
 	const branches = steps.value.filter(
 		(step) => !["ticket", "thread", "feed", "reasoning"].includes(step.id),
 	);
+	const branchPositions = centeredLanePositions(Math.max(branches.length, 1), 236, 128);
 
-	if (ticket) {
-		nodes.push({ ...ticket, x: leftColumnX, y: topY, width: leftWidth, height: cardHeight });
-	}
-	if (thread) {
+	const nodes: Node[] = [];
+
+	const pushNode = (
+		step: WorkflowStepModel | undefined,
+		x: number,
+		y: number,
+		sourcePosition: Position,
+		targetPosition: Position,
+		width = 240,
+	) => {
+		if (!step) {
+			return;
+		}
 		nodes.push({
-			...thread,
-			x: leftColumnX,
-			y: topY + verticalGap,
-			width: leftWidth,
-			height: cardHeight,
+			id: step.id,
+			type: "flowCard",
+			position: { x, y },
+			draggable: false,
+			selectable: true,
+			connectable: false,
+			sourcePosition,
+			targetPosition,
+			style: { width: `${width}px` },
+			data: {
+				variant: "workflow",
+				icon: step.icon,
+				title: step.label,
+				subtitle: truncate(step.detail, 52),
+				status: step.status,
+			},
 		});
-	}
-	if (feed) {
-		nodes.push({
-			...feed,
-			x: leftColumnX,
-			y: topY + verticalGap * 2,
-			width: leftWidth,
-			height: cardHeight,
-		});
-	}
+	};
+
+	pushNode(ticket, 64, 72, Position.Bottom, Position.Left, 256);
+	pushNode(thread, 64, 224, Position.Right, Position.Top, 256);
+	pushNode(feed, 64, 376, Position.Right, Position.Top, 256);
 
 	branches.forEach((step, index) => {
-		nodes.push({
-			...step,
-			x: rightColumnX,
-			y: topY + 20 + index * 92,
-			width: rightWidth,
-			height: 70,
-		});
+		pushNode(step, 436, branchPositions[index] ?? 236, Position.Right, Position.Left, 280);
 	});
 
-	if (reasoning) {
-		nodes.push({
-			...reasoning,
-			x: rightColumnX,
-			y: topY + 20 + Math.max(branches.length, 1) * 92 + 112,
-			width: rightWidth,
-			height: cardHeight,
-		});
-	}
+	pushNode(
+		reasoning,
+		840,
+		236,
+		Position.Left,
+		Position.Left,
+		280,
+	);
 
 	return nodes;
 });
 
-const graphEdges = computed<WorkflowGraphEdge[]>(() => {
-	const edges: WorkflowGraphEdge[] = [];
-	const has = (id: string) => graphNodes.value.some((node) => node.id === id);
-	if (has("ticket") && has("thread")) {
-		edges.push({ id: "ticket-thread", from: "ticket", to: "thread", tone: "primary" });
+function edgeColor(kind: "primary" | "success" | "warning" | "muted"): string {
+	switch (kind) {
+		case "primary":
+			return "color-mix(in srgb, var(--cp-blue) 72%, white 28%)";
+		case "success":
+			return "color-mix(in srgb, var(--cp-emerald) 72%, white 28%)";
+		case "warning":
+			return "color-mix(in srgb, var(--cp-amber) 72%, white 28%)";
+		default:
+			return "color-mix(in srgb, var(--cp-text-dim) 44%, transparent)";
 	}
-	if (has("thread") && has("feed")) {
-		edges.push({ id: "thread-feed", from: "thread", to: "feed", tone: "success" });
+}
+
+const flowEdges = computed<Edge[]>(() => {
+	const edges: Edge[] = [];
+	if (!props.session) {
+		return edges;
 	}
 
-	const branchNodes = graphNodes.value.filter(
-		(node) => !["ticket", "thread", "feed", "reasoning"].includes(node.id),
+	const branchNodes = steps.value.filter(
+		(step) => !["ticket", "thread", "feed", "reasoning"].includes(step.id),
 	);
-	branchNodes.forEach((node, index) => {
+
+	edges.push({
+		id: "ticket-thread",
+		source: "ticket",
+		target: "thread",
+		sourceHandle: "source-bottom",
+		targetHandle: "target-top",
+		type: "step",
+		style: { stroke: edgeColor("primary"), strokeWidth: 2.2 },
+	});
+	edges.push({
+		id: "thread-feed",
+		source: "thread",
+		target: "feed",
+		sourceHandle: "source-bottom",
+		targetHandle: "target-top",
+		type: "step",
+		style: { stroke: edgeColor("success"), strokeWidth: 2.2 },
+	});
+
+	branchNodes.forEach((step, index) => {
 		edges.push({
-			id: `thread-${node.id}`,
-			from: "thread",
-			to: node.id,
-			tone: index % 2 === 0 ? "accent" : "warning",
+			id: `thread-${step.id}`,
+			source: "thread",
+			target: step.id,
+			sourceHandle: "source-right",
+			targetHandle: "target-left",
+			type: "step",
+			style: {
+				stroke: edgeColor(index % 2 === 0 ? "primary" : "warning"),
+				strokeWidth: 2.2,
+			},
 		});
 		edges.push({
-			id: `${node.id}-reasoning`,
-			from: node.id,
-			to: "reasoning",
-			tone: "muted",
+			id: `${step.id}-reasoning`,
+			source: step.id,
+			target: "reasoning",
+			sourceHandle: "source-right",
+			targetHandle: "target-left",
+			type: "step",
+			style: { stroke: edgeColor("muted"), strokeWidth: 2 },
 		});
 	});
 
-	if (branchNodes.length === 0 && has("feed") && has("reasoning")) {
-		edges.push({ id: "feed-reasoning", from: "feed", to: "reasoning", tone: "accent" });
-	}
+	edges.push({
+		id: "feed-reasoning",
+		source: "feed",
+		target: "reasoning",
+		sourceHandle: "source-right",
+		targetHandle: "target-left",
+		type: "step",
+		style: { stroke: edgeColor("success"), strokeWidth: 2.2 },
+	});
 
 	return edges;
 });
 
-function nodeById(id: string): WorkflowGraphNode | undefined {
-	return graphNodes.value.find((node) => node.id === id);
-}
-
-function nodeCenter(id: string): { x: number; y: number } {
-	const node = nodeById(id);
-	if (!node) {
-		return { x: 0, y: 0 };
-	}
-	return {
-		x: node.x + node.width / 2,
-		y: node.y + node.height / 2,
-	};
-}
-
-function edgePath(fromId: string, toId: string): string {
-	const from = nodeCenter(fromId);
-	const to = nodeCenter(toId);
-	const midX = from.x + (to.x - from.x) * 0.42;
-	return `M ${from.x} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x} ${to.y}`;
+function onNodeClick(event: { node: { id: string } }): void {
+	selectedStepId.value = event.node.id;
 }
 </script>
 
 <template>
 	<component
 		:is="embedded ? 'section' : 'aside'"
-		:class="[embedded ? 'cp-subpanel cp-workflow-panel-embedded' : 'cp-panel cp-workflow-panel']"
+		:class="[embedded ? 'cp-workflow-panel-embedded' : 'cp-panel cp-workflow-panel']"
 	>
 		<div class="cp-panel__header">
 			<div>
@@ -188,35 +204,28 @@ function edgePath(fromId: string, toId: string): string {
 			<template v-else>
 				<div class="cp-workflow-shell">
 					<div class="cp-workflow-canvas cp-grid-surface">
-						<div class="cp-workflow-scene">
-							<svg class="cp-workflow-svg" viewBox="0 0 560 420" preserveAspectRatio="none">
-								<path
-									v-for="edge in graphEdges"
-									:key="edge.id"
-									:d="edgePath(edge.from, edge.to)"
-									:class="['cp-workflow-edge', `cp-workflow-edge--${edge.tone}`]"
-								/>
-							</svg>
-							<button
-								v-for="node in graphNodes"
-								:key="node.id"
-								type="button"
-								:class="['cp-workflow-node', selectedStepId === node.id && 'is-active']"
-								:style="{ left: `${node.x}px`, top: `${node.y}px`, width: `${node.width}px`, minHeight: `${node.height}px` }"
-								:title="node.detail ?? node.label"
-								@click="selectedStepId = node.id"
+						<div class="cp-flow-scene-shell cp-flow-scene-shell--workflow">
+							<VueFlow
+								class="cp-vue-flow cp-vue-flow--workflow"
+								:nodes="flowNodes"
+								:edges="flowEdges"
+								:node-types="nodeTypes"
+								:min-zoom="1"
+								:max-zoom="1"
+								:nodes-draggable="false"
+								:nodes-connectable="false"
+								:elements-selectable="true"
+								:zoom-on-scroll="false"
+								:zoom-on-pinch="false"
+								:pan-on-drag="false"
+								:pan-on-scroll="false"
+								:prevent-scrolling="false"
+								:fit-view-on-init="false"
+								:default-viewport="{ zoom: 1, x: 0, y: 0 }"
+								@node-click="onNodeClick"
 							>
-								<div class="cp-workflow-node__head">
-									<div class="cp-workflow-node__icon">{{ node.icon }}</div>
-									<div class="cp-workflow-node__body">
-										<div class="cp-workflow-node__title">{{ node.label }}</div>
-										<div class="cp-workflow-node__detail">
-											{{ node.detail ?? "waiting for runtime data" }}
-										</div>
-									</div>
-									<StatusBadge :label="node.status" :tone="statusTone(node.status)" compact />
-								</div>
-							</button>
+								<Background :gap="18" :size="1" pattern-color="color-mix(in srgb, var(--cp-border) 24%, transparent)" />
+							</VueFlow>
 						</div>
 					</div>
 

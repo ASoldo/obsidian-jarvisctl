@@ -9,6 +9,7 @@ import { buildRepositoryGroups } from "./helpers";
 
 type MainTab =
 	| "topology"
+	| "workflow"
 	| "applications"
 	| "snapshot"
 	| "feed"
@@ -68,7 +69,10 @@ const selectedSession = computed(() => {
 	const selected = allSessions.value.find(
 		(session) => session.namespace === props.host.state.selectedNamespace,
 	);
-	return selected ?? filteredSessions.value[0] ?? allSessions.value[0] ?? null;
+	if (selected && filteredSessions.value.some((session) => session.namespace === selected.namespace)) {
+		return selected;
+	}
+	return filteredSessions.value[0] ?? selected ?? allSessions.value[0] ?? null;
 });
 
 const selectedActivitySections = computed(() =>
@@ -76,10 +80,10 @@ const selectedActivitySections = computed(() =>
 );
 
 const environmentLabel = computed(() => {
-	if (selectedRepository.value) {
-		return repositories.value.find((group) => group.id === selectedRepository.value)?.label ?? "Vault Runtime";
+	if (!selectedRepository.value) {
+		return "All Repos";
 	}
-	return selectedSession.value?.working_directory?.split("/").filter(Boolean).pop() ?? "Vault Runtime";
+	return repositories.value.find((group) => group.id === selectedRepository.value)?.label ?? "All Repos";
 });
 
 const liveAgentCount = computed(() =>
@@ -119,6 +123,16 @@ function handleContinue(): void {
 	}
 	void props.host.refresh();
 }
+
+function cycleEnvironment(): void {
+	const options = [null, ...repositories.value.map((group) => group.id)];
+	if (options.length === 0) {
+		selectedRepository.value = null;
+		return;
+	}
+	const index = options.findIndex((value) => value === selectedRepository.value);
+	selectedRepository.value = options[(index + 1 + options.length) % options.length] ?? null;
+}
 </script>
 
 <template>
@@ -132,6 +146,7 @@ function handleContinue(): void {
 			:focus-label="selectedSession?.namespace ?? 'none'"
 			:selected-state="selectedState"
 			@update:search-query="searchQuery = $event"
+			@toggle-environment="cycleEnvironment()"
 			@refresh="host.refresh()"
 			@open-dashboard="host.openDashboard()"
 			@continue="handleContinue"

@@ -30,25 +30,28 @@ const logLines = computed(() => flattenActivityLines(props.activitySections).sli
 const reasoning = computed(() => reasoningEntries(props.session).slice(-20).reverse());
 const branchActions = computed(() => collectRecentActions(props.session?.context?.subagents).slice(0, 12));
 const metrics = computed(() => metricsSnapshot(props.session));
+const tabs = [
+	{ id: "logs", label: "Logs", icon: "≡" },
+	{ id: "events", label: "Events", icon: "◫" },
+	{ id: "reasoning", label: "AI Reasoning", icon: "◈" },
+	{ id: "metrics", label: "Metrics", icon: "◍" },
+] as const;
 </script>
 
 <template>
 	<section :class="['cp-panel', 'cp-bottom-panel', props.collapsed && 'is-collapsed']">
 		<div class="cp-panel__header cp-panel__header--tabs">
-			<div class="cp-tab-strip">
+			<div class="cp-surface-tab-strip cp-surface-tab-strip--footer">
 				<button
-					v-for="tab in [
-						['logs', 'Logs'],
-						['events', 'Events'],
-						['reasoning', 'AI Reasoning'],
-						['metrics', 'Metrics'],
-					]"
-					:key="tab[0]"
+					v-for="tab in tabs"
+					:key="tab.id"
 					type="button"
-					:class="['cp-tab', bottomTab === tab[0] && 'is-active']"
-					@click="emit('update:bottomTab', tab[0] as BottomTab)"
+					:class="['cp-surface-tab', bottomTab === tab.id && 'is-active']"
+					:title="tab.label"
+					@click="emit('update:bottomTab', tab.id as BottomTab)"
 				>
-					{{ tab[1] }}
+					<span class="cp-surface-tab__icon" aria-hidden="true">{{ tab.icon }}</span>
+					<span class="cp-surface-tab__label">{{ tab.label }}</span>
 				</button>
 			</div>
 			<div class="cp-panel__meta">

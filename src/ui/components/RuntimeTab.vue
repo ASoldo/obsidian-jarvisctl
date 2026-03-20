@@ -95,8 +95,8 @@ function subagentTone(subagent: JarvisRuntimeSubagentMetadata): "live" | "warnin
 			</div>
 		</div>
 
-		<section v-if="section === 'snapshot'" class="cp-panel cp-subpanel cp-runtime-section">
-			<div class="cp-panel__header">
+		<section v-if="section === 'snapshot'" class="cp-runtime-section-shell">
+			<div class="cp-runtime-section__header">
 				<div>
 					<p class="cp-panel__eyebrow">Session Snapshot</p>
 					<h3 class="cp-panel__title">Runtime Contract</h3>
@@ -106,7 +106,7 @@ function subagentTone(subagent: JarvisRuntimeSubagentMetadata): "live" | "warnin
 					<span v-for="token in describeSessionTokens(session)" :key="token" class="cp-chip">{{ token }}</span>
 				</div>
 			</div>
-			<div class="cp-panel__body cp-panel__body--scroll">
+			<div class="cp-runtime-section__body">
 				<div class="cp-snapshot-grid">
 					<div class="cp-kv-card cp-kv-card--hero">
 						<div class="cp-kv-card__label">Task</div>
@@ -178,8 +178,8 @@ function subagentTone(subagent: JarvisRuntimeSubagentMetadata): "live" | "warnin
 			</div>
 		</section>
 
-		<section v-else-if="section === 'feed'" class="cp-panel cp-subpanel cp-runtime-section">
-			<div class="cp-panel__header">
+		<section v-else-if="section === 'feed'" class="cp-runtime-section-shell">
+			<div class="cp-runtime-section__header">
 				<div>
 					<p class="cp-panel__eyebrow">Runtime Feed</p>
 					<h3 class="cp-panel__title">Live Events</h3>
@@ -189,7 +189,7 @@ function subagentTone(subagent: JarvisRuntimeSubagentMetadata): "live" | "warnin
 					<StatusBadge :label="session.context?.turn_status ?? 'idle'" :tone="sessionTone(session)" compact />
 				</div>
 			</div>
-			<div class="cp-panel__body cp-panel__body--scroll">
+			<div class="cp-runtime-section__body">
 				<div v-if="events.length === 0" class="cp-empty-state">No runtime events yet.</div>
 				<div v-else class="cp-feed-list">
 					<article v-for="event in events" :key="event.id" class="cp-feed-card">
@@ -208,8 +208,8 @@ function subagentTone(subagent: JarvisRuntimeSubagentMetadata): "live" | "warnin
 			</div>
 		</section>
 
-		<section v-else-if="section === 'activity'" class="cp-panel cp-subpanel cp-runtime-section">
-			<div class="cp-panel__header">
+		<section v-else-if="section === 'activity'" class="cp-runtime-section-shell">
+			<div class="cp-runtime-section__header">
 				<div>
 					<p class="cp-panel__eyebrow">Observed Activity</p>
 					<h3 class="cp-panel__title">Event Log Tail</h3>
@@ -219,7 +219,7 @@ function subagentTone(subagent: JarvisRuntimeSubagentMetadata): "live" | "warnin
 					<span class="cp-chip">event log</span>
 				</div>
 			</div>
-			<div class="cp-panel__body cp-panel__body--scroll">
+			<div class="cp-runtime-section__body">
 				<div v-if="activitySections.length === 0" class="cp-empty-state">No observed log output yet.</div>
 					<div v-else class="cp-activity-list">
 						<article v-for="(sectionItem, index) in activitySections" :key="`${sectionItem.kind}-${index}`" class="cp-activity-card">
@@ -237,8 +237,8 @@ function subagentTone(subagent: JarvisRuntimeSubagentMetadata): "live" | "warnin
 			</div>
 		</section>
 
-		<section v-else-if="section === 'branches'" class="cp-panel cp-subpanel cp-runtime-section">
-			<div class="cp-panel__header">
+		<section v-else-if="section === 'branches'" class="cp-runtime-section-shell">
+			<div class="cp-runtime-section__header">
 				<div>
 					<p class="cp-panel__eyebrow">Subagent Branches</p>
 					<h3 class="cp-panel__title">Branch Runtime</h3>
@@ -247,7 +247,7 @@ function subagentTone(subagent: JarvisRuntimeSubagentMetadata): "live" | "warnin
 					<span class="cp-chip">{{ subagents.length }} tracked</span>
 				</div>
 			</div>
-			<div class="cp-panel__body cp-panel__body--scroll">
+			<div class="cp-runtime-section__body">
 				<div class="cp-branch-root">
 					<div class="cp-branch-root__title">Main Thread</div>
 					<div class="cp-branch-root__meta">{{ session.context?.thread_id ?? "main" }} · {{ sessionStateLabel(session) }}</div>
@@ -291,8 +291,8 @@ function subagentTone(subagent: JarvisRuntimeSubagentMetadata): "live" | "warnin
 			</div>
 		</section>
 
-		<section v-else class="cp-panel cp-subpanel cp-runtime-section">
-			<div class="cp-panel__header">
+		<section v-else class="cp-runtime-section-shell">
+			<div class="cp-runtime-section__header">
 				<div>
 					<p class="cp-panel__eyebrow">Agents</p>
 					<h3 class="cp-panel__title">Execution Controls</h3>
@@ -301,7 +301,7 @@ function subagentTone(subagent: JarvisRuntimeSubagentMetadata): "live" | "warnin
 					<span class="cp-chip">{{ session.agents.length }} total</span>
 				</div>
 			</div>
-			<div class="cp-panel__body cp-panel__body--scroll">
+			<div class="cp-runtime-section__body">
 				<div class="cp-agent-list">
 					<article v-for="agent in session.agents" :key="agent.name" class="cp-agent-card">
 						<div class="cp-agent-card__head">
