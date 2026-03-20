@@ -1753,6 +1753,7 @@
 
   .cp-operator-stream-shell {
     grid-template-rows: auto minmax(0, 1fr);
+    max-height: clamp(420px, 68vh, 860px);
   }
 
   .cp-operator-compose {
@@ -1769,7 +1770,7 @@
   }
 
   .cp-operator-stream {
-    @apply grid min-h-[360px] content-start gap-3 overflow-auto pr-1;
+    @apply grid min-h-[360px] min-h-0 content-start gap-3 overflow-auto pr-1;
   }
 
   .cp-operator-entry {
@@ -1875,6 +1876,10 @@
     .cp-operator-console,
     .cp-workflow-shell.has-inspector {
       grid-template-columns: 1fr;
+    }
+
+    .cp-operator-stream-shell {
+      max-height: clamp(360px, 58vh, 720px);
     }
   }
 
