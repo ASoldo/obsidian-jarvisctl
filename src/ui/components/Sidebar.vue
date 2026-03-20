@@ -29,22 +29,23 @@ function backendMarker(backend: string | null | undefined): string {
 	}
 	return "RT";
 }
+
+function runtimeStateLabel(session: JarvisSessionMetadata): string {
+	return session.context?.thread_status ?? (session.agents.some((agent) => agent.running) ? "running" : "idle");
+}
 </script>
 
 <template>
-	<aside class="cp-panel cp-sidebar">
+	<aside class="cp-panel cp-sidebar" aria-label="Source of truth">
 		<div class="cp-panel__header">
-			<div>
-				<p class="cp-panel__eyebrow">Source Of Truth</p>
-				<h2 class="cp-panel__title">Repositories &amp; Agents</h2>
-			</div>
+			<p class="cp-panel__eyebrow">Source Of Truth</p>
 			<StatusBadge :label="`${sessions.length} live`" tone="live" compact />
 		</div>
 
 		<div class="cp-panel__body cp-panel__body--scroll">
-			<section class="cp-sidebar-section">
-				<div class="cp-section__header">
-					<h3 class="cp-section__title">Projects</h3>
+				<section class="cp-sidebar-section">
+					<div class="cp-section__header">
+						<p class="cp-panel__eyebrow">Projects</p>
 					<button
 						type="button"
 						class="cp-section__meta-button"
@@ -54,56 +55,62 @@ function backendMarker(backend: string | null | undefined): string {
 					>
 						<span class="cp-button__icon" aria-hidden="true">◎</span>
 					</button>
-				</div>
-				<div class="cp-repo-list">
-					<button
-						v-for="repository in repositories"
-						:key="repository.id"
-						type="button"
-						:class="[
-							'cp-repo-item',
-							selectedRepository === repository.id && 'is-active',
-						]"
-						@click="emit('select-repository', repository.id)"
-					>
-						<div class="cp-repo-item__top">
-							<span class="cp-repo-item__name" :title="repository.label">{{ repository.label }}</span>
-							<span class="cp-repo-item__count-chip">{{ repository.sessions.length }}</span>
+					</div>
+					<div class="cp-repo-list">
+						<div
+							v-for="repository in repositories"
+							:key="repository.id"
+							role="button"
+							tabindex="0"
+							:class="[
+								'cp-repo-item',
+								selectedRepository === repository.id && 'is-active',
+							]"
+							@click="emit('select-repository', repository.id)"
+							@keydown.enter.prevent="emit('select-repository', repository.id)"
+							@keydown.space.prevent="emit('select-repository', repository.id)"
+						>
+							<div class="cp-repo-item__top">
+								<span class="cp-repo-item__name" :title="repository.label">{{ repository.label }}</span>
+								<span class="cp-repo-item__count-chip">{{ repository.sessions.length }}</span>
+							</div>
+							<p class="cp-repo-item__path" :title="repository.path">{{ shortPath(repository.path) }}</p>
 						</div>
-						<p class="cp-repo-item__path" :title="repository.path">{{ shortPath(repository.path) }}</p>
-					</button>
-				</div>
-			</section>
+					</div>
+				</section>
 
-			<section class="cp-sidebar-section">
+			<section class="cp-sidebar-section cp-sidebar-section--runtime">
 				<div class="cp-section__header">
-					<h3 class="cp-section__title">Agent Runtime</h3>
+					<p class="cp-panel__eyebrow">Agent Runtime</p>
 					<span class="cp-section__meta">{{ sessions.length }} namespaces</span>
-				</div>
-				<div class="cp-runtime-list">
-					<button
-						v-for="session in sessions"
-						:key="session.namespace"
-						type="button"
-						:class="[
-							'cp-runtime-item',
-							'cp-runtime-item--compact',
-							selectedNamespace === session.namespace && 'is-active',
-						]"
-						:title="session.context?.task_title ?? session.namespace"
-						@click="emit('select-namespace', session.namespace)"
-					>
-						<div class="cp-runtime-item__row">
-							<div class="cp-runtime-item__title" :title="session.namespace">{{ session.namespace }}</div>
-							<div class="cp-runtime-item__summary cp-pill-group cp-pill-group--tight">
-								<StatusBadge
-									:label="session.context?.thread_status ?? (session.agents.some((agent) => agent.running) ? 'running' : 'idle')"
-									:tone="sessionTone(session)"
-									compact
-								/>
-								<span
-									class="cp-runtime-item__meta-chip"
-									:title="session.backend"
+					</div>
+					<div class="cp-runtime-list">
+						<div
+							v-for="session in sessions"
+							:key="session.namespace"
+							role="button"
+							tabindex="0"
+							:class="[
+								'cp-runtime-item',
+								'cp-runtime-item--compact',
+								selectedNamespace === session.namespace && 'is-active',
+							]"
+							:title="session.context?.task_title ?? session.namespace"
+							@click="emit('select-namespace', session.namespace)"
+							@keydown.enter.prevent="emit('select-namespace', session.namespace)"
+							@keydown.space.prevent="emit('select-namespace', session.namespace)"
+						>
+							<div class="cp-runtime-item__row">
+								<div class="cp-runtime-item__title" :title="session.namespace">{{ session.namespace }}</div>
+								<div class="cp-runtime-item__summary">
+									<span
+										:class="['cp-runtime-item__state-chip', `is-${sessionTone(session)}`]"
+										:title="runtimeStateLabel(session)"
+										:aria-label="runtimeStateLabel(session)"
+									/>
+									<span
+										class="cp-runtime-item__meta-chip"
+										:title="session.backend"
 								>
 									{{ backendMarker(session.backend) }}
 								</span>
@@ -118,42 +125,48 @@ function backendMarker(backend: string | null | undefined): string {
 									:title="relativeAge(session.created_at_epoch_ms)"
 								>
 									{{ relativeAge(session.created_at_epoch_ms) }}
-								</span>
+									</span>
+								</div>
 							</div>
 						</div>
-					</button>
-				</div>
-			</section>
+					</div>
+				</section>
 
 			<section class="cp-sidebar-section">
 				<div class="cp-section__header">
-					<h3 class="cp-section__title">Operational Resources</h3>
+					<p class="cp-panel__eyebrow">Operational Resources</p>
 				</div>
-				<div v-if="selectedSession" class="cp-resource-list">
-					<div v-if="selectedSession.context?.task_note" class="cp-resource-block">
-						<div class="cp-resource-block__label">Execution Contract</div>
-						<button
-							type="button"
-							class="cp-resource-item"
-							@click="emit('open-ticket', selectedSession)"
-						>
-							<div class="cp-resource-item__value" :title="selectedSession.context?.task_note ?? ''">
-								{{ shortPath(selectedSession.context?.task_note) }}
+					<div v-if="selectedSession" class="cp-resource-list">
+						<div v-if="selectedSession.context?.task_note" class="cp-resource-block">
+							<div class="cp-resource-block__label">Execution Contract</div>
+							<div
+								role="button"
+								tabindex="0"
+								class="cp-resource-item"
+								@click="emit('open-ticket', selectedSession)"
+								@keydown.enter.prevent="emit('open-ticket', selectedSession)"
+								@keydown.space.prevent="emit('open-ticket', selectedSession)"
+							>
+								<div class="cp-resource-item__value" :title="selectedSession.context?.task_note ?? ''">
+									{{ shortPath(selectedSession.context?.task_note) }}
+								</div>
 							</div>
-						</button>
-					</div>
-					<div v-if="selectedSession.context?.transcript_path" class="cp-resource-block">
-						<div class="cp-resource-block__label">Transcript</div>
-						<button
-							type="button"
-							class="cp-resource-item"
-							@click="emit('open-transcript', selectedSession)"
-						>
-							<div class="cp-resource-item__value" :title="selectedSession.context?.transcript_path ?? ''">
-								{{ shortPath(selectedSession.context?.transcript_path) }}
+						</div>
+						<div v-if="selectedSession.context?.transcript_path" class="cp-resource-block">
+							<div class="cp-resource-block__label">Transcript</div>
+							<div
+								role="button"
+								tabindex="0"
+								class="cp-resource-item"
+								@click="emit('open-transcript', selectedSession)"
+								@keydown.enter.prevent="emit('open-transcript', selectedSession)"
+								@keydown.space.prevent="emit('open-transcript', selectedSession)"
+							>
+								<div class="cp-resource-item__value" :title="selectedSession.context?.transcript_path ?? ''">
+									{{ shortPath(selectedSession.context?.transcript_path) }}
+								</div>
 							</div>
-						</button>
-					</div>
+						</div>
 					<div class="cp-resource-block">
 						<div class="cp-resource-block__label">Event Log</div>
 						<div class="cp-resource-item">
