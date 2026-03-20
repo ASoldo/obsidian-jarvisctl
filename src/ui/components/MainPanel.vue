@@ -61,7 +61,7 @@ const tabs = computed(
 					@click="emit('update:mainTab', tab.id as MainTab)"
 				>
 					<span class="cp-surface-tab__icon" aria-hidden="true">{{ tab.icon }}</span>
-					<span class="cp-surface-tab__label">{{ tab.label }}</span>
+					<span v-if="mainTab === tab.id" class="cp-surface-tab__label">{{ tab.label }}</span>
 				</button>
 			</div>
 		</div>

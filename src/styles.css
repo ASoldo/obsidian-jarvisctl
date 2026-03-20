@@ -913,11 +913,11 @@
   }
 
   .cp-flow-card--topology {
-    @apply min-h-[78px] min-w-[220px];
+    @apply min-h-[88px] min-w-[212px];
   }
 
   .cp-flow-card--workflow {
-    @apply min-h-[92px] min-w-[276px];
+    @apply min-h-[84px] min-w-[244px];
   }
 
   .cp-flow-card__eyebrow {
@@ -955,6 +955,10 @@
 
   .cp-flow-card__body .cp-badge {
     @apply mt-1 w-fit shrink-0;
+  }
+
+  .cp-flow-card__topology-head {
+    @apply grid min-w-0 gap-1.5;
   }
 
   .cp-flow-handle {

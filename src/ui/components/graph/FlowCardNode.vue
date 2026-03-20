@@ -27,7 +27,11 @@ const props = defineProps<NodeProps<FlowCardNodeData>>();
 			<div class="cp-flow-card__icon">{{ props.data.icon ?? "•" }}</div>
 			<div class="cp-flow-card__body">
 				<div class="cp-flow-card__title">{{ props.data.title ?? props.label ?? props.id }}</div>
-				<div v-if="props.data.subtitle" class="cp-flow-card__subtitle" :title="props.data.subtitle">
+				<div
+					v-if="props.data.subtitle && props.selected"
+					class="cp-flow-card__subtitle"
+					:title="props.data.subtitle"
+				>
 					{{ props.data.subtitle }}
 				</div>
 				<StatusBadge :label="props.data.status ?? 'idle'" :tone="statusTone(props.data.status)" compact />
@@ -35,14 +39,12 @@ const props = defineProps<NodeProps<FlowCardNodeData>>();
 		</div>
 
 		<div v-else class="cp-flow-card__topology-head">
-			<div class="cp-flow-card__eyebrow">
-				<span>{{ props.data.kind ?? 'node' }}</span>
-				<span>{{ props.data.status ?? 'idle' }}</span>
-			</div>
+			<div class="cp-flow-card__eyebrow">{{ props.data.kind ?? 'node' }}</div>
 			<div class="cp-flow-card__title">{{ props.data.title ?? props.label ?? props.id }}</div>
-			<div v-if="props.data.meta" class="cp-flow-card__meta" :title="props.data.meta">
+			<div v-if="props.data.meta && props.selected" class="cp-flow-card__meta" :title="props.data.meta">
 				{{ props.data.meta }}
 			</div>
+			<StatusBadge :label="props.data.status ?? 'idle'" :tone="statusTone(props.data.status)" compact />
 		</div>
 	</div>
 </template>

@@ -88,25 +88,25 @@ function onNodeClick(event: { node: { id: string } }): void {
 		<div class="cp-topology-tab">
 			<div class="cp-topology-canvas cp-grid-surface">
 				<div class="cp-flow-scene-shell cp-flow-scene-shell--topology">
-					<VueFlow
-						class="cp-vue-flow cp-vue-flow--topology"
-					:nodes="flowNodes"
-					:edges="flowEdges"
-					:node-types="nodeTypes"
-					:min-zoom="1"
-					:max-zoom="1"
-					:nodes-draggable="false"
-					:nodes-connectable="false"
-					:elements-selectable="true"
-					:zoom-on-scroll="false"
-					:zoom-on-pinch="false"
-					:pan-on-drag="false"
-					:pan-on-scroll="false"
-					:prevent-scrolling="false"
-					:fit-view-on-init="false"
-					:default-viewport="{ zoom: 1, x: 0, y: 0 }"
-					@node-click="onNodeClick"
-					>
+							<VueFlow
+								class="cp-vue-flow cp-vue-flow--topology"
+								:nodes="flowNodes"
+								:edges="flowEdges"
+								:node-types="nodeTypes"
+								:min-zoom="0.55"
+								:max-zoom="1.1"
+								:nodes-draggable="false"
+								:nodes-connectable="false"
+								:elements-selectable="true"
+								:zoom-on-scroll="false"
+								:zoom-on-pinch="false"
+								:pan-on-drag="false"
+								:pan-on-scroll="false"
+								:prevent-scrolling="false"
+								:fit-view-on-init="true"
+								:fit-view-options="{ padding: 0.18, minZoom: 0.55, maxZoom: 1 }"
+								@node-click="onNodeClick"
+							>
 						<Background :gap="18" :size="1" pattern-color="color-mix(in srgb, var(--cp-border) 24%, transparent)" />
 					</VueFlow>
 				</div>
