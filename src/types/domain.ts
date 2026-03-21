@@ -61,6 +61,12 @@ export interface JarvisRuntimeContext {
 	live_message?: string | null;
 	last_activity?: string | null;
 	last_error?: string | null;
+	control_namespace?: string | null;
+	deployment?: string | null;
+	labels?: Record<string, string> | null;
+	config_maps?: string[] | null;
+	secrets?: string[] | null;
+	volumes?: string[] | null;
 	recent_events?: JarvisRuntimeFeedEntry[] | null;
 	subagents?: JarvisRuntimeSubagentMetadata[] | null;
 }

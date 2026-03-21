@@ -225,6 +225,12 @@ export function sessionTone(session: JarvisSessionMetadata): "live" | "warning" 
 
 export function describeSessionTokens(session: JarvisSessionMetadata): string[] {
 	const tokens = [session.backend];
+	if (session.context?.control_namespace) {
+		tokens.push(`ns:${session.context.control_namespace}`);
+	}
+	if (session.context?.deployment) {
+		tokens.push(`deploy:${session.context.deployment}`);
+	}
 	if (session.context?.launch_mode) {
 		tokens.push(session.context.launch_mode);
 	}

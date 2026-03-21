@@ -49,6 +49,8 @@ const snapshotOverviewRows = computed(() => {
 	}
 	return [
 		{ label: "Namespace", value: props.session.namespace },
+		{ label: "Control ns", value: props.session.context?.control_namespace ?? "n/a" },
+		{ label: "Deployment", value: props.session.context?.deployment ?? "n/a" },
 		{ label: "Session", value: compactId(props.session.context?.codex_session_id, 12, 6) },
 		{ label: "Backend", value: props.session.backend },
 		{ label: "Launch mode", value: props.session.context?.launch_mode ?? "n/a" },
@@ -82,6 +84,21 @@ const snapshotPathRows = computed(() => {
 			label: "Event log",
 			value: props.session.context?.event_log_path ?? "Event log not exported",
 			mono: true,
+		},
+		{
+			label: "ConfigMaps",
+			value: (props.session.context?.config_maps ?? []).join(", ") || "none",
+			mono: false,
+		},
+		{
+			label: "Secrets",
+			value: (props.session.context?.secrets ?? []).join(", ") || "none",
+			mono: false,
+		},
+		{
+			label: "Volumes",
+			value: (props.session.context?.volumes ?? []).join(", ") || "none",
+			mono: false,
 		},
 	];
 });
