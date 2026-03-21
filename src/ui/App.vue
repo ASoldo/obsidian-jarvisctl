@@ -14,6 +14,8 @@ const searchQuery = ref("");
 const selectedRepository = ref<string | null>(null);
 
 const allSessions = computed(() => props.host.state.sessions);
+const allWorkers = computed(() => props.host.state.workers);
+const controlPlane = computed(() => props.host.state.controlPlane);
 const repositories = computed(() => buildRepositoryGroups(allSessions.value));
 
 watch(
@@ -48,6 +50,31 @@ const filteredSessions = computed(() => {
 			.filter(Boolean)
 			.some((value) => String(value).toLowerCase().includes(query));
 	});
+});
+
+const filteredWorkers = computed(() => {
+	const query = searchQuery.value.trim().toLowerCase();
+	if (!query) {
+		return allWorkers.value;
+	}
+	return allWorkers.value.filter((worker) =>
+		[
+			worker.namespace,
+			worker.name,
+			worker.provider,
+			worker.model,
+			worker.role,
+			worker.locality,
+			worker.pool,
+			worker.classes?.join(" "),
+			worker.endpoint,
+			worker.summaryStatus,
+			worker.summaryDetail,
+			worker.admissionReason,
+		]
+			.filter(Boolean)
+			.some((value) => String(value).toLowerCase().includes(query)),
+	);
 });
 
 const selectedSession = computed(() => {
@@ -128,6 +155,7 @@ function cycleEnvironment(): void {
 			:namespace-count="allSessions.length"
 			:agent-count="liveAgentCount"
 			:subagent-count="subagentCount"
+			:worker-count="allWorkers.length"
 			:selected-state="selectedState"
 			@update:search-query="searchQuery = $event"
 			@toggle-environment="cycleEnvironment()"
@@ -140,6 +168,7 @@ function cycleEnvironment(): void {
 			<Sidebar
 				:repositories="repositories"
 				:sessions="filteredSessions"
+				:workers="filteredWorkers"
 				:selected-namespace="selectedSession?.namespace ?? null"
 				:selected-repository="selectedRepository"
 				:selected-session="selectedSession"
@@ -153,6 +182,8 @@ function cycleEnvironment(): void {
 				:host="host"
 				:session="selectedSession"
 				:sessions="filteredSessions"
+				:workers="filteredWorkers"
+				:control-plane="controlPlane"
 				:activity-sections="selectedActivitySections"
 			/>
 		</div>

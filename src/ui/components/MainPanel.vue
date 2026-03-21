@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { JarvisActivitySection, JarvisSessionMetadata } from "../../types/domain";
+import type {
+	JarvisActivitySection,
+	JarvisControlPlaneState,
+	JarvisSessionMetadata,
+	JarvisWorkerMetadata,
+} from "../../types/domain";
 import type { JarvisDashboardHost } from "../bridge";
 import {
 	buildWorkflow,
@@ -8,20 +13,25 @@ import {
 	sessionTone,
 	sessionStateLabel,
 	statusTone,
+	workerStatusLabel,
 } from "../helpers";
 import ApplicationsTab from "./ApplicationsTab.vue";
+import ControlPlanePanel from "./ControlPlanePanel.vue";
 import ObservabilitySection from "./ObservabilitySection.vue";
 import OperatorConsole from "./OperatorConsole.vue";
 import RuntimeTab from "./RuntimeTab.vue";
 import StatusBadge from "./StatusBadge.vue";
 import SurfaceCard from "./SurfaceCard.vue";
 import TopologyTab from "./TopologyTab.vue";
+import WorkersPanel from "./WorkersPanel.vue";
 import WorkflowPanel from "./WorkflowPanel.vue";
 
 const props = defineProps<{
 	host: JarvisDashboardHost;
 	session: JarvisSessionMetadata | null;
 	sessions: JarvisSessionMetadata[];
+	workers: JarvisWorkerMetadata[];
+	controlPlane: JarvisControlPlaneState | null;
 	activitySections: JarvisActivitySection[];
 }>();
 
@@ -29,7 +39,9 @@ const collapsedSections = ref<Record<string, boolean>>({
 	operator: false,
 	topology: false,
 	workflow: false,
+	controlPlane: false,
 	applications: false,
+	workers: false,
 	snapshot: false,
 	feed: false,
 	activity: false,
@@ -43,6 +55,7 @@ const collapsedSections = ref<Record<string, boolean>>({
 
 const metrics = computed(() => metricsSnapshot(props.session));
 const workflowSteps = computed(() => buildWorkflow(props.session));
+const activeWorkerCount = computed(() => props.workers.filter((worker) => worker.loaded).length);
 const activeWorkflowStep = computed(
 	() =>
 			workflowSteps.value.find((step) => {
@@ -129,6 +142,22 @@ function toggleSection(id: keyof typeof collapsedSections.value): void {
 			</SurfaceCard>
 
 			<SurfaceCard
+				eyebrow="Control Plane"
+				title="Policies And Workloads"
+				icon="⌘"
+				:meta="[
+					controlPlane ? `${controlPlane.resources.length} resources` : 'no control namespace',
+					session?.context?.control_namespace ?? 'n/a',
+				]"
+				:status-label="controlPlane ? 'tracked' : 'idle'"
+				:status-tone="controlPlane ? 'info' : 'idle'"
+				:collapsed="collapsedSections.controlPlane"
+				@toggle="toggleSection('controlPlane')"
+			>
+				<ControlPlanePanel :session="session" :control-plane="controlPlane" :workers="workers" />
+			</SurfaceCard>
+
+			<SurfaceCard
 				eyebrow="Application Matrix"
 				title="Namespaces"
 				icon="▤"
@@ -139,6 +168,22 @@ function toggleSection(id: keyof typeof collapsedSections.value): void {
 				@toggle="toggleSection('applications')"
 			>
 				<ApplicationsTab :host="host" :sessions="sessions" />
+			</SurfaceCard>
+
+			<SurfaceCard
+				eyebrow="Worker Pool"
+				title="Bounded Workers"
+				icon="⬡"
+				:meta="[
+					`${workers.length} registered`,
+					activeWorkerCount ? `${activeWorkerCount} loaded` : 'cold pool',
+				]"
+				:status-label="activeWorkerCount ? 'loaded' : (workers[0] ? workerStatusLabel(workers[0]) : 'idle')"
+				:status-tone="activeWorkerCount ? 'live' : (workers[0] ? statusTone(workerStatusLabel(workers[0])) : 'idle')"
+				:collapsed="collapsedSections.workers"
+				@toggle="toggleSection('workers')"
+			>
+				<WorkersPanel :workers="workers" />
 			</SurfaceCard>
 
 			<SurfaceCard

@@ -7,7 +7,8 @@ import type {
 	JarvisSessionMetadata,
 } from "../../types/domain";
 import type { JarvisDashboardHost, JarvisOperatorMessageRequest, JarvisOperatorMode } from "../bridge";
-import { formatClock, sessionTone, sessionStateLabel, shortPath, statusTone } from "../helpers";
+import { formatClock, sessionScope, sessionTone, sessionStateLabel, shortPath, statusTone } from "../helpers";
+import EntityAvatar from "./EntityAvatar.vue";
 import ExpandableText from "./ExpandableText.vue";
 import StatusBadge from "./StatusBadge.vue";
 
@@ -251,6 +252,26 @@ function mapActionToConversationEntry(
 		status: action.status ?? subagent.status,
 	};
 }
+
+function entryAvatarKind(role: ConsoleEntry["role"]): "assistant" | "operator" | "subagent" | "system" {
+	switch (role) {
+		case "assistant":
+			return "assistant";
+		case "operator":
+			return "operator";
+		case "subagent":
+			return "subagent";
+		default:
+			return "system";
+	}
+}
+
+function entryAvatarScope(role: ConsoleEntry["role"]): "cloud" | "local" | "remote" {
+	if (role === "operator") {
+		return "local";
+	}
+	return props.session ? sessionScope(props.session) : "local";
+}
 </script>
 
 <template>
@@ -274,14 +295,22 @@ function mapActionToConversationEntry(
 					:class="['cp-operator-entry', `is-${entry.role}`]"
 				>
 					<div class="cp-operator-entry__head">
-						<div class="cp-operator-entry__meta">
-							<span class="cp-chip">{{ entry.label }}</span>
-							<StatusBadge
-								v-if="entry.status"
-								:label="entry.status"
-								:tone="statusTone(entry.status)"
-								compact
+						<div class="cp-operator-entry__identity">
+							<EntityAvatar
+								:kind="entryAvatarKind(entry.role)"
+								:scope="entryAvatarScope(entry.role)"
+								:tone="entry.status ? statusTone(entry.status) : 'idle'"
+								size="sm"
 							/>
+							<div class="cp-operator-entry__meta">
+								<span class="cp-chip">{{ entry.label }}</span>
+								<StatusBadge
+									v-if="entry.status"
+									:label="entry.status"
+									:tone="statusTone(entry.status)"
+									compact
+								/>
+							</div>
 						</div>
 						<span class="cp-operator-entry__time">{{ formatClock(entry.timestamp_epoch_ms) }}</span>
 					</div>

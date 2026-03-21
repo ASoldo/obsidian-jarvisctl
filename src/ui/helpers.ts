@@ -5,7 +5,10 @@ import type {
 	JarvisRuntimeSubagentAction,
 	JarvisRuntimeSubagentMetadata,
 	JarvisSessionMetadata,
+	JarvisWorkerMetadata,
 } from "../types/domain";
+
+export type EntityScope = "cloud" | "local" | "remote";
 
 export interface TopologyNodeModel {
 	id: string;
@@ -221,6 +224,72 @@ export function sessionTone(session: JarvisSessionMetadata): "live" | "warning" 
 		return "error";
 	}
 	return statusTone(sessionStateLabel(session));
+}
+
+export function humanizeIdentifier(value: string | null | undefined): string {
+	const source = (value ?? "").trim();
+	if (!source) {
+		return "n/a";
+	}
+	return source
+		.replaceAll(/[_-]+/g, " ")
+		.replaceAll(/\s+/g, " ")
+		.trim();
+}
+
+export function sessionScope(session: JarvisSessionMetadata): EntityScope {
+	const backend = (session.backend ?? "").toLowerCase();
+	if (backend.includes("codex")) {
+		return "cloud";
+	}
+	return "local";
+}
+
+export function sessionBackendLabel(session: JarvisSessionMetadata): string {
+	const backend = (session.backend ?? "").toLowerCase();
+	if (backend.includes("codex")) {
+		return "Codex cloud";
+	}
+	if (backend.includes("native")) {
+		return "Native local";
+	}
+	return `${humanizeIdentifier(session.backend)} ${sessionScope(session)}`;
+}
+
+export function subagentDisplayName(index: number): string {
+	return `Subagent ${String(index + 1).padStart(2, "0")}`;
+}
+
+export function workerScope(worker: JarvisWorkerMetadata): EntityScope {
+	const endpoint = (worker.endpoint ?? "").toLowerCase();
+	if (!endpoint) {
+		return worker.provider.toLowerCase() === "ollama" ? "local" : "remote";
+	}
+	if (
+		endpoint.includes("127.0.0.1") ||
+		endpoint.includes("localhost") ||
+		endpoint.includes("0.0.0.0")
+	) {
+		return "local";
+	}
+	return "remote";
+}
+
+export function workerBackendLabel(worker: JarvisWorkerMetadata): string {
+	return `${humanizeIdentifier(worker.provider)} ${workerScope(worker)}`;
+}
+
+export function workerStatusLabel(worker: JarvisWorkerMetadata): string {
+	if (worker.loaded) {
+		return "loaded";
+	}
+	if (worker.admissionCode?.trim()) {
+		return humanizeIdentifier(worker.admissionCode);
+	}
+	if (worker.admission?.trim()) {
+		return worker.admission;
+	}
+	return worker.summaryStatus?.trim() || "idle";
 }
 
 export function describeSessionTokens(session: JarvisSessionMetadata): string[] {

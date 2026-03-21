@@ -25,8 +25,19 @@ import type {
 import type {
 	JarvisActivitySection,
 	JarvisAgentMetadata,
+	JarvisControlPlaneResource,
+	JarvisControlPlaneState,
 	JarvisDashboardViewState,
+	JarvisDeploymentStatus,
+	JarvisApplicationStatus,
+	JarvisCronJobStatus,
+	JarvisJobStatus,
+	JarvisNetworkPolicyStatus,
+	JarvisResourcePolicyStatus,
+	JarvisResourceSummary,
 	JarvisSessionMetadata,
+	JarvisServiceStatus,
+	JarvisWorkerMetadata,
 } from "./types/domain";
 
 const execFileAsync = promisify(execFile);
@@ -34,7 +45,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-observer";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control", "jarvisctl-control-live"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-20-notebook-runtime-console";
+const BUILD_STAMP = "2026-03-21-control-plane-lanes-bindings-and-routing";
 
 interface TerminalProfile {
 	args?: string[];
@@ -76,6 +87,88 @@ interface JarvisTellCapabilities {
 	supportsNoEnter: boolean;
 }
 
+interface JarvisWorkerListEntry {
+	kind?: string;
+	namespace?: string;
+	name?: string;
+	status?: string;
+	detail?: string;
+}
+
+interface JarvisWorkerDescribeOutput {
+	manifest?: {
+		metadata?: {
+			name?: string;
+			namespace?: string;
+		};
+		spec?: {
+			model?: string;
+			provider?: string;
+			role?: string;
+			outputMode?: string;
+			systemPrompt?: string;
+			temperature?: number;
+			numCtx?: number;
+			numPredict?: number;
+		};
+	};
+	status?: {
+		endpoint?: string;
+		loaded?: boolean;
+		locality?: string;
+		model?: string;
+		output_mode?: string;
+		provider?: string;
+		role?: string;
+		capabilities?: string[];
+		classes?: string[];
+		pool?: string | null;
+		max_concurrent?: number;
+		active_runs?: number;
+		pending_runs?: number;
+		available_slots?: number;
+		admission?: string;
+		admission_code?: string;
+		admission_reason?: string;
+		estimated_memory_mib?: number | null;
+		estimated_gpu_memory_mib?: number | null;
+		machine_memory_available_mib?: number | null;
+		machine_gpu_memory_available_mib?: number | null;
+	};
+}
+
+interface JarvisResourceSummaryOutput {
+	kind?: string;
+	namespace?: string | null;
+	name?: string;
+	status?: string;
+	detail?: string;
+}
+
+interface JarvisDescribeEnvelope<TStatus> {
+	status?: TStatus;
+}
+
+interface CachedWorkerDetail {
+	worker: JarvisWorkerMetadata;
+	fetchedAtEpochMs: number;
+}
+
+interface CachedSessionList {
+	sessions: JarvisSessionMetadata[];
+	fetchedAtEpochMs: number;
+}
+
+interface CachedWorkerList {
+	workers: JarvisWorkerMetadata[];
+	fetchedAtEpochMs: number;
+}
+
+interface CachedControlPlaneState {
+	state: JarvisControlPlaneState;
+	fetchedAtEpochMs: number;
+}
+
 function defaultJarvisCtlPath(): string {
 	if (process.env.HOME) {
 		return join(process.env.HOME, ".local", "bin", "jarvisctl");
@@ -94,6 +187,14 @@ export default class JarvisCtlControlPlugin extends Plugin {
 	private lastExecPath: string | null = null;
 	private tellCapabilitiesCacheKey: string | null = null;
 	private tellCapabilitiesCache: JarvisTellCapabilities | null = null;
+	private sessionListCache: CachedSessionList | null = null;
+	private sessionListPromise: Promise<JarvisSessionMetadata[]> | null = null;
+	private workerListCache: CachedWorkerList | null = null;
+	private workerListPromise: Promise<JarvisWorkerMetadata[]> | null = null;
+	private workerDetailCache = new Map<string, CachedWorkerDetail>();
+	private controlPlaneCache = new Map<string, CachedControlPlaneState>();
+	private controlPlanePromises = new Map<string, Promise<JarvisControlPlaneState>>();
+	private workersUnsupportedUntilEpochMs = 0;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -194,16 +295,185 @@ export default class JarvisCtlControlPlugin extends Plugin {
 	}
 
 	async fetchSessions(): Promise<JarvisSessionMetadata[]> {
-		const { stdout } = await this.execJarvisCtl(["list", "--json"]);
-		const parsed = JSON.parse(stdout.trim() || "[]") as unknown;
-		if (!Array.isArray(parsed)) {
-			throw new Error("jarvisctl list --json did not return an array");
+		if (this.sessionListCache && Date.now() - this.sessionListCache.fetchedAtEpochMs < 5_000) {
+			return this.sessionListCache.sessions;
 		}
-		return parsed as JarvisSessionMetadata[];
+		if (this.sessionListPromise) {
+			return this.sessionListPromise;
+		}
+		this.sessionListPromise = (async () => {
+			const { stdout } = await this.execJarvisCtl(["list", "--json"]);
+			const parsed = JSON.parse(stdout.trim() || "[]") as unknown;
+			if (!Array.isArray(parsed)) {
+				throw new Error("jarvisctl list --json did not return an array");
+			}
+			const sessions = parsed as JarvisSessionMetadata[];
+			this.sessionListCache = {
+				sessions,
+				fetchedAtEpochMs: Date.now(),
+			};
+			return sessions;
+		})().finally(() => {
+			this.sessionListPromise = null;
+		});
+		return this.sessionListPromise;
+	}
+
+	async fetchWorkers(): Promise<JarvisWorkerMetadata[]> {
+		if (this.workerListCache && Date.now() - this.workerListCache.fetchedAtEpochMs < 8_000) {
+			return this.workerListCache.workers;
+		}
+		if (Date.now() < this.workersUnsupportedUntilEpochMs) {
+			return [];
+		}
+		if (this.workerListPromise) {
+			return this.workerListPromise;
+		}
+
+		this.workerListPromise = (async () => {
+			let stdout: string;
+			try {
+				({ stdout } = await this.execJarvisCtl(["get", "workers", "--output", "json"]));
+			} catch (error) {
+				if (isUnsupportedWorkersCommand(error)) {
+					this.workersUnsupportedUntilEpochMs = Date.now() + 15_000;
+					return [];
+				}
+				throw error;
+			}
+
+			const parsed = JSON.parse(stdout.trim() || "[]") as unknown;
+			if (!Array.isArray(parsed)) {
+				throw new Error("jarvisctl get workers --output json did not return an array");
+			}
+
+			const summaries = parsed
+				.map((entry) => normalizeWorkerListEntry(entry))
+				.filter((entry): entry is JarvisWorkerListEntry => entry !== null);
+			const seenKeys = new Set<string>();
+
+			const workers = await Promise.all(
+				summaries.map(async (summary) => {
+					const key = workerCacheKey(summary.namespace ?? "default", summary.name ?? "worker");
+					seenKeys.add(key);
+					const cached = this.workerDetailCache.get(key);
+					if (cached && Date.now() - cached.fetchedAtEpochMs < 30_000) {
+						return withWorkerSummary(cached.worker, summary);
+					}
+
+					try {
+						const detail = await this.fetchWorkerDetail(summary);
+						this.workerDetailCache.set(key, {
+							worker: detail,
+							fetchedAtEpochMs: Date.now(),
+						});
+						return detail;
+					} catch (error) {
+						if (cached) {
+							console.warn("JarvisCtl Control could not refresh worker detail, using cache", error);
+							return withWorkerSummary(cached.worker, summary);
+						}
+						return buildWorkerMetadata(summary);
+					}
+				}),
+			);
+
+			for (const key of [...this.workerDetailCache.keys()]) {
+				if (!seenKeys.has(key)) {
+					this.workerDetailCache.delete(key);
+				}
+			}
+
+			const sortedWorkers = workers.sort(
+				(left, right) =>
+					left.namespace.localeCompare(right.namespace) || left.name.localeCompare(right.name),
+			);
+			this.workerListCache = {
+				workers: sortedWorkers,
+				fetchedAtEpochMs: Date.now(),
+			};
+			return sortedWorkers;
+		})().finally(() => {
+			this.workerListPromise = null;
+		});
+		return this.workerListPromise;
+	}
+
+	async fetchControlPlane(controlNamespace: string): Promise<JarvisControlPlaneState> {
+		const namespace = controlNamespace.trim() || "default";
+		const cached = this.controlPlaneCache.get(namespace);
+		if (cached && Date.now() - cached.fetchedAtEpochMs < 5_000) {
+			return cached.state;
+		}
+		const inFlight = this.controlPlanePromises.get(namespace);
+		if (inFlight) {
+			return inFlight;
+		}
+
+		const promise = (async () => {
+			const { stdout } = await this.execJarvisCtl(["get", "all", "-n", namespace, "--output", "json"]);
+			const parsed = JSON.parse(stdout.trim() || "[]") as unknown;
+			if (!Array.isArray(parsed)) {
+				throw new Error("jarvisctl get all --output json did not return an array");
+			}
+
+			const resources = parsed
+				.map((entry) => normalizeResourceSummary(entry))
+				.filter((entry): entry is JarvisResourceSummary => entry !== null);
+			const filterByKind = (kind: string): JarvisResourceSummary[] =>
+				resources.filter((resource) => resource.kind === kind);
+
+			const [
+				deployments,
+				jobs,
+				cronJobs,
+				applications,
+				services,
+				networkPolicies,
+				configMaps,
+				secrets,
+				volumes,
+			] = await Promise.all([
+				this.fetchControlPlaneResourceDetails<JarvisDeploymentStatus>("deployment", filterByKind("Deployment"), namespace),
+				this.fetchControlPlaneResourceDetails<JarvisJobStatus>("job", filterByKind("Job"), namespace),
+				this.fetchControlPlaneResourceDetails<JarvisCronJobStatus>("cronjob", filterByKind("CronJob"), namespace),
+				this.fetchControlPlaneResourceDetails<JarvisApplicationStatus>("application", filterByKind("Application"), namespace),
+				this.fetchControlPlaneResourceDetails<JarvisServiceStatus>("service", filterByKind("Service"), namespace),
+				this.fetchControlPlaneResourceDetails<JarvisNetworkPolicyStatus>("networkpolicy", filterByKind("NetworkPolicy"), namespace),
+				this.fetchControlPlaneResourceDetails<JarvisResourcePolicyStatus>("configmap", filterByKind("ConfigMap"), namespace),
+				this.fetchControlPlaneResourceDetails<JarvisResourcePolicyStatus>("secret", filterByKind("Secret"), namespace),
+				this.fetchControlPlaneResourceDetails<JarvisResourcePolicyStatus>("volume", filterByKind("Volume"), namespace),
+			]);
+
+			const state: JarvisControlPlaneState = {
+				namespace,
+				fetched_at_epoch_ms: Date.now(),
+				resources,
+				deployments,
+				jobs,
+				cron_jobs: cronJobs,
+				applications,
+				services,
+				network_policies: networkPolicies,
+				config_maps: configMaps,
+				secrets,
+				volumes,
+			};
+			this.controlPlaneCache.set(namespace, {
+				state,
+				fetchedAtEpochMs: Date.now(),
+			});
+			return state;
+		})().finally(() => {
+			this.controlPlanePromises.delete(namespace);
+		});
+		this.controlPlanePromises.set(namespace, promise);
+		return promise;
 	}
 
 	async runJarvisCtl(args: string[]): Promise<void> {
 		await this.execJarvisCtl(args);
+		this.invalidateRuntimeCaches();
 	}
 
 	async promptAndTell(namespace: string, agent: string): Promise<void> {
@@ -395,6 +665,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		}
 
 		await this.runJarvisCtl(args);
+		this.invalidateRuntimeCaches();
 
 		const targetLabel = request.targetLabel ?? request.targetId;
 		if (fellBackToDefaultMode) {
@@ -505,6 +776,16 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		throw lastError ?? new Error("jarvisctl executable could not be resolved");
 	}
 
+	private invalidateRuntimeCaches(): void {
+		this.sessionListCache = null;
+		this.sessionListPromise = null;
+		this.workerListCache = null;
+		this.workerListPromise = null;
+		this.workerDetailCache.clear();
+		this.controlPlaneCache.clear();
+		this.controlPlanePromises.clear();
+	}
+
 	getTerminalJarvisCtlPath(): string {
 		for (const candidate of this.getJarvisCtlCandidates()) {
 			if (candidate.includes("/") && existsSync(candidate)) {
@@ -542,6 +823,59 @@ export default class JarvisCtlControlPlugin extends Plugin {
 
 	getBuildStamp(): string {
 		return BUILD_STAMP;
+	}
+
+	private async fetchWorkerDetail(summary: JarvisWorkerListEntry): Promise<JarvisWorkerMetadata> {
+		const workerName = summary.name?.trim();
+		const namespace = summary.namespace?.trim() || "default";
+		if (!workerName) {
+			return buildWorkerMetadata(summary);
+		}
+
+		const { stdout } = await this.execJarvisCtl([
+			"describe",
+			"worker",
+			workerName,
+			"-n",
+			namespace,
+			"--output",
+			"json",
+		]);
+		const parsed = JSON.parse(stdout.trim() || "{}") as JarvisWorkerDescribeOutput;
+		return buildWorkerMetadata(summary, parsed);
+	}
+
+	private async fetchControlPlaneResourceDetails<TStatus>(
+		resourceArg: string,
+		summaries: JarvisResourceSummary[],
+		namespace: string,
+	): Promise<JarvisControlPlaneResource<TStatus>[]> {
+		const resources = await Promise.all(
+			summaries.map(async (summary) => {
+				try {
+					const { stdout } = await this.execJarvisCtl([
+						"describe",
+						resourceArg,
+						summary.name,
+						"-n",
+						namespace,
+						"--output",
+						"json",
+					]);
+					const parsed = JSON.parse(stdout.trim() || "{}") as JarvisDescribeEnvelope<TStatus>;
+					return {
+						summary,
+						status: parsed.status as TStatus,
+					} satisfies JarvisControlPlaneResource<TStatus>;
+				} catch (error) {
+					console.warn(`JarvisCtl Control could not describe ${resourceArg} ${namespace}/${summary.name}`, error);
+					return null;
+				}
+			}),
+		);
+		return resources.filter(
+			(resource): resource is JarvisControlPlaneResource<TStatus> => resource !== null,
+		);
 	}
 
 	writeDebugSnapshot(snapshot: Record<string, unknown>): void {
@@ -825,6 +1159,8 @@ class JarvisCtlControlView extends ItemView {
 	private mountEl: HTMLElement | null = null;
 	private readonly state = reactive<JarvisDashboardViewState>({
 		sessions: [],
+		workers: [],
+		controlPlane: null,
 		selectedNamespace: null,
 		statusMessage: "Idle",
 		lastRefreshLabel: "never",
@@ -1041,14 +1377,27 @@ class JarvisCtlControlView extends ItemView {
 
 	private async refreshSessions(noticeOnError = true): Promise<void> {
 		try {
-			const sessions = await this.plugin.fetchSessions();
+			const [sessions, workers] = await Promise.all([
+				this.plugin.fetchSessions(),
+				this.plugin.fetchWorkers(),
+			]);
 			this.state.sessions = sessions;
+			this.state.workers = workers;
 			if (
 				!this.state.selectedNamespace ||
 				!sessions.some((session) => session.namespace === this.state.selectedNamespace)
 			) {
 				this.state.selectedNamespace = sessions[0]?.namespace ?? null;
 			}
+			const selectedSession =
+				sessions.find((session) => session.namespace === this.state.selectedNamespace) ?? null;
+			const controlNamespace =
+				selectedSession?.context?.control_namespace?.trim() ||
+				workers[0]?.namespace?.trim() ||
+				null;
+			this.state.controlPlane = controlNamespace
+				? await this.plugin.fetchControlPlane(controlNamespace)
+				: null;
 			this.state.lastRefreshLabel = new Date().toLocaleTimeString();
 			this.state.statusMessage = "Live data";
 			this.state.errorMessage = null;
@@ -1056,7 +1405,11 @@ class JarvisCtlControlView extends ItemView {
 				event: "refresh-success",
 				sessions_count: sessions.length,
 				session_names: sessions.map((session) => session.namespace),
+				workers_count: workers.length,
+				worker_names: workers.map((worker) => `${worker.namespace}/${worker.name}`),
 				selected_namespace: this.state.selectedNamespace,
+				control_namespace: controlNamespace ?? null,
+				control_plane_resources: this.state.controlPlane?.resources.length ?? 0,
 			});
 		} catch (error) {
 			console.error(error);
@@ -1066,6 +1419,8 @@ class JarvisCtlControlView extends ItemView {
 				event: "refresh-error",
 				sessions_count: this.state.sessions.length,
 				session_names: this.state.sessions.map((session) => session.namespace),
+				workers_count: this.state.workers.length,
+				worker_names: this.state.workers.map((worker) => `${worker.namespace}/${worker.name}`),
 				selected_namespace: this.state.selectedNamespace,
 				error_message: this.state.errorMessage,
 			});
@@ -1460,6 +1815,132 @@ function formatError(error: unknown): string {
 		return error.message;
 	}
 	return String(error);
+}
+
+function errorText(error: unknown): string {
+	if (!error || typeof error !== "object") {
+		return String(error);
+	}
+	const parts = [
+		"message" in error ? String(error.message ?? "") : "",
+		"stderr" in error ? String(error.stderr ?? "") : "",
+		"stdout" in error ? String(error.stdout ?? "") : "",
+	];
+	return parts.filter(Boolean).join("\n");
+}
+
+function isUnsupportedWorkersCommand(error: unknown): boolean {
+	const text = errorText(error).toLowerCase();
+	return (
+		text.includes("invalid value 'workers'") ||
+		text.includes("invalid value 'worker'") ||
+		text.includes("unrecognized subcommand 'worker'") ||
+		text.includes("unrecognized subcommand 'workers'")
+	);
+}
+
+function normalizeWorkerListEntry(value: unknown): JarvisWorkerListEntry | null {
+	if (!value || typeof value !== "object") {
+		return null;
+	}
+	const candidate = value as Record<string, unknown>;
+	const namespace = String(candidate.namespace ?? "").trim();
+	const name = String(candidate.name ?? "").trim();
+	if (!namespace || !name) {
+		return null;
+	}
+	return {
+		kind: String(candidate.kind ?? "Worker"),
+		namespace,
+		name,
+		status: String(candidate.status ?? "").trim(),
+		detail: String(candidate.detail ?? "").trim(),
+	};
+}
+
+function workerCacheKey(namespace: string, name: string): string {
+	return `${namespace}/${name}`;
+}
+
+function normalizeResourceSummary(value: unknown): JarvisResourceSummary | null {
+	if (!value || typeof value !== "object") {
+		return null;
+	}
+	const candidate = value as Record<string, unknown>;
+	const kind = String(candidate.kind ?? "").trim();
+	const name = String(candidate.name ?? "").trim();
+	if (!kind || !name) {
+		return null;
+	}
+	const namespace = String(candidate.namespace ?? "").trim();
+	return {
+		kind,
+		namespace: namespace || null,
+		name,
+		status: String(candidate.status ?? "").trim(),
+		detail: String(candidate.detail ?? "").trim() || null,
+	};
+}
+
+function inferWorkerSummaryFields(status: string | undefined): { model: string; role: string } {
+	const normalized = (status ?? "").trim();
+	const match = normalized.match(/^(.*?)(?:\s*\(([^)]+)\))?$/);
+	return {
+		model: match?.[1]?.trim() || "unknown",
+		role: match?.[2]?.trim() || "worker",
+	};
+}
+
+function buildWorkerMetadata(
+	summary: JarvisWorkerListEntry,
+	describe?: JarvisWorkerDescribeOutput,
+): JarvisWorkerMetadata {
+	const inferred = inferWorkerSummaryFields(summary.status);
+	const spec = describe?.manifest?.spec;
+	const status = describe?.status;
+	return {
+		kind: summary.kind ?? "Worker",
+		namespace: summary.namespace ?? "default",
+		name: summary.name ?? "worker",
+		summaryStatus: summary.status?.trim() || "unknown",
+		summaryDetail: summary.detail?.trim() || null,
+		provider: status?.provider ?? spec?.provider ?? "unknown",
+		model: status?.model ?? spec?.model ?? inferred.model,
+		role: status?.role ?? spec?.role ?? inferred.role,
+		endpoint: status?.endpoint ?? null,
+		locality: status?.locality ?? null,
+		capabilities: status?.capabilities ?? [],
+		classes: status?.classes ?? [],
+		pool: status?.pool ?? null,
+		outputMode: status?.output_mode ?? spec?.outputMode ?? null,
+		maxConcurrent: status?.max_concurrent ?? null,
+		activeRuns: status?.active_runs ?? null,
+		pendingRuns: status?.pending_runs ?? null,
+		availableSlots: status?.available_slots ?? null,
+		admission: status?.admission ?? null,
+		admissionCode: status?.admission_code ?? null,
+		admissionReason: status?.admission_reason ?? null,
+		estimatedMemoryMiB: status?.estimated_memory_mib ?? null,
+		estimatedGpuMemoryMiB: status?.estimated_gpu_memory_mib ?? null,
+		machineMemoryAvailableMiB: status?.machine_memory_available_mib ?? null,
+		machineGpuMemoryAvailableMiB: status?.machine_gpu_memory_available_mib ?? null,
+		loaded: Boolean(status?.loaded),
+		systemPrompt: spec?.systemPrompt ?? null,
+		temperature: spec?.temperature ?? null,
+		numCtx: spec?.numCtx ?? null,
+		numPredict: spec?.numPredict ?? null,
+	};
+}
+
+function withWorkerSummary(
+	worker: JarvisWorkerMetadata,
+	summary: JarvisWorkerListEntry,
+): JarvisWorkerMetadata {
+	return {
+		...worker,
+		summaryStatus: summary.status?.trim() || worker.summaryStatus,
+		summaryDetail: summary.detail?.trim() || worker.summaryDetail || null,
+	};
 }
 
 function activityKind(tag: string): string {

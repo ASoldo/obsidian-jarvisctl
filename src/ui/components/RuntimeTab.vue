@@ -12,10 +12,15 @@ import {
 	describeSessionTokens,
 	formatClock,
 	formatDateTime,
+	humanizeIdentifier,
+	sessionBackendLabel,
+	sessionScope,
 	sessionTone,
 	sessionStateLabel,
 	statusTone,
+	subagentDisplayName,
 } from "../helpers";
+import EntityAvatar from "./EntityAvatar.vue";
 import ExpandableText from "./ExpandableText.vue";
 import StatusBadge from "./StatusBadge.vue";
 
@@ -351,23 +356,34 @@ function subagentTone(subagent: JarvisRuntimeSubagentMetadata): "live" | "warnin
 
 				<div v-else-if="section === 'branches'">
 					<div class="cp-branch-root">
-						<div class="cp-branch-root__title">Main Thread</div>
-						<div class="cp-branch-root__meta">{{ session.context?.thread_id ?? "main" }} · {{ sessionStateLabel(session) }}</div>
+						<div class="cp-entity-heading">
+							<EntityAvatar kind="agent" :scope="sessionScope(session)" :tone="sessionTone(session)" />
+							<div class="cp-entity-heading__body">
+								<div class="cp-branch-root__title">Main Thread</div>
+								<div class="cp-branch-root__meta">
+									{{ sessionBackendLabel(session) }} · {{ session.context?.thread_id ?? "main" }} ·
+									{{ sessionStateLabel(session) }}
+								</div>
+							</div>
+						</div>
 					</div>
 					<div v-if="subagents.length === 0" class="cp-empty-state">No spawned subagents yet.</div>
 					<div v-else class="cp-branch-list">
-						<article v-for="subagent in subagents" :key="subagent.thread_id" class="cp-branch-card">
+						<article v-for="(subagent, index) in subagents" :key="subagent.thread_id" class="cp-branch-card">
 							<div class="cp-branch-card__rail">
 								<div class="cp-branch-card__dot" />
 								<div class="cp-branch-card__line" />
 							</div>
 							<div class="cp-branch-card__body">
 								<div class="cp-branch-card__head">
-									<div>
-										<div class="cp-branch-card__title">agent {{ subagent.thread_id.slice(0, 8) }}</div>
+									<div class="cp-entity-heading">
+										<EntityAvatar kind="subagent" :scope="sessionScope(session)" :tone="subagentTone(subagent)" />
+										<div class="cp-entity-heading__body">
+										<div class="cp-branch-card__title">{{ subagentDisplayName(index) }}</div>
 										<div class="cp-branch-card__meta">
-											{{ subagent.tool }}<span v-if="subagent.model"> · {{ subagent.model }}</span
-											><span v-if="subagent.reasoning_effort"> · {{ subagent.reasoning_effort }}</span>
+											Codex {{ sessionScope(session) }} · {{ humanizeIdentifier(subagent.tool) }}<span v-if="subagent.model"> · {{ subagent.model }}</span
+											><span v-if="subagent.reasoning_effort"> · {{ humanizeIdentifier(subagent.reasoning_effort) }}</span>
+										</div>
 										</div>
 									</div>
 									<div class="cp-branch-card__status">
@@ -395,9 +411,15 @@ function subagentTone(subagent: JarvisRuntimeSubagentMetadata): "live" | "warnin
 				<div v-else class="cp-agent-list">
 					<article v-for="agent in session.agents" :key="agent.name" class="cp-agent-card">
 						<div class="cp-agent-card__head">
-							<div>
+							<div class="cp-entity-heading">
+								<EntityAvatar kind="agent" :scope="sessionScope(session)" :tone="agent.running ? 'live' : 'idle'" />
+								<div class="cp-entity-heading__body">
 								<div class="cp-agent-card__title">{{ agent.name }}</div>
-								<div class="cp-agent-card__meta">PID {{ agent.pid }} · {{ agent.running ? "running" : "idle" }}</div>
+								<div class="cp-agent-card__meta">
+									{{ sessionBackendLabel(session) }} · PID {{ agent.pid }} ·
+									{{ agent.running ? "running" : "idle" }}
+								</div>
+								</div>
 							</div>
 							<StatusBadge :label="agent.running ? 'running' : 'idle'" :tone="agent.running ? 'live' : 'idle'" compact />
 						</div>

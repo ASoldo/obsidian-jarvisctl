@@ -1,12 +1,25 @@
 <script setup lang="ts">
 import type { RepositoryGroupModel } from "../helpers";
-import { relativeAge, sessionTone, shortPath } from "../helpers";
-import type { JarvisSessionMetadata } from "../../types/domain";
+import {
+	humanizeIdentifier,
+	relativeAge,
+	sessionBackendLabel,
+	sessionScope,
+	sessionTone,
+	shortPath,
+	statusTone,
+	workerBackendLabel,
+	workerScope,
+	workerStatusLabel,
+} from "../helpers";
+import type { JarvisSessionMetadata, JarvisWorkerMetadata } from "../../types/domain";
+import EntityAvatar from "./EntityAvatar.vue";
 import StatusBadge from "./StatusBadge.vue";
 
 const props = defineProps<{
 	repositories: RepositoryGroupModel[];
 	sessions: JarvisSessionMetadata[];
+	workers: JarvisWorkerMetadata[];
 	selectedNamespace: string | null;
 	selectedRepository: string | null;
 	selectedSession: JarvisSessionMetadata | null;
@@ -101,7 +114,13 @@ function runtimeStateLabel(session: JarvisSessionMetadata): string {
 							@keydown.space.prevent="emit('select-namespace', session.namespace)"
 						>
 							<div class="cp-runtime-item__row">
-								<div class="cp-runtime-item__title" :title="session.namespace">{{ session.namespace }}</div>
+								<div class="cp-runtime-item__identity">
+									<EntityAvatar kind="session" :scope="sessionScope(session)" :tone="sessionTone(session)" size="sm" />
+									<div class="cp-runtime-item__identity-copy">
+										<div class="cp-runtime-item__title" :title="session.namespace">{{ session.namespace }}</div>
+										<div class="cp-runtime-item__subtitle">{{ sessionBackendLabel(session) }}</div>
+									</div>
+								</div>
 								<div class="cp-runtime-item__summary">
 									<span
 										:class="['cp-runtime-item__state-chip', `is-${sessionTone(session)}`]"
@@ -131,6 +150,55 @@ function runtimeStateLabel(session: JarvisSessionMetadata): string {
 						</div>
 					</div>
 				</section>
+
+			<section class="cp-sidebar-section">
+				<div class="cp-section__header">
+					<p class="cp-panel__eyebrow">Worker Pool</p>
+					<span class="cp-section__meta">{{ workers.length }} workers</span>
+				</div>
+				<div v-if="workers.length === 0" class="cp-empty-state">
+					No worker resources are visible yet.
+				</div>
+				<div v-else class="cp-worker-list">
+					<div
+						v-for="worker in workers"
+						:key="`${worker.namespace}/${worker.name}`"
+						class="cp-worker-list__item"
+						:title="`${worker.name} · ${worker.model}`"
+					>
+						<div class="cp-worker-list__head">
+							<div class="cp-runtime-item__identity">
+								<EntityAvatar
+									kind="worker"
+									:scope="workerScope(worker)"
+									:tone="worker.loaded ? 'live' : statusTone(workerStatusLabel(worker))"
+									size="sm"
+								/>
+								<div class="cp-runtime-item__identity-copy">
+									<div class="cp-runtime-item__title">{{ worker.name }}</div>
+									<div class="cp-runtime-item__subtitle">
+										{{ worker.model }}
+									</div>
+								</div>
+							</div>
+							<div class="cp-worker-list__status">
+								<StatusBadge
+									:label="workerStatusLabel(worker)"
+									:tone="worker.loaded ? 'live' : statusTone(workerStatusLabel(worker))"
+									compact
+								/>
+							</div>
+						</div>
+						<div class="cp-worker-list__chips">
+							<span class="cp-chip">{{ workerBackendLabel(worker) }}</span>
+							<span class="cp-chip">{{ humanizeIdentifier(worker.role) }}</span>
+							<span class="cp-chip">pool {{ worker.pool ?? "default" }}</span>
+							<span class="cp-chip">{{ worker.classes?.[0] ?? "unclassified" }}</span>
+							<span class="cp-chip">{{ worker.activeRuns ?? 0 }}/{{ worker.maxConcurrent ?? 0 }} active</span>
+						</div>
+					</div>
+				</div>
+			</section>
 
 			<section class="cp-sidebar-section">
 				<div class="cp-section__header">

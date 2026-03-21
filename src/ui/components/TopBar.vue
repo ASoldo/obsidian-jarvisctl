@@ -9,6 +9,7 @@ const props = defineProps<{
 	namespaceCount: number;
 	agentCount: number;
 	subagentCount: number;
+	workerCount: number;
 	selectedState: string;
 }>();
 
@@ -47,7 +48,7 @@ const selectedTone = computed(() => statusTone(props.selectedState));
 				:value="searchQuery"
 				type="search"
 				class="cp-search__input"
-				placeholder="Search namespaces, sessions, logs, workflows"
+				placeholder="Search namespaces, workers, sessions, logs, workflows"
 				@input="emit('update:searchQuery', ($event.target as HTMLInputElement).value)"
 			/>
 			<button
@@ -73,6 +74,10 @@ const selectedTone = computed(() => statusTone(props.selectedState));
 			<div class="cp-topbar__metric">
 				<span class="cp-topbar__metric-label">Subagents</span>
 				<span class="cp-topbar__metric-value">{{ subagentCount }}</span>
+			</div>
+			<div class="cp-topbar__metric">
+				<span class="cp-topbar__metric-label">Workers</span>
+				<span class="cp-topbar__metric-value">{{ workerCount }}</span>
 			</div>
 		</div>
 

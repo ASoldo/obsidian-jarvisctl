@@ -777,6 +777,15 @@
     @apply flex min-w-0 items-center justify-between gap-2.5 px-0.5;
   }
 
+  .cp-runtime-item__identity {
+    @apply grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2.5;
+  }
+
+  .cp-runtime-item__identity-copy,
+  .cp-entity-heading__body {
+    @apply grid min-w-0 gap-0.5;
+  }
+
   .cp-runtime-item__summary {
     @apply flex shrink-0 items-center justify-end gap-1.5;
   }
@@ -798,10 +807,96 @@
     @apply shrink-0;
   }
 
+  .cp-entity-heading {
+    @apply grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3;
+  }
+
+  .cp-entity-avatar {
+    border: 1px solid color-mix(in srgb, var(--cp-border) 88%, transparent);
+    background:
+      radial-gradient(circle at 30% 28%, color-mix(in srgb, white 12%, transparent), transparent 48%),
+      linear-gradient(180deg, color-mix(in srgb, var(--cp-panel) 82%, #0f172a 18%), color-mix(in srgb, var(--cp-panel-strong) 90%, #020617 10%));
+    box-shadow:
+      0 10px 20px color-mix(in srgb, #020617 14%, transparent),
+      inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+    color: color-mix(in srgb, var(--cp-text-soft) 86%, white 14%);
+    @apply relative inline-flex shrink-0 items-center justify-center rounded-full;
+  }
+
+  .cp-entity-avatar.is-sm {
+    @apply h-8 w-8;
+  }
+
+  .cp-entity-avatar.is-md {
+    @apply h-10 w-10;
+  }
+
+  .cp-entity-avatar svg {
+    @apply h-[62%] w-[62%];
+  }
+
+  .cp-entity-avatar.is-session,
+  .cp-entity-avatar.is-agent,
+  .cp-entity-avatar.is-assistant {
+    color: color-mix(in srgb, var(--cp-sky) 72%, white 28%);
+  }
+
+  .cp-entity-avatar.is-subagent {
+    color: color-mix(in srgb, var(--cp-indigo) 74%, white 26%);
+  }
+
+  .cp-entity-avatar.is-worker {
+    color: color-mix(in srgb, var(--cp-amber) 78%, white 22%);
+  }
+
+  .cp-entity-avatar.is-operator {
+    color: color-mix(in srgb, var(--cp-rose) 74%, white 26%);
+  }
+
+  .cp-entity-avatar.is-system {
+    color: color-mix(in srgb, #94a3b8 72%, white 28%);
+  }
+
+  .cp-entity-avatar.is-live {
+    border-color: color-mix(in srgb, var(--cp-emerald) 42%, var(--cp-border) 58%);
+  }
+
+  .cp-entity-avatar.is-warning {
+    border-color: color-mix(in srgb, var(--cp-amber) 42%, var(--cp-border) 58%);
+  }
+
+  .cp-entity-avatar.is-error {
+    border-color: color-mix(in srgb, var(--cp-rose) 42%, var(--cp-border) 58%);
+  }
+
+  .cp-entity-avatar.is-info {
+    border-color: color-mix(in srgb, var(--cp-sky) 42%, var(--cp-border) 58%);
+  }
+
+  .cp-entity-avatar__scope {
+    border: 1px solid color-mix(in srgb, var(--cp-border) 94%, transparent);
+    box-shadow: 0 4px 10px color-mix(in srgb, #020617 18%, transparent);
+    color: color-mix(in srgb, white 88%, var(--cp-text-soft) 12%);
+    @apply absolute -bottom-0.5 -right-0.5 inline-flex h-[18px] w-[18px] items-center justify-center rounded-full text-[8px] font-semibold tracking-[0.08em];
+  }
+
+  .cp-entity-avatar.is-cloud .cp-entity-avatar__scope {
+    background: color-mix(in srgb, var(--cp-sky) 72%, #0f172a 28%);
+  }
+
+  .cp-entity-avatar.is-local .cp-entity-avatar__scope {
+    background: color-mix(in srgb, var(--cp-emerald) 72%, #0f172a 28%);
+  }
+
+  .cp-entity-avatar.is-remote .cp-entity-avatar__scope {
+    background: color-mix(in srgb, var(--cp-indigo) 72%, #0f172a 28%);
+  }
+
   .cp-repo-item__name,
   .cp-runtime-item__title,
   .cp-branch-card__title,
   .cp-agent-card__title,
+  .cp-worker-card__title,
   .cp-table-row__title,
   .cp-feed-card__title,
   .cp-reasoning-row__title,
@@ -819,6 +914,7 @@
   .cp-workflow-inspector__copy,
   .cp-branch-card__meta,
   .cp-agent-card__meta,
+  .cp-worker-card__meta,
   .cp-table-row__subtitle {
     color: var(--cp-text-dim);
     @apply min-w-0 break-words text-[11px] leading-[1.35];
@@ -913,6 +1009,32 @@
 
   .cp-empty-state--large {
     @apply p-8;
+  }
+
+  .cp-worker-list {
+    @apply grid gap-3;
+  }
+
+  .cp-worker-list__item {
+    border: 1px solid var(--cp-border);
+    background: color-mix(in srgb, var(--cp-panel) 97%, #040914 3%);
+    @apply grid gap-2.5 rounded-xl px-3 py-3;
+  }
+
+  .cp-worker-list__head {
+    @apply flex items-start justify-between gap-2.5;
+  }
+
+  .cp-worker-list__status {
+    @apply shrink-0;
+  }
+
+  .cp-worker-list__status .cp-badge {
+    max-width: 100%;
+  }
+
+  .cp-worker-list__chips {
+    @apply flex flex-wrap items-center gap-1.5;
   }
 
   .cp-grid-surface {
@@ -1115,12 +1237,14 @@
   .cp-activity-list,
   .cp-branch-list,
   .cp-agent-list,
+  .cp-workers-panel,
   .cp-bottom-list {
     @apply grid min-w-0 gap-3;
   }
 
   .cp-activity-card,
-  .cp-agent-card {
+  .cp-agent-card,
+  .cp-worker-card {
     border: 1px solid var(--cp-border);
     background: color-mix(in srgb, var(--cp-panel) 97%, #040914 3%);
     @apply grid min-w-0 gap-2 rounded-xl px-3 py-3 overflow-hidden;
@@ -1189,6 +1313,7 @@
   .cp-feed-card__top,
   .cp-branch-card__head,
   .cp-agent-card__head,
+  .cp-worker-card__head,
   .cp-event-row__left,
   .cp-event-row__right,
   .cp-reasoning-row__head {
@@ -1197,6 +1322,7 @@
 
   .cp-feed-card__chips,
   .cp-branch-card__status,
+  .cp-worker-card__status,
   .cp-reasoning-row__meta {
     @apply flex flex-wrap items-center gap-2;
   }
@@ -1296,6 +1422,20 @@
   .cp-agent-card__actions,
   .cp-table-row__actions {
     @apply flex flex-wrap items-center gap-2 overflow-visible pb-1;
+  }
+
+  .cp-worker-grid {
+    @apply grid gap-3;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+
+  .cp-worker-card__title-row {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .cp-worker-card__kv {
+    @apply grid gap-2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .cp-applications,
@@ -1795,6 +1935,10 @@
     @apply flex items-start justify-between gap-3;
   }
 
+  .cp-operator-entry__identity {
+    @apply grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-2.5;
+  }
+
   .cp-operator-entry__meta {
     @apply flex flex-wrap items-center gap-2;
   }
@@ -1862,6 +2006,103 @@
     font-family: var(--font-monospace);
   }
 
+  .cp-kv-inline {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .cp-status-list {
+    @apply grid gap-2;
+  }
+
+  .cp-status-list__entry {
+    @apply rounded-2xl border border-[color:var(--cp-border)] bg-[color:var(--cp-panel-soft)]/70 px-3 py-2.5;
+  }
+
+  .cp-status-list__head {
+    @apply flex flex-wrap items-center justify-between gap-2;
+  }
+
+  .cp-status-list__message {
+    color: var(--cp-text-dim);
+    @apply mt-1 text-xs leading-relaxed;
+  }
+
+  .cp-control-plane-panel,
+  .cp-control-plane-stack {
+    @apply grid gap-3;
+  }
+
+  .cp-control-plane-overview {
+    @apply grid gap-3 rounded-[28px] border border-[color:var(--cp-border-strong)] bg-[color:var(--cp-panel-soft)]/80 px-4 py-4;
+  }
+
+  .cp-control-plane-overview__subtitle {
+    color: var(--cp-text-dim);
+    @apply text-xs leading-relaxed;
+  }
+
+  .cp-control-plane-overview__chips {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .cp-control-plane-section {
+    @apply grid gap-3 rounded-[26px] border border-[color:var(--cp-border)] bg-[color:var(--cp-panel-soft)]/65 px-4 py-4;
+  }
+
+  .cp-control-plane-section__head {
+    @apply flex flex-wrap items-start justify-between gap-3;
+  }
+
+  .cp-control-plane-section__title {
+    color: var(--cp-text);
+    @apply text-sm font-semibold tracking-[0.02em];
+  }
+
+  .cp-control-plane-grid {
+    @apply grid gap-2.5;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .cp-control-plane-list,
+  .cp-control-plane-columns {
+    @apply grid gap-3;
+  }
+
+  .cp-control-plane-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cp-control-plane-column {
+    @apply grid gap-2;
+  }
+
+  .cp-control-plane-column__label {
+    color: var(--cp-text-dim);
+    @apply text-[10px] font-medium uppercase tracking-[0.18em];
+  }
+
+  .cp-control-plane-card {
+    @apply rounded-2xl border border-[color:var(--cp-border)] bg-[color:var(--cp-panel-strong)]/70 px-3.5 py-3;
+  }
+
+  .cp-control-plane-card__head {
+    @apply flex flex-wrap items-start justify-between gap-2;
+  }
+
+  .cp-control-plane-card__title {
+    color: var(--cp-text);
+    @apply text-sm font-semibold leading-tight;
+  }
+
+  .cp-control-plane-card__meta {
+    color: var(--cp-text-dim);
+    @apply mt-0.5 text-[11px] leading-relaxed;
+  }
+
+  .cp-control-plane-card__badges {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
   @media (max-width: 1480px) {
     .cp-dashboard-grid {
       grid-template-columns: minmax(280px, 316px) minmax(0, 1fr);
@@ -1875,6 +2116,11 @@
 
     .cp-operator-console,
     .cp-workflow-shell.has-inspector {
+      grid-template-columns: 1fr;
+    }
+
+    .cp-control-plane-grid,
+    .cp-control-plane-columns {
       grid-template-columns: 1fr;
     }
 
