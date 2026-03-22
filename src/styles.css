@@ -2119,6 +2119,33 @@
     @apply flex flex-wrap items-center gap-2;
   }
 
+  .cp-offload-service-grid {
+    @apply grid gap-3;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cp-offload-card {
+    @apply grid gap-2;
+  }
+
+  .cp-offload-card__actions {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .cp-offload-workbench {
+    border: 1px solid var(--cp-border);
+    background: color-mix(in srgb, var(--cp-panel) 97%, #040914 3%);
+    @apply grid gap-3 rounded-[24px] px-4 py-4;
+  }
+
+  .cp-offload-textarea {
+    @apply min-h-[148px];
+  }
+
+  .cp-offload-result {
+    @apply mt-1;
+  }
+
   @media (max-width: 1480px) {
     .cp-dashboard-grid {
       grid-template-columns: minmax(280px, 316px) minmax(0, 1fr);
@@ -2136,7 +2163,8 @@
     }
 
     .cp-control-plane-grid,
-    .cp-control-plane-columns {
+    .cp-control-plane-columns,
+    .cp-offload-service-grid {
       grid-template-columns: 1fr;
     }
 

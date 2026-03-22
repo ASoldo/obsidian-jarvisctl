@@ -16,11 +16,15 @@ import type {
 	JarvisVolumeBindingStatus,
 	JarvisWorkerMetadata,
 } from "../../types/domain";
+import type { JarvisDashboardHost } from "../bridge";
 import { compactId, formatDateTime, humanizeIdentifier, statusTone, truncate } from "../helpers";
+import RuntimeOffloadPanel from "./RuntimeOffloadPanel.vue";
 import StatusBadge from "./StatusBadge.vue";
 
 const props = defineProps<{
+	host: JarvisDashboardHost;
 	session: JarvisSessionMetadata | null;
+	sessions: JarvisSessionMetadata[];
 	controlPlane: JarvisControlPlaneState | null;
 	workers: JarvisWorkerMetadata[];
 }>();
@@ -312,6 +316,14 @@ function resourceDataSummary(resource: JarvisControlPlaneResource<JarvisResource
 					</article>
 				</div>
 			</section>
+
+			<RuntimeOffloadPanel
+				:host="host"
+				:session="session"
+				:sessions="sessions"
+				:control-plane="controlPlane"
+				:workers="workers"
+			/>
 
 			<section v-if="currentDeployment" class="cp-control-plane-section">
 				<div class="cp-control-plane-section__head">

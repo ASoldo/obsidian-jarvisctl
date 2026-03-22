@@ -38,6 +38,8 @@ import type {
 	JarvisSessionMetadata,
 	JarvisServiceStatus,
 	JarvisWorkerMetadata,
+	JarvisWorkerOffloadRequest,
+	JarvisWorkerOffloadResult,
 } from "./types/domain";
 
 const execFileAsync = promisify(execFile);
@@ -45,7 +47,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-observer";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control", "jarvisctl-control-live"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-21-control-plane-lanes-bindings-and-routing";
+const BUILD_STAMP = "2026-03-22-openclaw-runtime-offload-surface";
 
 interface TerminalProfile {
 	args?: string[];
@@ -680,6 +682,73 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		);
 	}
 
+	async runWorkerOffload(
+		session: JarvisSessionMetadata,
+		request: JarvisWorkerOffloadRequest,
+	): Promise<JarvisWorkerOffloadResult> {
+		const controlNamespace =
+			request.controlNamespace.trim() ||
+			session.context?.control_namespace?.trim() ||
+			"default";
+		const serviceName = request.serviceName.trim();
+		const prompt = request.prompt.trim();
+		if (!serviceName) {
+			throw new Error("Worker offload requires a service name.");
+		}
+		if (!prompt) {
+			throw new Error("Worker offload requires a prompt.");
+		}
+		const outputPath =
+			request.outputPath?.trim() ||
+			join(
+				"/tmp",
+				`${slugifyForCli(session.namespace)}-${slugifyForCli(serviceName)}-${Date.now()}.json`,
+			);
+		const jobName =
+			request.jobName?.trim() ||
+			`${slugifyForCli(session.namespace)}-${slugifyForCli(serviceName)}-${Date.now()
+				.toString()
+				.slice(-6)}`;
+
+		const args = [
+			"worker",
+			"offload",
+			"--service",
+			serviceName,
+			"-n",
+			controlNamespace,
+			"--via-runtime-namespace",
+			session.namespace,
+			"--output",
+			"json",
+			"--output-path",
+			outputPath,
+			"--job-name",
+			jobName,
+		];
+
+		const intent = request.intent?.trim();
+		if (intent) {
+			args.push("--intent", intent);
+		}
+
+		args.push("--prompt", prompt);
+
+		try {
+			const { stdout } = await this.execJarvisCtl(args);
+			const parsed = JSON.parse(stdout.trim() || "{}") as JarvisWorkerOffloadResult;
+			this.invalidateRuntimeCaches();
+			return parsed;
+		} catch (error) {
+			const recovered = await this.recoverWorkerOffloadResult(controlNamespace, jobName, outputPath);
+			if (recovered) {
+				this.invalidateRuntimeCaches();
+				return recovered;
+			}
+			throw appendCommandFailureDetail(error);
+		}
+	}
+
 	async pickVaultAttachmentPath(): Promise<string | null> {
 		const files = this.app.vault
 			.getFiles()
@@ -876,6 +945,82 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		return resources.filter(
 			(resource): resource is JarvisControlPlaneResource<TStatus> => resource !== null,
 		);
+	}
+
+	private async recoverWorkerOffloadResult(
+		namespace: string,
+		jobName: string,
+		outputPath: string,
+	): Promise<JarvisWorkerOffloadResult | null> {
+		const deadlineEpochMs = Date.now() + 10_000;
+		while (Date.now() < deadlineEpochMs) {
+			try {
+				const { stdout } = await this.execJarvisCtl([
+					"describe",
+					"job",
+					jobName,
+					"-n",
+					namespace,
+					"--output",
+					"json",
+				]);
+				const parsed = JSON.parse(stdout.trim() || "{}") as JarvisDescribeEnvelope<JarvisJobStatus>;
+				const status = parsed.status;
+				if (!status) {
+					return null;
+				}
+				const run = status.run_details[0];
+				if (!run) {
+					if (status.pending > 0 || status.active > 0 || status.succeeded > 0) {
+						return {
+							job_name: jobName,
+							namespace,
+							service_name: "unknown",
+							phase: status.succeeded > 0 ? "succeeded" : status.active > 0 ? "active" : "pending",
+							fallback_class: false,
+							output_path: outputPath,
+							response: readWorkerOffloadOutput(outputPath),
+						};
+					}
+					return null;
+				}
+				if (
+					run.phase === "succeeded" ||
+					run.phase === "active" ||
+					run.phase === "pending" ||
+					status.succeeded > 0 ||
+					status.active > 0 ||
+					status.pending > 0
+				) {
+					return {
+						job_name: jobName,
+						namespace,
+						service_name: run.service_name ?? "unknown",
+						phase:
+							run.phase ||
+							(status.succeeded > 0 ? "succeeded" : status.active > 0 ? "active" : "pending"),
+						selected_class: run.selected_class ?? null,
+						fallback_class: run.fallback_class,
+						worker: run.worker ?? null,
+						worker_namespace: run.worker_namespace ?? null,
+						worker_provider: run.worker_provider ?? null,
+						worker_model: run.worker_model ?? null,
+						worker_locality: run.worker_locality ?? null,
+						validation_state: run.validation_state ?? null,
+						validation_message: run.validation_message ?? null,
+						artifact_path: run.artifact_path ?? null,
+						output_path: run.output_path ?? outputPath,
+						response: readWorkerOffloadOutput(run.output_path ?? outputPath),
+					};
+				}
+			} catch (error) {
+				if (!isDescribeMissingError(error)) {
+					console.warn(`JarvisCtl Control could not recover offload job ${namespace}/${jobName}`, error);
+				}
+			}
+			await delay(400);
+		}
+		return null;
 	}
 
 	writeDebugSnapshot(snapshot: Record<string, unknown>): void {
@@ -1357,6 +1502,26 @@ class JarvisCtlControlView extends ItemView {
 					`${this.plugin.getTerminalJarvisCtlPath()} exec --namespace ${session.namespace} --agent ${agentName}`,
 				);
 				new Notice(`Copied exec command for ${agentName}`);
+			},
+			runWorkerOffload: async (session, request) => {
+				this.actionInFlight = true;
+				this.state.statusMessage = `Offloading ${request.serviceName} via ${session.namespace}`;
+				try {
+					const result = await this.plugin.runWorkerOffload(session, request);
+					await this.refreshSessions(false);
+					this.state.statusMessage = `Offload completed via ${result.worker ?? result.service_name}`;
+					new Notice(
+						`Offload completed via ${result.worker ?? result.service_name}${result.worker_model ? ` · ${result.worker_model}` : ""}`,
+					);
+					return result;
+				} catch (error) {
+					console.error(error);
+					this.state.statusMessage = "Offload failed";
+					new Notice(`JarvisCtl Control offload failed: ${formatError(error)}`);
+					throw error;
+				} finally {
+					this.actionInFlight = false;
+				}
 			},
 			readActivitySections: (session, limit = 10) => {
 				if (!session.context?.event_log_path) {
@@ -1847,6 +2012,40 @@ function errorText(error: unknown): string {
 	return parts.filter(Boolean).join("\n");
 }
 
+function appendCommandFailureDetail(error: unknown): Error {
+	const base = formatError(error);
+	const detail = errorText(error)
+		.split("\n")
+		.map((line) => line.trim())
+		.filter(Boolean)
+		.find((line) => line !== base);
+	return new Error(detail ? `${base}\n${detail}` : base);
+}
+
+function isDescribeMissingError(error: unknown): boolean {
+	const text = errorText(error).toLowerCase();
+	return text.includes("not found") || text.includes("no such file") || text.includes("missing");
+}
+
+function readWorkerOffloadOutput(path: string | null | undefined): string | null {
+	if (!path) {
+		return null;
+	}
+	try {
+		if (!existsSync(path)) {
+			return null;
+		}
+		return readFileSync(path, "utf8");
+	} catch (error) {
+		console.warn(`JarvisCtl Control could not read offload output ${path}`, error);
+		return null;
+	}
+}
+
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 function isUnsupportedWorkersCommand(error: unknown): boolean {
 	const text = errorText(error).toLowerCase();
 	return (
@@ -2010,4 +2209,12 @@ function extensionForMimeType(mimeType: string): string {
 		default:
 			return ".bin";
 	}
+}
+
+function slugifyForCli(value: string): string {
+	return value
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.slice(0, 48);
 }

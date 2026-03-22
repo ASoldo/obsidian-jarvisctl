@@ -114,6 +114,34 @@ export interface JarvisWorkerMetadata {
 	numPredict?: number | null;
 }
 
+export interface JarvisWorkerOffloadRequest {
+	controlNamespace: string;
+	serviceName: string;
+	prompt: string;
+	intent?: string | null;
+	jobName?: string | null;
+	outputPath?: string | null;
+}
+
+export interface JarvisWorkerOffloadResult {
+	job_name: string;
+	namespace: string;
+	service_name: string;
+	phase: string;
+	selected_class?: string | null;
+	fallback_class: boolean;
+	worker?: string | null;
+	worker_namespace?: string | null;
+	worker_provider?: string | null;
+	worker_model?: string | null;
+	worker_locality?: string | null;
+	validation_state?: string | null;
+	validation_message?: string | null;
+	artifact_path?: string | null;
+	output_path?: string | null;
+	response?: string | null;
+}
+
 export interface JarvisStatusCondition {
 	type: string;
 	status: string;
@@ -202,6 +230,8 @@ export interface JarvisJobRunDetail {
 	worker?: string | null;
 	worker_namespace?: string | null;
 	worker_locality?: string | null;
+	worker_provider?: string | null;
+	worker_model?: string | null;
 	worker_pool?: string | null;
 	worker_classes: string[];
 	admission_state?: string | null;
@@ -212,6 +242,8 @@ export interface JarvisJobRunDetail {
 	artifact_path?: string | null;
 	output_path?: string | null;
 	error?: string | null;
+	validation_state?: string | null;
+	validation_message?: string | null;
 	events: JarvisStatusEvent[];
 }
 

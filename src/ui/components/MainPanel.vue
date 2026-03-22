@@ -161,7 +161,9 @@ function toggleSection(id: keyof typeof collapsedSections.value): void {
 				@toggle="toggleSection('controlPlane')"
 			>
 				<ControlPlanePanel
+					:host="host"
 					:session="session"
+					:sessions="sessions"
 					:control-plane="controlPlane"
 					:workers="workers"
 				/>

@@ -2,6 +2,8 @@ import type {
 	JarvisActivitySection,
 	JarvisDashboardViewState,
 	JarvisSessionMetadata,
+	JarvisWorkerOffloadRequest,
+	JarvisWorkerOffloadResult,
 } from "../types/domain";
 
 export type JarvisOperatorMode = "auto" | "steer" | "queue";
@@ -39,5 +41,9 @@ export interface JarvisDashboardHost {
 	execAgent(session: JarvisSessionMetadata, agentName: string): Promise<void>;
 	interruptAgent(session: JarvisSessionMetadata, agentName: string): Promise<void>;
 	copyExec(session: JarvisSessionMetadata, agentName: string): Promise<void>;
+	runWorkerOffload(
+		session: JarvisSessionMetadata,
+		request: JarvisWorkerOffloadRequest,
+	): Promise<JarvisWorkerOffloadResult>;
 	readActivitySections(session: JarvisSessionMetadata, limit?: number): JarvisActivitySection[];
 }
