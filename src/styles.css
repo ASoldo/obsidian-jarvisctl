@@ -738,12 +738,16 @@
 
   .cp-repo-item[role="button"],
   .cp-runtime-item[role="button"],
+  .cp-worker-list__item[role="button"],
+  .cp-worker-card[role="button"],
   .cp-resource-item[role="button"] {
     cursor: pointer;
   }
 
   .cp-repo-item[role="button"]:focus-visible,
   .cp-runtime-item[role="button"]:focus-visible,
+  .cp-worker-list__item[role="button"]:focus-visible,
+  .cp-worker-card[role="button"]:focus-visible,
   .cp-resource-item[role="button"]:focus-visible {
     outline: none;
     border-color: var(--cp-border-strong);
@@ -751,7 +755,9 @@
   }
 
   .cp-repo-item.is-active,
-  .cp-runtime-item.is-active {
+  .cp-runtime-item.is-active,
+  .cp-worker-list__item.is-active,
+  .cp-worker-card.is-active {
     border-color: color-mix(in srgb, var(--cp-blue) 44%, var(--cp-border) 56%);
     background: color-mix(in srgb, var(--cp-blue) 10%, var(--cp-panel) 90%);
   }
@@ -1240,6 +1246,16 @@
   .cp-workers-panel,
   .cp-bottom-list {
     @apply grid min-w-0 gap-3;
+  }
+
+  .cp-worker-focus {
+    border: 1px solid color-mix(in srgb, var(--cp-blue) 38%, var(--cp-border) 62%);
+    background: color-mix(in srgb, var(--cp-blue) 8%, var(--cp-panel) 92%);
+    @apply grid min-w-0 gap-2 rounded-2xl px-4 py-3 overflow-hidden;
+  }
+
+  .cp-worker-focus__head {
+    @apply flex items-start justify-between gap-3;
   }
 
   .cp-activity-card,

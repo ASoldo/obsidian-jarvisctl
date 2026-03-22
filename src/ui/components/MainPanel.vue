@@ -31,8 +31,14 @@ const props = defineProps<{
 	session: JarvisSessionMetadata | null;
 	sessions: JarvisSessionMetadata[];
 	workers: JarvisWorkerMetadata[];
+	selectedWorker: JarvisWorkerMetadata | null;
+	selectedWorkerKey: string | null;
 	controlPlane: JarvisControlPlaneState | null;
 	activitySections: JarvisActivitySection[];
+}>();
+
+defineEmits<{
+	(event: "select-worker", value: string): void;
 }>();
 
 const collapsedSections = ref<Record<string, boolean>>({
@@ -147,14 +153,18 @@ function toggleSection(id: keyof typeof collapsedSections.value): void {
 				icon="⌘"
 				:meta="[
 					controlPlane ? `${controlPlane.resources.length} resources` : 'no control namespace',
-					session?.context?.control_namespace ?? 'n/a',
+					selectedWorker?.namespace ?? session?.context?.control_namespace ?? 'n/a',
 				]"
 				:status-label="controlPlane ? 'tracked' : 'idle'"
 				:status-tone="controlPlane ? 'info' : 'idle'"
 				:collapsed="collapsedSections.controlPlane"
 				@toggle="toggleSection('controlPlane')"
 			>
-				<ControlPlanePanel :session="session" :control-plane="controlPlane" :workers="workers" />
+				<ControlPlanePanel
+					:session="session"
+					:control-plane="controlPlane"
+					:workers="workers"
+				/>
 			</SurfaceCard>
 
 			<SurfaceCard
@@ -175,15 +185,19 @@ function toggleSection(id: keyof typeof collapsedSections.value): void {
 				title="Bounded Workers"
 				icon="⬡"
 				:meta="[
-					`${workers.length} registered`,
+					selectedWorker ? `${selectedWorker.namespace}/${selectedWorker.name}` : `${workers.length} registered`,
 					activeWorkerCount ? `${activeWorkerCount} loaded` : 'cold pool',
 				]"
-				:status-label="activeWorkerCount ? 'loaded' : (workers[0] ? workerStatusLabel(workers[0]) : 'idle')"
-				:status-tone="activeWorkerCount ? 'live' : (workers[0] ? statusTone(workerStatusLabel(workers[0])) : 'idle')"
+				:status-label="selectedWorker ? workerStatusLabel(selectedWorker) : (activeWorkerCount ? 'loaded' : (workers[0] ? workerStatusLabel(workers[0]) : 'idle'))"
+				:status-tone="selectedWorker ? statusTone(workerStatusLabel(selectedWorker)) : (activeWorkerCount ? 'live' : (workers[0] ? statusTone(workerStatusLabel(workers[0])) : 'idle'))"
 				:collapsed="collapsedSections.workers"
 				@toggle="toggleSection('workers')"
 			>
-				<WorkersPanel :workers="workers" />
+				<WorkersPanel
+					:workers="workers"
+					:selected-worker-key="selectedWorkerKey"
+					@select-worker="$emit('select-worker', $event)"
+				/>
 			</SurfaceCard>
 
 			<SurfaceCard

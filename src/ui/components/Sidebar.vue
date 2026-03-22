@@ -21,6 +21,7 @@ const props = defineProps<{
 	sessions: JarvisSessionMetadata[];
 	workers: JarvisWorkerMetadata[];
 	selectedNamespace: string | null;
+	selectedWorkerKey: string | null;
 	selectedRepository: string | null;
 	selectedSession: JarvisSessionMetadata | null;
 }>();
@@ -28,6 +29,7 @@ const props = defineProps<{
 const emit = defineEmits<{
 	(event: "select-repository", value: string | null): void;
 	(event: "select-namespace", value: string): void;
+	(event: "select-worker", value: string): void;
 	(event: "open-ticket", session: JarvisSessionMetadata): void;
 	(event: "open-transcript", session: JarvisSessionMetadata): void;
 }>();
@@ -163,8 +165,16 @@ function runtimeStateLabel(session: JarvisSessionMetadata): string {
 					<div
 						v-for="worker in workers"
 						:key="`${worker.namespace}/${worker.name}`"
-						class="cp-worker-list__item"
+						role="button"
+						tabindex="0"
+						:class="[
+							'cp-worker-list__item',
+							selectedWorkerKey === `${worker.namespace}/${worker.name}` && 'is-active',
+						]"
 						:title="`${worker.name} · ${worker.model}`"
+						@click="emit('select-worker', `${worker.namespace}/${worker.name}`)"
+						@keydown.enter.prevent="emit('select-worker', `${worker.namespace}/${worker.name}`)"
+						@keydown.space.prevent="emit('select-worker', `${worker.namespace}/${worker.name}`)"
 					>
 						<div class="cp-worker-list__head">
 							<div class="cp-runtime-item__identity">

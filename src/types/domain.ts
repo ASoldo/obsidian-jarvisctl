@@ -324,6 +324,7 @@ export interface JarvisDashboardViewState {
 	workers: JarvisWorkerMetadata[];
 	controlPlane: JarvisControlPlaneState | null;
 	selectedNamespace: string | null;
+	selectedControlNamespace: string | null;
 	statusMessage: string;
 	lastRefreshLabel: string;
 	errorMessage: string | null;

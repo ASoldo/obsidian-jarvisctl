@@ -18,6 +18,7 @@ export interface JarvisOperatorMessageRequest {
 export interface JarvisDashboardHost {
 	state: JarvisDashboardViewState;
 	selectNamespace(namespace: string): void;
+	selectControlNamespace(namespace: string | null): void;
 	refresh(): Promise<void>;
 	openDashboard(): Promise<void>;
 	attach(session: JarvisSessionMetadata): Promise<void>;

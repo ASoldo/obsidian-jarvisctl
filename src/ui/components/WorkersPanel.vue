@@ -10,10 +10,39 @@ import {
 import EntityAvatar from "./EntityAvatar.vue";
 import ExpandableText from "./ExpandableText.vue";
 import StatusBadge from "./StatusBadge.vue";
+import { computed } from "vue";
 
-defineProps<{
+const props = defineProps<{
 	workers: JarvisWorkerMetadata[];
+	selectedWorkerKey: string | null;
 }>();
+
+const emit = defineEmits<{
+	(event: "select-worker", value: string): void;
+}>();
+
+const focusedWorker = computed(() => {
+	if (!props.selectedWorkerKey) {
+		return props.workers[0] ?? null;
+	}
+	return (
+		props.workers.find(
+			(worker) => `${worker.namespace}/${worker.name}` === props.selectedWorkerKey,
+		) ?? props.workers[0] ?? null
+	);
+});
+
+const orderedWorkers = computed(() => {
+	const selectedKey = props.selectedWorkerKey;
+	return [...props.workers].sort((left, right) => {
+		const leftSelected = `${left.namespace}/${left.name}` === selectedKey;
+		const rightSelected = `${right.namespace}/${right.name}` === selectedKey;
+		if (leftSelected !== rightSelected) {
+			return leftSelected ? -1 : 1;
+		}
+		return `${left.namespace}/${left.name}`.localeCompare(`${right.namespace}/${right.name}`);
+	});
+});
 </script>
 
 <template>
@@ -23,7 +52,45 @@ defineProps<{
 		</div>
 
 		<div v-else class="cp-worker-grid">
-			<article v-for="worker in workers" :key="`${worker.namespace}/${worker.name}`" class="cp-worker-card">
+			<div v-if="focusedWorker" class="cp-worker-focus">
+				<div class="cp-worker-focus__head">
+					<div>
+						<div class="cp-panel__eyebrow">Focused Worker</div>
+						<div class="cp-worker-card__title">{{ focusedWorker.name }}</div>
+					</div>
+					<div class="cp-worker-card__status">
+						<StatusBadge
+							:label="workerStatusLabel(focusedWorker)"
+							:tone="focusedWorker.loaded ? 'live' : statusTone(workerStatusLabel(focusedWorker))"
+							compact
+						/>
+						<span class="cp-chip">{{ focusedWorker.namespace }}</span>
+					</div>
+				</div>
+				<div class="cp-kv-inline">
+					<span class="cp-chip">{{ workerBackendLabel(focusedWorker) }}</span>
+					<span class="cp-chip">{{ focusedWorker.classes?.join(", ") || "unclassified" }}</span>
+					<span class="cp-chip">pool {{ focusedWorker.pool ?? "default" }}</span>
+					<span class="cp-chip">slots {{ focusedWorker.availableSlots ?? "n/a" }}/{{ focusedWorker.maxConcurrent ?? "n/a" }}</span>
+				</div>
+				<div v-if="focusedWorker.admissionReason" class="cp-status-list__message">
+					{{ focusedWorker.admissionReason }}
+				</div>
+			</div>
+
+			<article
+				v-for="worker in orderedWorkers"
+				:key="`${worker.namespace}/${worker.name}`"
+				role="button"
+				tabindex="0"
+				:class="[
+					'cp-worker-card',
+					selectedWorkerKey === `${worker.namespace}/${worker.name}` && 'is-active',
+				]"
+				@click="emit('select-worker', `${worker.namespace}/${worker.name}`)"
+				@keydown.enter.prevent="emit('select-worker', `${worker.namespace}/${worker.name}`)"
+				@keydown.space.prevent="emit('select-worker', `${worker.namespace}/${worker.name}`)"
+			>
 				<div class="cp-worker-card__head">
 					<div class="cp-entity-heading">
 						<EntityAvatar

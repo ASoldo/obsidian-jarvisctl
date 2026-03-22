@@ -12,6 +12,7 @@ const props = defineProps<{
 
 const searchQuery = ref("");
 const selectedRepository = ref<string | null>(null);
+const selectedWorkerKey = ref<string | null>(null);
 
 const allSessions = computed(() => props.host.state.sessions);
 const allWorkers = computed(() => props.host.state.workers);
@@ -87,6 +88,17 @@ const selectedSession = computed(() => {
 	return filteredSessions.value[0] ?? selected ?? allSessions.value[0] ?? null;
 });
 
+const selectedWorker = computed(() => {
+	if (!selectedWorkerKey.value) {
+		return null;
+	}
+	return (
+		allWorkers.value.find(
+			(worker) => `${worker.namespace}/${worker.name}` === selectedWorkerKey.value,
+		) ?? null
+	);
+});
+
 const selectedActivitySections = computed(() =>
 	selectedSession.value ? props.host.readActivitySections(selectedSession.value, 10) : [],
 );
@@ -127,6 +139,32 @@ watch(
 	},
 	{ immediate: true },
 );
+
+watch(
+	filteredWorkers,
+	(nextWorkers) => {
+		if (
+			selectedWorkerKey.value &&
+			!nextWorkers.some(
+				(worker) => `${worker.namespace}/${worker.name}` === selectedWorkerKey.value,
+			)
+		) {
+			selectedWorkerKey.value = null;
+		}
+		if (!selectedWorkerKey.value && !selectedSession.value && nextWorkers[0]) {
+			selectedWorkerKey.value = `${nextWorkers[0].namespace}/${nextWorkers[0].name}`;
+			props.host.selectControlNamespace(nextWorkers[0].namespace);
+		}
+	},
+	{ immediate: true },
+);
+
+function handleSelectWorker(key: string): void {
+	selectedWorkerKey.value = key;
+	const worker =
+		allWorkers.value.find((entry) => `${entry.namespace}/${entry.name}` === key) ?? null;
+	props.host.selectControlNamespace(worker?.namespace ?? null);
+}
 
 function handleContinue(): void {
 	if (selectedSession.value?.context?.task_note) {
@@ -170,10 +208,12 @@ function cycleEnvironment(): void {
 				:sessions="filteredSessions"
 				:workers="filteredWorkers"
 				:selected-namespace="selectedSession?.namespace ?? null"
+				:selected-worker-key="selectedWorkerKey"
 				:selected-repository="selectedRepository"
 				:selected-session="selectedSession"
 				@select-repository="selectedRepository = $event"
 				@select-namespace="host.selectNamespace($event)"
+				@select-worker="handleSelectWorker($event)"
 				@open-ticket="host.openTicket($event)"
 				@open-transcript="host.openTranscript($event)"
 			/>
@@ -183,8 +223,11 @@ function cycleEnvironment(): void {
 				:session="selectedSession"
 				:sessions="filteredSessions"
 				:workers="filteredWorkers"
+				:selected-worker="selectedWorker"
+				:selected-worker-key="selectedWorkerKey"
 				:control-plane="controlPlane"
 				:activity-sections="selectedActivitySections"
+				@select-worker="handleSelectWorker($event)"
 			/>
 		</div>
 	</div>

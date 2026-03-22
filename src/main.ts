@@ -1162,6 +1162,7 @@ class JarvisCtlControlView extends ItemView {
 		workers: [],
 		controlPlane: null,
 		selectedNamespace: null,
+		selectedControlNamespace: null,
 		statusMessage: "Idle",
 		lastRefreshLabel: "never",
 		errorMessage: null,
@@ -1247,6 +1248,10 @@ class JarvisCtlControlView extends ItemView {
 			state: this.state,
 			selectNamespace: (namespace: string) => {
 				this.state.selectedNamespace = namespace;
+				this.state.selectedControlNamespace = null;
+			},
+			selectControlNamespace: (namespace: string | null) => {
+				this.state.selectedControlNamespace = namespace?.trim() || null;
 			},
 			refresh: async () => {
 				await this.refreshSessions();
@@ -1389,9 +1394,22 @@ class JarvisCtlControlView extends ItemView {
 			) {
 				this.state.selectedNamespace = sessions[0]?.namespace ?? null;
 			}
+			const availableControlNamespaces = new Set<string>(
+				[
+					...workers.map((worker) => worker.namespace?.trim()),
+					...sessions.map((session) => session.context?.control_namespace?.trim()),
+				].filter((value): value is string => Boolean(value)),
+			);
+			if (
+				this.state.selectedControlNamespace &&
+				!availableControlNamespaces.has(this.state.selectedControlNamespace)
+			) {
+				this.state.selectedControlNamespace = null;
+			}
 			const selectedSession =
 				sessions.find((session) => session.namespace === this.state.selectedNamespace) ?? null;
 			const controlNamespace =
+				this.state.selectedControlNamespace?.trim() ||
 				selectedSession?.context?.control_namespace?.trim() ||
 				workers[0]?.namespace?.trim() ||
 				null;
