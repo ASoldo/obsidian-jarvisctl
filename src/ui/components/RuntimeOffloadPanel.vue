@@ -6,11 +6,19 @@ import type {
 	JarvisControlPlaneState,
 	JarvisServiceStatus,
 	JarvisSessionMetadata,
+	JarvisStatusEvent,
 	JarvisWorkerMetadata,
 	JarvisWorkerOffloadRequest,
 	JarvisWorkerOffloadResult,
 } from "../../types/domain";
-import { humanizeIdentifier, shortPath, statusTone, truncate } from "../helpers";
+import {
+	formatClock,
+	humanizeIdentifier,
+	relativeAge,
+	shortPath,
+	statusTone,
+	truncate,
+} from "../helpers";
 import ExpandableText from "./ExpandableText.vue";
 import StatusBadge from "./StatusBadge.vue";
 
@@ -30,6 +38,26 @@ interface ServiceLaneCard {
 	models: string[];
 }
 
+interface RecentOffloadRun {
+	jobName: string;
+	serviceName: string;
+	phase: string;
+	createdAtEpochMs: number;
+	completedAtEpochMs?: number | null;
+	selectedClass?: string | null;
+	fallbackClass: boolean;
+	worker?: string | null;
+	workerProvider?: string | null;
+	workerModel?: string | null;
+	workerLocality?: string | null;
+	outputPath?: string | null;
+	artifactPath?: string | null;
+	reason?: string | null;
+	validationState?: string | null;
+	validationMessage?: string | null;
+	events: JarvisStatusEvent[];
+}
+
 const props = defineProps<{
 	host: JarvisDashboardHost;
 	session: JarvisSessionMetadata | null;
@@ -44,6 +72,7 @@ const prompt = ref("");
 const lastResult = ref<JarvisWorkerOffloadResult | null>(null);
 const errorMessage = ref<string | null>(null);
 const running = ref(false);
+const selectedHistoryJobName = ref("");
 
 const presets: OffloadPreset[] = [
 	{
@@ -121,6 +150,53 @@ const stableNvidiaCards = computed(() =>
 	),
 );
 
+const recentOffloadRuns = computed<RecentOffloadRun[]>(() => {
+	if (!props.controlPlane) {
+		return [];
+	}
+	return props.controlPlane.jobs
+		.flatMap((resource) =>
+			resource.status.run_details
+				.filter((run) => run.backend === "worker" && Boolean(run.service_name))
+				.map((run) => ({
+					jobName: resource.summary.name,
+					serviceName: run.service_name ?? "unknown",
+					phase: run.phase,
+					createdAtEpochMs: run.created_at_epoch_ms,
+					completedAtEpochMs: run.completed_at_epoch_ms ?? null,
+					selectedClass: run.selected_class ?? null,
+					fallbackClass: run.fallback_class,
+					worker: run.worker ?? null,
+					workerProvider: run.worker_provider ?? null,
+					workerModel: run.worker_model ?? null,
+					workerLocality: run.worker_locality ?? null,
+					outputPath: run.output_path ?? null,
+					artifactPath: run.artifact_path ?? null,
+					reason: run.reason ?? null,
+					validationState: run.validation_state ?? null,
+					validationMessage: run.validation_message ?? null,
+					events: run.events ?? [],
+				} satisfies RecentOffloadRun)),
+		)
+		.sort((left, right) => right.createdAtEpochMs - left.createdAtEpochMs);
+});
+
+const visibleRecentRuns = computed(() => {
+	if (!selectedServiceName.value) {
+		return recentOffloadRuns.value.slice(0, 8);
+	}
+	return recentOffloadRuns.value
+		.filter((run) => run.serviceName === selectedServiceName.value)
+		.slice(0, 8);
+});
+
+const selectedHistoryRun = computed(() => {
+	if (selectedHistoryJobName.value) {
+		return visibleRecentRuns.value.find((run) => run.jobName === selectedHistoryJobName.value) ?? null;
+	}
+	return visibleRecentRuns.value[0] ?? null;
+});
+
 watch(
 	() => serviceLaneCards.value.map((card) => card.resource.summary.name).join("|"),
 	() => {
@@ -158,13 +234,40 @@ watch(
 	{ immediate: true },
 );
 
+watch(
+	() => visibleRecentRuns.value.map((run) => run.jobName).join("|"),
+	() => {
+		if (
+			!selectedHistoryJobName.value ||
+			!visibleRecentRuns.value.some((run) => run.jobName === selectedHistoryJobName.value)
+		) {
+			selectedHistoryJobName.value = visibleRecentRuns.value[0]?.jobName ?? "";
+		}
+	},
+	{ immediate: true },
+);
+
 function presetForService(serviceName: string): OffloadPreset | null {
 	return presets.find((preset) => preset.serviceName === serviceName) ?? null;
+}
+
+function latestRunForService(serviceName: string): RecentOffloadRun | null {
+	return recentOffloadRuns.value.find((run) => run.serviceName === serviceName) ?? null;
 }
 
 function loadPreset(preset: OffloadPreset): void {
 	selectedServiceName.value = preset.serviceName;
 	prompt.value = preset.prompt;
+	errorMessage.value = null;
+}
+
+function selectService(serviceName: string): void {
+	selectedServiceName.value = serviceName;
+	errorMessage.value = null;
+}
+
+function inspectRun(jobName: string): void {
+	selectedHistoryJobName.value = jobName;
 	errorMessage.value = null;
 }
 
@@ -259,6 +362,9 @@ async function runOffload(): Promise<void> {
 						<div class="cp-control-plane-card__title">{{ card.resource.summary.name }}</div>
 						<div class="cp-control-plane-card__meta">
 							{{ card.workers.length }} endpoints · {{ humanizeIdentifier(card.resource.status.strategy) }}
+							<span v-if="latestRunForService(card.resource.summary.name)">
+								· latest {{ relativeAge(latestRunForService(card.resource.summary.name)!.createdAtEpochMs) }}
+							</span>
 						</div>
 					</div>
 					<div class="cp-control-plane-card__badges">
@@ -294,17 +400,31 @@ async function runOffload(): Promise<void> {
 					<button
 						v-if="presetForService(card.resource.summary.name)"
 						type="button"
-						class="cp-button"
+						class="cp-mini-button cp-action-button"
+						:title="`Load preset for ${card.resource.summary.name}`"
+						:aria-label="`Load preset for ${card.resource.summary.name}`"
 						@click="loadPreset(presetForService(card.resource.summary.name)!)"
 					>
-						Load preset
+						<span class="cp-button__icon" aria-hidden="true">✦</span>
 					</button>
 					<button
 						type="button"
-						class="cp-button"
-						@click="selectedServiceName = card.resource.summary.name"
+						class="cp-mini-button cp-action-button"
+						:title="`Use ${card.resource.summary.name}`"
+						:aria-label="`Use ${card.resource.summary.name}`"
+						@click="selectService(card.resource.summary.name)"
 					>
-						Use service
+						<span class="cp-button__icon" aria-hidden="true">◎</span>
+					</button>
+					<button
+						v-if="latestRunForService(card.resource.summary.name)"
+						type="button"
+						class="cp-mini-button cp-action-button"
+						:title="`Inspect latest ${card.resource.summary.name} run`"
+						:aria-label="`Inspect latest ${card.resource.summary.name} run`"
+						@click="inspectRun(latestRunForService(card.resource.summary.name)!.jobName)"
+					>
+						<span class="cp-button__icon" aria-hidden="true">≡</span>
 					</button>
 				</div>
 			</article>
@@ -431,6 +551,93 @@ async function runOffload(): Promise<void> {
 					{{ lastResult.validation_message }}
 				</div>
 				<ExpandableText :text="parseResponse(lastResult.response)" :lines="8" />
+			</article>
+
+			<article v-if="visibleRecentRuns.length > 0" class="cp-control-plane-card cp-offload-history">
+				<div class="cp-control-plane-card__head">
+					<div>
+						<div class="cp-control-plane-card__title">Recent service runs</div>
+						<div class="cp-control-plane-card__meta">
+							{{ selectedServiceName || "all services" }} · {{ visibleRecentRuns.length }} visible
+						</div>
+					</div>
+					<div class="cp-control-plane-card__badges">
+						<StatusBadge
+							:label="selectedHistoryRun?.phase ?? 'idle'"
+							:tone="statusTone(selectedHistoryRun?.phase)"
+							compact
+						/>
+						<span v-if="selectedHistoryRun?.worker" class="cp-chip">{{ selectedHistoryRun.worker }}</span>
+					</div>
+				</div>
+
+				<div class="cp-offload-history__list">
+					<button
+						v-for="run in visibleRecentRuns"
+						:key="run.jobName"
+						type="button"
+						class="cp-offload-history__select"
+						:class="{ 'is-selected': selectedHistoryRun?.jobName === run.jobName }"
+						@click="inspectRun(run.jobName)"
+					>
+						<span class="cp-offload-history__select-main">
+							<span class="cp-offload-history__select-service">{{ run.serviceName }}</span>
+							<span class="cp-offload-history__select-job">{{ run.jobName }}</span>
+						</span>
+						<span class="cp-offload-history__select-meta">
+							<span>{{ formatClock(run.createdAtEpochMs) }}</span>
+							<span>{{ run.worker ?? "worker" }}</span>
+							<span>{{ run.phase }}</span>
+						</span>
+					</button>
+				</div>
+
+				<div v-if="selectedHistoryRun" class="cp-offload-history__detail">
+					<div class="cp-kv-inline">
+						<span class="cp-chip">{{ selectedHistoryRun.serviceName }}</span>
+						<span v-if="selectedHistoryRun.selectedClass" class="cp-chip">
+							{{ selectedHistoryRun.fallbackClass ? "fallback" : "class" }}
+							{{ selectedHistoryRun.selectedClass }}
+						</span>
+						<span v-if="selectedHistoryRun.workerModel" class="cp-chip">
+							{{ selectedHistoryRun.workerModel }}
+						</span>
+						<span v-if="selectedHistoryRun.workerProvider" class="cp-chip">
+							{{ selectedHistoryRun.workerProvider }}
+						</span>
+						<span v-if="selectedHistoryRun.outputPath" class="cp-chip">
+							out {{ shortPath(selectedHistoryRun.outputPath) }}
+						</span>
+					</div>
+					<div v-if="selectedHistoryRun.reason" class="cp-status-list__message">
+						{{ selectedHistoryRun.reason }}
+					</div>
+					<div v-if="selectedHistoryRun.validationMessage" class="cp-status-list__message">
+						{{ selectedHistoryRun.validationMessage }}
+					</div>
+					<div
+						v-if="lastResult?.job_name === selectedHistoryRun.jobName && lastResult.response"
+						class="cp-offload-history__response"
+					>
+						<ExpandableText :text="parseResponse(lastResult.response)" :lines="6" />
+					</div>
+					<div v-if="selectedHistoryRun.events.length > 0" class="cp-status-list">
+						<div
+							v-for="event in selectedHistoryRun.events.slice(0, 4)"
+							:key="`${selectedHistoryRun.jobName}-${event.type}-${event.epoch_ms}`"
+							class="cp-status-list__entry"
+						>
+							<div class="cp-status-list__head">
+								<strong>{{ humanizeIdentifier(event.type) }}</strong>
+								<div class="cp-control-plane-card__badges">
+									<span class="cp-chip">{{ formatClock(event.epoch_ms) }}</span>
+									<StatusBadge :label="event.reason" :tone="statusTone(event.reason)" compact />
+								</div>
+							</div>
+							<div class="cp-status-list__message">{{ event.message }}</div>
+						</div>
+					</div>
+				</div>
 			</article>
 		</div>
 	</section>

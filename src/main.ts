@@ -1558,6 +1558,7 @@ class JarvisCtlControlView extends ItemView {
 				!sessions.some((session) => session.namespace === this.state.selectedNamespace)
 			) {
 				this.state.selectedNamespace = sessions[0]?.namespace ?? null;
+				this.state.selectedControlNamespace = null;
 			}
 			const availableControlNamespaces = new Set<string>(
 				[

@@ -2129,7 +2129,7 @@
   }
 
   .cp-offload-card__actions {
-    @apply flex flex-wrap items-center gap-2;
+    @apply flex flex-wrap items-center justify-end gap-2;
   }
 
   .cp-offload-workbench {
@@ -2144,6 +2144,51 @@
 
   .cp-offload-result {
     @apply mt-1;
+  }
+
+  .cp-offload-history {
+    @apply grid gap-3;
+  }
+
+  .cp-offload-history__list {
+    @apply grid gap-2;
+  }
+
+  .cp-offload-history__select {
+    border: 1px solid color-mix(in srgb, var(--cp-border) 78%, transparent);
+    background: color-mix(in srgb, var(--cp-panel) 92%, #040914 8%);
+    color: var(--cp-text-soft);
+    @apply grid gap-1 rounded-2xl px-3 py-2 text-left transition;
+  }
+
+  .cp-offload-history__select:hover,
+  .cp-offload-history__select.is-selected {
+    border-color: var(--cp-border-strong);
+    background: color-mix(in srgb, var(--cp-panel-strong) 84%, #06111f 16%);
+  }
+
+  .cp-offload-history__select-main {
+    @apply grid gap-0.5;
+  }
+
+  .cp-offload-history__select-service {
+    @apply text-xs font-semibold uppercase tracking-[0.16em];
+    color: var(--cp-text-soft);
+  }
+
+  .cp-offload-history__select-job {
+    @apply text-[11px] leading-relaxed;
+    color: var(--cp-text-dim);
+  }
+
+  .cp-offload-history__select-meta {
+    @apply flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.16em];
+    color: var(--cp-text-dim);
+  }
+
+  .cp-offload-history__detail,
+  .cp-offload-history__response {
+    @apply grid gap-2;
   }
 
   @media (max-width: 1480px) {
