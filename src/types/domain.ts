@@ -430,6 +430,29 @@ export interface JarvisClusterState {
 	gpg: JarvisGpgStatus;
 }
 
+export interface JarvisTicketSummary {
+	path: string;
+	absolute_path: string;
+	title: string;
+	status?: string;
+	owner?: string;
+	priority?: string;
+	project?: string;
+	repo_path?: string;
+	codex_driver?: string;
+	codex_model?: string;
+	codex_sandbox_mode?: string;
+	codex_approval_policy?: string;
+	codex_reasoning_effort?: string;
+	codex_finish_mode?: string;
+	codex_completion_status?: string;
+	codex_completion_column?: string;
+	autostart?: boolean;
+	created?: string;
+	updated?: string;
+	tags: string[];
+}
+
 export interface JarvisVisitRequest {
 	namespace: string;
 	node: string;
@@ -462,6 +485,7 @@ export interface JarvisDashboardViewState {
 	workers: JarvisWorkerMetadata[];
 	controlPlane: JarvisControlPlaneState | null;
 	cluster: JarvisClusterState;
+	tickets: JarvisTicketSummary[];
 	selectedNamespace: string | null;
 	selectedControlNamespace: string | null;
 	statusMessage: string;

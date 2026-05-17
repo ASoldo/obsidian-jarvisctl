@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import type { JarvisDashboardHost } from "./bridge";
+import DeployWorkloadDialog from "./components/DeployWorkloadDialog.vue";
 import MainPanel from "./components/MainPanel.vue";
 import Sidebar from "./components/Sidebar.vue";
 import TopBar from "./components/TopBar.vue";
@@ -13,6 +14,7 @@ const props = defineProps<{
 const searchQuery = ref("");
 const selectedRepository = ref<string | null>(null);
 const selectedWorkerKey = ref<string | null>(null);
+const deployDialogOpen = ref(false);
 
 const allSessions = computed(() => props.host.state.sessions);
 const allWorkers = computed(() => props.host.state.workers);
@@ -166,14 +168,6 @@ function handleSelectWorker(key: string): void {
 	props.host.selectControlNamespace(worker?.namespace ?? null);
 }
 
-function handleContinue(): void {
-	if (selectedSession.value?.context?.task_note) {
-		void props.host.continueTicket(selectedSession.value);
-		return;
-	}
-	void props.host.refresh();
-}
-
 function cycleEnvironment(): void {
 	const options = [null, ...repositories.value.map((group) => group.id)];
 	if (options.length === 0) {
@@ -200,7 +194,7 @@ function cycleEnvironment(): void {
 			@toggle-environment="cycleEnvironment()"
 			@refresh="host.refresh()"
 			@open-dashboard="host.openDashboard()"
-			@continue="handleContinue"
+			@deploy="deployDialogOpen = true"
 		/>
 
 		<div class="cp-dashboard-grid">
@@ -232,5 +226,13 @@ function cycleEnvironment(): void {
 				@select-worker="handleSelectWorker($event)"
 			/>
 		</div>
+
+		<DeployWorkloadDialog
+			v-if="deployDialogOpen"
+			:host="host"
+			:tickets="host.state.tickets"
+			:cluster="host.state.cluster"
+			@close="deployDialogOpen = false"
+		/>
 	</div>
 </template>

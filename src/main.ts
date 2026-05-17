@@ -48,6 +48,7 @@ import type {
 	JarvisResourceSummary,
 	JarvisSessionMetadata,
 	JarvisServiceStatus,
+	JarvisTicketSummary,
 	JarvisVisitRequest,
 	JarvisWorkerMetadata,
 	JarvisWorkerOffloadRequest,
@@ -545,6 +546,47 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			this.clusterStatePromise = null;
 		});
 		return this.clusterStatePromise;
+	}
+
+	async fetchTickets(): Promise<JarvisTicketSummary[]> {
+		const vaultBasePath = this.getVaultBasePath();
+		return this.app.vault
+			.getMarkdownFiles()
+			.filter((file) => file.path.startsWith("Tickets/") && file.path !== "Tickets/Ticket Index.md")
+			.map((file) => {
+				const cache = this.app.metadataCache.getFileCache(file);
+				const frontmatter = (cache?.frontmatter ?? {}) as Record<string, unknown>;
+				const title = cache?.headings?.[0]?.heading ?? basename(file.path, ".md");
+				return {
+					path: file.path,
+					absolute_path: join(vaultBasePath, file.path),
+					title,
+					status: frontmatterString(frontmatter.status),
+					owner: frontmatterString(frontmatter.owner),
+					priority: frontmatterString(frontmatter.priority),
+					project: frontmatterString(frontmatter.project),
+					repo_path: frontmatterString(frontmatter.repo_path),
+					codex_driver: frontmatterString(frontmatter.codex_driver),
+					codex_model: frontmatterString(frontmatter.codex_model),
+					codex_sandbox_mode: frontmatterString(frontmatter.codex_sandbox_mode),
+					codex_approval_policy: frontmatterString(frontmatter.codex_approval_policy),
+					codex_reasoning_effort: frontmatterString(frontmatter.codex_reasoning_effort),
+					codex_finish_mode: frontmatterString(frontmatter.codex_finish_mode),
+					codex_completion_status: frontmatterString(frontmatter.codex_completion_status),
+					codex_completion_column: frontmatterString(frontmatter.codex_completion_column),
+					autostart: frontmatterBoolean(frontmatter.autostart),
+					created: frontmatterString(frontmatter.created),
+					updated: frontmatterString(frontmatter.updated),
+					tags: frontmatterStringArray(frontmatter.tags),
+				};
+			})
+			.sort((left, right) => {
+				const statusCompare = String(left.status ?? "").localeCompare(String(right.status ?? ""));
+				if (statusCompare !== 0) {
+					return statusCompare;
+				}
+				return left.title.localeCompare(right.title);
+			});
 	}
 
 	async runJarvisCtl(args: string[]): Promise<void> {
@@ -1489,6 +1531,7 @@ class JarvisCtlControlView extends ItemView {
 		workers: [],
 		controlPlane: null,
 		cluster: structuredClone(EMPTY_CLUSTER_STATE),
+		tickets: [],
 		selectedNamespace: null,
 		selectedControlNamespace: null,
 		statusMessage: "Idle",
@@ -1784,14 +1827,16 @@ class JarvisCtlControlView extends ItemView {
 
 	private async refreshSessions(noticeOnError = true): Promise<void> {
 		try {
-			const [sessions, workers, cluster] = await Promise.all([
+			const [sessions, workers, cluster, tickets] = await Promise.all([
 				this.plugin.fetchSessions(),
 				this.plugin.fetchWorkers(),
 				this.plugin.fetchClusterState(),
+				this.plugin.fetchTickets(),
 			]);
 			this.state.sessions = sessions;
 			this.state.workers = workers;
 			this.state.cluster = cluster;
+			this.state.tickets = tickets;
 			if (
 				!this.state.selectedNamespace ||
 				!sessions.some((session) => session.namespace === this.state.selectedNamespace)
@@ -2450,6 +2495,41 @@ function extensionForMimeType(mimeType: string): string {
 		default:
 			return ".bin";
 	}
+}
+
+function frontmatterString(value: unknown): string | undefined {
+	if (value === null || value === undefined) {
+		return undefined;
+	}
+	if (Array.isArray(value)) {
+		return value.map((entry) => String(entry)).join(", ");
+	}
+	const text = String(value).trim();
+	return text.length > 0 ? text : undefined;
+}
+
+function frontmatterStringArray(value: unknown): string[] {
+	if (Array.isArray(value)) {
+		return value.map((entry) => String(entry).trim()).filter(Boolean);
+	}
+	const text = frontmatterString(value);
+	if (!text) {
+		return [];
+	}
+	return text
+		.split(",")
+		.map((entry) => entry.trim())
+		.filter(Boolean);
+}
+
+function frontmatterBoolean(value: unknown): boolean | undefined {
+	if (typeof value === "boolean") {
+		return value;
+	}
+	if (typeof value === "string") {
+		return value.toLowerCase() === "true";
+	}
+	return undefined;
 }
 
 function slugifyForCli(value: string): string {

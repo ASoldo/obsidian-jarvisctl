@@ -19,7 +19,7 @@ const emit = defineEmits<{
 	(event: "toggle-environment"): void;
 	(event: "refresh"): void;
 	(event: "open-dashboard"): void;
-	(event: "continue"): void;
+	(event: "deploy"): void;
 }>();
 
 const selectedTone = computed(() => statusTone(props.selectedState));
@@ -103,7 +103,7 @@ const selectedTone = computed(() => statusTone(props.selectedState));
 					class="cp-icon-button cp-icon-button--primary cp-topbar__action-button"
 					title="Deploy"
 					aria-label="Deploy"
-					@click="emit('continue')"
+					@click="emit('deploy')"
 				>
 					<span class="cp-button__icon" aria-hidden="true">⇢</span>
 				</button>
