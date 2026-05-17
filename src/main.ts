@@ -633,6 +633,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			args.push("--message", request.message.trim());
 		}
 		const { stdout } = await this.execJarvisCtl(args);
+		await this.syncTaskNoteFromNode(taskNote, node);
 		this.invalidateRuntimeCaches();
 		return stdout.trim();
 	}
@@ -655,9 +656,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		if (!isAbsolute(taskNote) || !existsSync(taskNote)) {
 			return;
 		}
-		const nodes = await this.fetchJson<JarvisClusterNode[]>(["get", "nodes", "--out", "json"], []);
-		const node = nodes.find((entry) => entry.name === nodeName);
-		const sshTarget = String(node?.detail ?? "").match(/\bssh=([^ ]+)/)?.[1];
+		const sshTarget = await this.nodeSshTarget(nodeName);
 		if (!sshTarget) {
 			return;
 		}
@@ -667,6 +666,25 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		await execFileAsync("rsync", ["-a", taskNote, `${sshTarget}:${taskNote}`], {
 			timeout: 30_000,
 		});
+	}
+
+	private async syncTaskNoteFromNode(taskNote: string, nodeName: string): Promise<void> {
+		if (!isAbsolute(taskNote)) {
+			return;
+		}
+		const sshTarget = await this.nodeSshTarget(nodeName);
+		if (!sshTarget) {
+			return;
+		}
+		await execFileAsync("rsync", ["-a", `${sshTarget}:${taskNote}`, taskNote], {
+			timeout: 30_000,
+		});
+	}
+
+	private async nodeSshTarget(nodeName: string): Promise<string | null> {
+		const nodes = await this.fetchJson<JarvisClusterNode[]>(["get", "nodes", "--out", "json"], []);
+		const node = nodes.find((entry) => entry.name === nodeName);
+		return String(node?.detail ?? "").match(/\bssh=([^ ]+)/)?.[1] ?? null;
 	}
 
 	private async createAdHocTicket(request: JarvisStartSessionRequest): Promise<string> {
