@@ -17,6 +17,7 @@ const selectedRepository = ref<string | null>(null);
 const selectedWorkerKey = ref<string | null>(null);
 const deployDialogOpen = ref(false);
 const activeSurface = ref<SurfaceId>("operator");
+const sidebarCollapsed = ref(false);
 
 const allSessions = computed(() => props.host.state.sessions);
 const allWorkers = computed(() => props.host.state.workers);
@@ -249,6 +250,8 @@ function handleSelectWorker(key: string): void {
 				:selected-worker-key="selectedWorkerKey"
 				:selected-repository="selectedRepository"
 				:selected-session="selectedSession"
+				:collapsed="sidebarCollapsed"
+				@toggle-collapsed="sidebarCollapsed = !sidebarCollapsed"
 				@select-repository="selectedRepository = $event"
 				@select-namespace="host.selectNamespace($event)"
 				@select-worker="handleSelectWorker($event)"

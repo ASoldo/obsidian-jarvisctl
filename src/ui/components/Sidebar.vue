@@ -25,9 +25,11 @@ const props = defineProps<{
 	selectedWorkerKey: string | null;
 	selectedRepository: string | null;
 	selectedSession: JarvisSessionMetadata | null;
+	collapsed: boolean;
 }>();
 
 const emit = defineEmits<{
+	(event: "toggle-collapsed"): void;
 	(event: "select-repository", value: string | null): void;
 	(event: "select-namespace", value: string): void;
 	(event: "select-worker", value: string): void;
@@ -84,13 +86,76 @@ function nodeStatusLabel(node: JarvisClusterNode): string {
 </script>
 
 <template>
-	<aside class="cp-panel cp-sidebar" aria-label="Source of truth">
+	<aside :class="['cp-panel cp-sidebar', collapsed && 'is-collapsed']" aria-label="Source of truth">
 		<div class="cp-panel__header">
 			<p class="cp-panel__eyebrow">Source Of Truth</p>
-			<StatusBadge :label="`${sessions.length} live`" tone="live" compact />
+			<div class="cp-sidebar__header-actions">
+				<StatusBadge :label="`${sessions.length} live`" tone="live" compact />
+				<button
+					type="button"
+					class="cp-icon-button cp-icon-button--circle cp-sidebar__collapse-button"
+					:title="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+					:aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+					@click="emit('toggle-collapsed')"
+				>
+					{{ collapsed ? "›" : "‹" }}
+				</button>
+			</div>
 		</div>
 
-		<div class="cp-panel__body cp-panel__body--scroll">
+		<div v-if="collapsed" class="cp-sidebar-rail" aria-label="Collapsed source navigation">
+			<button
+				type="button"
+				class="cp-sidebar-rail__button"
+				title="Show all projects"
+				aria-label="Show all projects"
+				@click="emit('select-repository', null)"
+			>
+				<span aria-hidden="true">◎</span>
+				<span class="cp-sidebar-rail__badge">{{ repositories.length }}</span>
+			</button>
+			<button
+				type="button"
+				class="cp-sidebar-rail__button"
+				title="Cluster nodes"
+				aria-label="Cluster nodes"
+			>
+				<span aria-hidden="true">⌬</span>
+				<span class="cp-sidebar-rail__badge">{{ nodes.length }}</span>
+			</button>
+			<button
+				v-for="session in sessions.slice(0, 6)"
+				:key="session.namespace"
+				type="button"
+				:class="['cp-sidebar-rail__button', selectedNamespace === session.namespace && 'is-active']"
+				:title="session.context?.task_title ?? session.namespace"
+				:aria-label="`Select namespace ${session.namespace}`"
+				@click="emit('select-namespace', session.namespace)"
+			>
+				<EntityAvatar kind="session" :scope="sessionScope(session)" :tone="sessionTone(session)" size="sm" />
+			</button>
+			<button
+				type="button"
+				class="cp-sidebar-rail__button"
+				title="Worker pool"
+				aria-label="Worker pool"
+			>
+				<span aria-hidden="true">⬡</span>
+				<span class="cp-sidebar-rail__badge">{{ workers.length }}</span>
+			</button>
+			<button
+				v-if="selectedSession"
+				type="button"
+				class="cp-sidebar-rail__button"
+				title="Open selected ticket"
+				aria-label="Open selected ticket"
+				@click="emit('open-ticket', selectedSession)"
+			>
+				<span aria-hidden="true">◇</span>
+			</button>
+		</div>
+
+		<div v-else class="cp-panel__body cp-panel__body--scroll">
 				<section class="cp-sidebar-section">
 					<div class="cp-section__header">
 						<p class="cp-panel__eyebrow">Projects</p>

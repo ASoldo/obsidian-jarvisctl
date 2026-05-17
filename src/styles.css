@@ -55,7 +55,7 @@
   }
 
   .cp-native-toolbar__search {
-    @apply h-7 min-w-[160px] flex-[0_1_300px];
+    @apply h-7 min-w-[132px] flex-[0_1_230px];
   }
 
   .cp-native-toolbar__search .search-input {
@@ -432,9 +432,64 @@
     grid-template-rows: auto minmax(0, 1fr);
   }
 
+  .cp-sidebar.is-collapsed {
+    @apply w-[64px];
+  }
+
+  .cp-dashboard-grid:has(.cp-sidebar.is-collapsed) {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .cp-sidebar__header-actions {
+    @apply flex items-center gap-1.5;
+  }
+
+  .cp-sidebar__collapse-button {
+    block-size: 1.8rem !important;
+    inline-size: 1.8rem !important;
+    min-inline-size: 1.8rem !important;
+    @apply text-base;
+  }
+
+  .cp-sidebar.is-collapsed .cp-panel__header {
+    @apply justify-center px-2;
+  }
+
+  .cp-sidebar.is-collapsed .cp-panel__eyebrow,
+  .cp-sidebar.is-collapsed .cp-badge {
+    display: none;
+  }
+
+  .cp-sidebar-rail {
+    @apply flex min-h-0 flex-col items-center gap-2 overflow-auto px-2 py-3;
+  }
+
+  .cp-sidebar-rail__button {
+    border: 1px solid color-mix(in srgb, var(--cp-border) 78%, transparent);
+    background: color-mix(in srgb, var(--cp-panel-strong) 78%, transparent);
+    color: var(--cp-text-soft);
+    @apply relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[14px] transition;
+  }
+
+  .cp-sidebar-rail__button:hover,
+  .cp-sidebar-rail__button.is-active {
+    border-color: color-mix(in srgb, var(--cp-blue) 46%, var(--cp-border) 54%);
+    background: color-mix(in srgb, var(--cp-blue) 14%, var(--cp-panel-strong) 86%);
+  }
+
+  .cp-sidebar-rail__button .cp-entity-avatar {
+    @apply h-8 w-8;
+  }
+
+  .cp-sidebar-rail__badge {
+    border: 1px solid color-mix(in srgb, var(--cp-border) 88%, transparent);
+    background: color-mix(in srgb, var(--cp-panel) 94%, #020617 6%);
+    @apply absolute -right-1 -top-1 inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[8px] font-semibold leading-4;
+  }
+
   .cp-main-panel {
     grid-area: main;
-    @apply grid min-h-0;
+    @apply grid h-full min-h-0;
     grid-template-rows: minmax(0, 1fr);
   }
 
@@ -485,7 +540,7 @@
   }
 
   .cp-main-panel__body {
-    @apply overflow-auto overscroll-contain p-2 pr-1;
+    @apply h-full overflow-hidden overscroll-contain p-2;
   }
 
   .cp-main-panel__body > * {
@@ -1725,8 +1780,8 @@
     box-shadow:
       0 14px 30px color-mix(in srgb, #020617 18%, transparent),
       inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
-    @apply relative grid min-w-0 w-full overflow-hidden rounded-2xl isolate;
-    grid-template-rows: auto auto;
+    @apply relative grid h-full min-h-0 min-w-0 w-full overflow-hidden rounded-2xl isolate;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .cp-surface-card__header {
@@ -1753,11 +1808,11 @@
   }
 
   .cp-surface-card__body {
-    @apply min-h-0 min-w-0 overflow-hidden p-4;
+    @apply h-full min-h-0 min-w-0 overflow-hidden p-4;
   }
 
   .cp-surface-card__body > * {
-    @apply min-h-0 min-w-0 w-full;
+    @apply h-full min-h-0 min-w-0 w-full;
   }
 
   .cp-resource-block {
@@ -1778,7 +1833,7 @@
   }
 
   .cp-runtime-tab.is-embedded {
-    @apply h-auto min-w-0 gap-0 overflow-visible pb-0 pr-0;
+    @apply h-full min-w-0 gap-0 overflow-hidden pb-0 pr-0;
     grid-template-rows: minmax(0, 1fr);
   }
 
@@ -1791,7 +1846,7 @@
   }
 
   .cp-workflow-panel-embedded {
-    @apply h-auto min-h-0 min-w-0 overflow-hidden;
+    @apply h-full min-h-0 min-w-0 overflow-hidden;
   }
 
   .cp-workflow-panel__body-embedded {
@@ -1799,7 +1854,7 @@
   }
 
   .cp-operator-console {
-    @apply grid min-h-0 gap-4;
+    @apply grid h-full min-h-0 gap-4;
     grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.95fr);
   }
 
@@ -1807,17 +1862,15 @@
   .cp-operator-compose {
     border: 1px solid var(--cp-border);
     background: color-mix(in srgb, var(--cp-panel) 98%, #040914 2%);
-    @apply grid min-h-0 gap-3 rounded-2xl p-3.5;
+    @apply grid h-full min-h-0 gap-3 rounded-2xl p-3.5;
   }
 
   .cp-operator-stream-shell {
     grid-template-rows: auto minmax(0, 1fr);
-    max-height: clamp(320px, 45vh, 560px);
   }
 
   .cp-operator-compose {
     @apply content-start overflow-auto;
-    max-height: clamp(320px, 45vh, 560px);
   }
 
   .cp-operator-stream__header,
@@ -2284,11 +2337,6 @@
     .cp-deploy-form {
       grid-template-columns: 1fr;
     }
-
-    .cp-operator-stream-shell,
-    .cp-operator-compose {
-      max-height: clamp(320px, 46vh, 560px);
-    }
   }
 
   @media (max-width: 1120px) {
@@ -2297,7 +2345,7 @@
     }
 
     .cp-native-toolbar__search {
-      @apply min-w-[120px] flex-[0_1_220px];
+      @apply min-w-[108px] flex-[0_1_180px];
     }
 
     .cp-native-toolbar__metrics {
@@ -2313,7 +2361,8 @@
       max-block-size: 100%;
     }
 
-    .cp-dashboard-grid {
+    .cp-dashboard-grid,
+    .cp-dashboard-grid:has(.cp-sidebar.is-collapsed) {
       grid-template-columns: 1fr;
       grid-template-rows: auto auto;
       grid-template-areas:
