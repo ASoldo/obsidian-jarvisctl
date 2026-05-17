@@ -594,6 +594,19 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			});
 	}
 
+	async syncRemoteSessionTickets(sessions: JarvisSessionMetadata[]): Promise<void> {
+		await Promise.allSettled(
+			sessions.slice(0, 24).map(async (session) => {
+				const node = session.context?.labels?.["jarvisctl.io/node"]?.trim();
+				const taskNote = session.context?.task_note?.trim();
+				if (!node || !taskNote || !isAbsolute(taskNote)) {
+					return;
+				}
+				await this.syncTaskNoteFromNode(taskNote, node);
+			}),
+		);
+	}
+
 	async runJarvisCtl(args: string[]): Promise<void> {
 		await this.execJarvisCtl(args);
 		this.invalidateRuntimeCaches();
@@ -1957,12 +1970,14 @@ class JarvisCtlControlView extends ItemView {
 
 	private async refreshSessions(noticeOnError = true): Promise<void> {
 		try {
-			const [sessions, workers, cluster, tickets] = await Promise.all([
+			const [localSessions, workers, cluster] = await Promise.all([
 				this.plugin.fetchSessions(),
 				this.plugin.fetchWorkers(),
 				this.plugin.fetchClusterState(),
-				this.plugin.fetchTickets(),
 			]);
+			await this.plugin.syncRemoteSessionTickets(cluster.index.sessions);
+			const tickets = await this.plugin.fetchTickets();
+			const sessions = mergeSessions(localSessions, cluster.index.sessions);
 			this.state.sessions = sessions;
 			this.state.workers = workers;
 			this.state.cluster = cluster;
@@ -2578,6 +2593,22 @@ function withWorkerSummary(
 		summaryStatus: summary.status?.trim() || worker.summaryStatus,
 		summaryDetail: summary.detail?.trim() || worker.summaryDetail || null,
 	};
+}
+
+function mergeSessions(
+	localSessions: JarvisSessionMetadata[],
+	remoteSessions: JarvisSessionMetadata[],
+): JarvisSessionMetadata[] {
+	const seen = new Set<string>();
+	const merged: JarvisSessionMetadata[] = [];
+	for (const session of [...localSessions, ...remoteSessions]) {
+		if (seen.has(session.namespace)) {
+			continue;
+		}
+		seen.add(session.namespace);
+		merged.push(session);
+	}
+	return merged;
 }
 
 function activityKind(tag: string): string {
