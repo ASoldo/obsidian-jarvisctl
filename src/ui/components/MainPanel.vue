@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import type {
 	JarvisActivitySection,
 	JarvisControlPlaneState,
@@ -25,23 +25,7 @@ import RuntimeTab from "./RuntimeTab.vue";
 import SurfaceCard from "./SurfaceCard.vue";
 import WorkersPanel from "./WorkersPanel.vue";
 import WorkflowPanel from "./WorkflowPanel.vue";
-
-type SurfaceId =
-	| "operator"
-	| "workflow"
-	| "cluster"
-	| "controlPlane"
-	| "applications"
-	| "workers"
-	| "snapshot"
-	| "feed"
-	| "activity"
-	| "branches"
-	| "agents"
-	| "logs"
-	| "events"
-	| "reasoning"
-	| "metrics";
+import { type SurfaceId } from "../surfaces";
 
 interface SurfaceModel {
 	id: SurfaceId;
@@ -63,13 +47,13 @@ const props = defineProps<{
 	controlPlane: JarvisControlPlaneState | null;
 	cluster: JarvisClusterState;
 	activitySections: JarvisActivitySection[];
+	activeSurface: SurfaceId;
 }>();
 
 const emit = defineEmits<{
 	(event: "select-worker", value: string): void;
 }>();
 
-const activeSurface = ref<SurfaceId>("operator");
 const metrics = computed(() => metricsSnapshot(props.session));
 const workflowSteps = computed(() => buildWorkflow(props.session));
 const activeWorkerCount = computed(() => props.workers.filter((worker) => worker.loaded).length);
@@ -246,36 +230,12 @@ const surfaces = computed<SurfaceModel[]>(() => [
 ]);
 
 const activeSurfaceModel = computed(
-	() => surfaces.value.find((surface) => surface.id === activeSurface.value) ?? surfaces.value[0],
+	() => surfaces.value.find((surface) => surface.id === props.activeSurface) ?? surfaces.value[0],
 );
 </script>
 
 <template>
 	<section class="cp-panel cp-main-panel">
-		<div class="cp-panel__header cp-main-panel__header cp-main-panel__header--tabs">
-			<div class="cp-main-surface-tabs" role="tablist" aria-label="Main system surfaces">
-				<button
-					v-for="surface in surfaces"
-					:key="surface.id"
-					type="button"
-					:class="['cp-main-surface-tab', activeSurface === surface.id && 'is-active']"
-					:title="surface.title"
-					role="tab"
-					:aria-selected="activeSurface === surface.id"
-					@click="activeSurface = surface.id"
-				>
-					<span class="cp-button__icon" aria-hidden="true">{{ surface.icon }}</span>
-					<span class="cp-main-surface-tab__label">{{ surface.title }}</span>
-				</button>
-			</div>
-
-			<div class="cp-main-panel__summary">
-				<span class="cp-chip">Tokens: {{ metrics.Tokens }}</span>
-				<span class="cp-chip">Latency: {{ metrics.Latency }}</span>
-				<span v-if="activeWorkflowStep" class="cp-chip">Step: {{ activeWorkflowStep.label }}</span>
-			</div>
-		</div>
-
 		<div class="cp-panel__body cp-main-panel__body">
 			<SurfaceCard
 				v-if="activeSurfaceModel"

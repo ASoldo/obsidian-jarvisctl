@@ -29,30 +29,63 @@
   .jarvisctl-vue-root,
   .cp-root {
     @apply grid h-full min-h-0 gap-3;
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
   }
 
-  .cp-view-toolbar {
-    border: 1px solid color-mix(in srgb, var(--cp-border) 70%, transparent);
-    background: color-mix(in srgb, var(--background-secondary) 72%, transparent);
-    @apply grid min-h-0 min-w-0 items-center gap-2 rounded-xl px-2 py-1.5;
-    grid-template-columns: minmax(132px, 180px) minmax(180px, 1fr) auto auto;
+  .jarvisctl-native-toolbar-container {
+    min-width: 0;
+    flex: 1 1 auto;
   }
 
-  .cp-view-toolbar__select {
-    @apply h-8 min-w-0 text-xs;
+  .jarvisctl-native-title-hidden {
+    display: none !important;
   }
 
-  .cp-view-toolbar__search {
-    @apply h-8 min-w-0;
+  .jarvisctl-native-toolbar-host {
+    width: 100%;
+    min-width: 0;
   }
 
-  .cp-view-toolbar__search .search-input {
-    @apply h-8 min-w-0 text-xs;
+  .cp-native-toolbar {
+    @apply flex min-w-0 items-center gap-1.5;
   }
 
-  .cp-view-toolbar__metrics {
-    @apply flex min-w-0 flex-wrap items-center justify-end gap-1;
+  .cp-native-toolbar__select {
+    @apply h-7 w-[132px] min-w-[108px] shrink-0 text-xs;
+  }
+
+  .cp-native-toolbar__search {
+    @apply h-7 min-w-[160px] flex-[0_1_300px];
+  }
+
+  .cp-native-toolbar__search .search-input {
+    @apply h-7 min-w-0 text-xs;
+  }
+
+  .cp-native-toolbar__tabs {
+    @apply flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-0.5;
+    scrollbar-width: none;
+  }
+
+  .cp-native-toolbar__tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .cp-native-toolbar__tab {
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    @apply inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[12px] transition;
+  }
+
+  .cp-native-toolbar__tab:hover,
+  .cp-native-toolbar__tab.is-active {
+    border-color: color-mix(in srgb, var(--interactive-accent) 42%, var(--background-modifier-border) 58%);
+    background: color-mix(in srgb, var(--interactive-accent) 16%, transparent);
+    color: var(--text-normal);
+  }
+
+  .cp-native-toolbar__metrics {
+    @apply flex shrink-0 items-center gap-1;
   }
 
   .cp-toolbar-pill {
@@ -402,7 +435,7 @@
   .cp-main-panel {
     grid-area: main;
     @apply grid min-h-0;
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
   }
 
   .cp-bottom-panel {
@@ -452,7 +485,7 @@
   }
 
   .cp-main-panel__body {
-    @apply overflow-auto overscroll-contain pr-1;
+    @apply overflow-auto overscroll-contain p-2 pr-1;
   }
 
   .cp-main-panel__body > * {
@@ -1668,42 +1701,7 @@
   }
 
   .cp-main-panel {
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-
-  .cp-main-panel__header {
-    @apply items-center;
-  }
-
-  .cp-main-panel__header--tabs {
-    @apply items-center gap-2;
-  }
-
-  .cp-main-surface-tabs {
-    @apply flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pr-1;
-    scrollbar-width: thin;
-  }
-
-  .cp-main-surface-tab {
-    border: 1px solid color-mix(in srgb, var(--cp-border) 74%, transparent);
-    background: color-mix(in srgb, var(--background-secondary-alt) 60%, transparent);
-    color: var(--cp-text-dim);
-    @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-medium transition;
-  }
-
-  .cp-main-surface-tab:hover,
-  .cp-main-surface-tab.is-active {
-    border-color: color-mix(in srgb, var(--cp-blue) 46%, var(--cp-border) 54%);
-    color: var(--cp-text-soft);
-    background: color-mix(in srgb, var(--cp-blue) 14%, var(--background-secondary-alt) 86%);
-  }
-
-  .cp-main-surface-tab__label {
-    @apply max-w-[132px] truncate;
-  }
-
-  .cp-main-panel__summary {
-    @apply flex flex-wrap items-center justify-end gap-2;
+    grid-template-rows: minmax(0, 1fr);
   }
 
   .cp-main-surface-stack {
@@ -2294,12 +2292,16 @@
   }
 
   @media (max-width: 1120px) {
-    .cp-view-toolbar {
-      grid-template-columns: minmax(0, 1fr);
+    .cp-native-toolbar {
+      @apply gap-1;
     }
 
-    .cp-view-toolbar__metrics {
-      @apply justify-start;
+    .cp-native-toolbar__search {
+      @apply min-w-[120px] flex-[0_1_220px];
+    }
+
+    .cp-native-toolbar__metrics {
+      display: none;
     }
 
     .cp-dialog-backdrop {

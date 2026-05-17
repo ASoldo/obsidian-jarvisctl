@@ -6,6 +6,7 @@ import MainPanel from "./components/MainPanel.vue";
 import Sidebar from "./components/Sidebar.vue";
 import StatusBadge from "./components/StatusBadge.vue";
 import { buildRepositoryGroups, statusTone } from "./helpers";
+import { SURFACE_TABS, type SurfaceId } from "./surfaces";
 
 const props = defineProps<{
 	host: JarvisDashboardHost;
@@ -15,6 +16,7 @@ const searchQuery = ref("");
 const selectedRepository = ref<string | null>(null);
 const selectedWorkerKey = ref<string | null>(null);
 const deployDialogOpen = ref(false);
+const activeSurface = ref<SurfaceId>("operator");
 
 const allSessions = computed(() => props.host.state.sessions);
 const allWorkers = computed(() => props.host.state.workers);
@@ -178,46 +180,64 @@ function handleSelectWorker(key: string): void {
 
 <template>
 	<div class="cp-root">
-		<div class="cp-view-toolbar">
-			<select
-				class="dropdown cp-view-toolbar__select"
-				:value="selectedRepository ?? ''"
-				title="Repository scope"
-				@change="selectedRepository = (($event.target as HTMLSelectElement).value || null)"
-			>
-				<option value="">All Repos</option>
-				<option v-for="repository in repositories" :key="repository.id" :value="repository.id">
-					{{ repository.label }}
-				</option>
-			</select>
+		<Teleport v-if="host.toolbarMountEl" :to="host.toolbarMountEl">
+			<div class="cp-native-toolbar">
+				<select
+					class="dropdown cp-native-toolbar__select"
+					:value="selectedRepository ?? ''"
+					title="Repository scope"
+					@change="selectedRepository = (($event.target as HTMLSelectElement).value || null)"
+				>
+					<option value="">All Repos</option>
+					<option v-for="repository in repositories" :key="repository.id" :value="repository.id">
+						{{ repository.label }}
+					</option>
+				</select>
 
-			<label class="search-input-container cp-view-toolbar__search">
-				<input
-					:value="searchQuery"
-					type="search"
-					class="search-input"
-					placeholder="Search namespaces, workers, logs"
-					@input="searchQuery = ($event.target as HTMLInputElement).value"
-				/>
-				<button
-					v-if="searchQuery"
-					type="button"
-					class="search-input-clear-button"
-					aria-label="Clear search"
-					@click.prevent="searchQuery = ''"
-				/>
-			</label>
+				<label class="search-input-container cp-native-toolbar__search">
+					<input
+						:value="searchQuery"
+						type="search"
+						class="search-input"
+						placeholder="Search namespaces, workers, logs"
+						@input="searchQuery = ($event.target as HTMLInputElement).value"
+					/>
+					<button
+						v-if="searchQuery"
+						type="button"
+						class="search-input-clear-button"
+						aria-label="Clear search"
+						@click.prevent="searchQuery = ''"
+					/>
+				</label>
 
-			<div class="cp-view-toolbar__metrics">
-				<span class="cp-toolbar-pill" title="Namespaces">ns {{ allSessions.length }}</span>
-				<span class="cp-toolbar-pill" title="Live agents">ag {{ liveAgentCount }}</span>
-				<span class="cp-toolbar-pill" title="Subagents">sub {{ subagentCount }}</span>
-				<span class="cp-toolbar-pill" title="Workers">wrk {{ allWorkers.length }}</span>
-				<span class="cp-toolbar-pill" title="Nodes">node {{ host.state.cluster.nodes.length }}</span>
+				<div class="cp-native-toolbar__tabs" role="tablist" aria-label="Main system surfaces">
+					<button
+						v-for="surface in SURFACE_TABS"
+						:key="surface.id"
+						type="button"
+						:class="['clickable-icon cp-native-toolbar__tab', activeSurface === surface.id && 'is-active']"
+						:title="surface.title"
+						:aria-label="surface.title"
+						role="tab"
+						:aria-selected="activeSurface === surface.id"
+						@click="activeSurface = surface.id"
+					>
+						<span aria-hidden="true">{{ surface.icon }}</span>
+					</button>
+				</div>
+
+				<div class="cp-native-toolbar__metrics">
+					<span class="cp-toolbar-pill" title="Namespaces">ns {{ allSessions.length }}</span>
+					<span class="cp-toolbar-pill" title="Live agents">ag {{ liveAgentCount }}</span>
+					<span class="cp-toolbar-pill" title="Subagents">sub {{ subagentCount }}</span>
+					<span class="cp-toolbar-pill" title="Workers">wrk {{ allWorkers.length }}</span>
+					<span class="cp-toolbar-pill" title="Nodes">node {{ host.state.cluster.nodes.length }}</span>
+				</div>
+
+				<StatusBadge :label="selectedState" :tone="selectedTone" compact />
 			</div>
-
-			<StatusBadge :label="selectedState" :tone="selectedTone" compact />
-		</div>
+		</Teleport>
 
 		<div class="cp-dashboard-grid">
 			<Sidebar
@@ -247,6 +267,7 @@ function handleSelectWorker(key: string): void {
 				:control-plane="controlPlane"
 				:cluster="host.state.cluster"
 				:activity-sections="selectedActivitySections"
+				:active-surface="activeSurface"
 				@select-worker="handleSelectWorker($event)"
 			/>
 		</div>

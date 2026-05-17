@@ -1693,6 +1693,9 @@ class JarvisCtlControlView extends ItemView {
 	private actionInFlight = false;
 	private vueApp: VueApplication<Element> | null = null;
 	private mountEl: HTMLElement | null = null;
+	private headerToolbarEl: HTMLElement | null = null;
+	private headerTitleContainerEl: HTMLElement | null = null;
+	private headerTitleEl: HTMLElement | null = null;
 	private readonly state = reactive<JarvisDashboardViewState>({
 		sessions: [],
 		workers: [],
@@ -1744,6 +1747,7 @@ class JarvisCtlControlView extends ItemView {
 	async onOpen(): Promise<void> {
 		this.contentEl.empty();
 		this.contentEl.addClass("jarvisctl-control-view");
+		this.host.toolbarMountEl = this.createHeaderToolbarMount();
 		this.mountEl = this.contentEl.createDiv({ cls: "jarvisctl-vue-root" });
 		this.vueApp = createApp(ControlPlaneApp, { host: this.host });
 		this.vueApp.mount(this.mountEl);
@@ -1758,8 +1762,46 @@ class JarvisCtlControlView extends ItemView {
 		this.vueApp?.unmount();
 		this.vueApp = null;
 		this.mountEl = null;
+		this.destroyHeaderToolbarMount();
+		this.host.toolbarMountEl = null;
 		this.contentEl.empty();
 		this.contentEl.removeClass("jarvisctl-control-view");
+	}
+
+	private createHeaderToolbarMount(): HTMLElement | null {
+		this.destroyHeaderToolbarMount();
+		const headerEl =
+			this.containerEl.querySelector<HTMLElement>(".view-header") ??
+			this.contentEl
+				.closest<HTMLElement>(".workspace-leaf-content")
+				?.querySelector<HTMLElement>(".view-header") ??
+			null;
+		const titleContainerEl =
+			headerEl?.querySelector<HTMLElement>(".view-header-title-container") ??
+			headerEl?.querySelector<HTMLElement>(".view-header-title")?.parentElement ??
+			null;
+		if (!titleContainerEl) {
+			return null;
+		}
+		const titleEl = titleContainerEl.querySelector<HTMLElement>(".view-header-title");
+		const toolbarEl = document.createElement("div");
+		toolbarEl.className = "jarvisctl-native-toolbar-host";
+		titleContainerEl.classList.add("jarvisctl-native-toolbar-container");
+		titleEl?.classList.add("jarvisctl-native-title-hidden");
+		titleContainerEl.appendChild(toolbarEl);
+		this.headerToolbarEl = toolbarEl;
+		this.headerTitleContainerEl = titleContainerEl;
+		this.headerTitleEl = titleEl ?? null;
+		return toolbarEl;
+	}
+
+	private destroyHeaderToolbarMount(): void {
+		this.headerToolbarEl?.remove();
+		this.headerToolbarEl = null;
+		this.headerTitleContainerEl?.classList.remove("jarvisctl-native-toolbar-container");
+		this.headerTitleContainerEl = null;
+		this.headerTitleEl?.classList.remove("jarvisctl-native-title-hidden");
+		this.headerTitleEl = null;
 	}
 
 	async handleSettingsChanged(): Promise<void> {
@@ -1771,6 +1813,7 @@ class JarvisCtlControlView extends ItemView {
 	private createHost(): JarvisDashboardHost {
 		return {
 			state: this.state,
+			toolbarMountEl: null,
 			selectNamespace: (namespace: string) => {
 				this.state.selectedNamespace = namespace;
 				this.state.selectedControlNamespace = null;

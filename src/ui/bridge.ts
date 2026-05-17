@@ -23,6 +23,7 @@ export interface JarvisOperatorMessageRequest {
 
 export interface JarvisDashboardHost {
 	state: JarvisDashboardViewState;
+	toolbarMountEl: HTMLElement | null;
 	selectNamespace(namespace: string): void;
 	selectControlNamespace(namespace: string | null): void;
 	refresh(): Promise<void>;
