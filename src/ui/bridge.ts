@@ -1,7 +1,11 @@
 import type {
 	JarvisActivitySection,
 	JarvisDashboardViewState,
+	JarvisBootstrapRequest,
+	JarvisFanoutRequest,
 	JarvisSessionMetadata,
+	JarvisStartSessionRequest,
+	JarvisVisitRequest,
 	JarvisWorkerOffloadRequest,
 	JarvisWorkerOffloadResult,
 } from "../types/domain";
@@ -41,6 +45,16 @@ export interface JarvisDashboardHost {
 	execAgent(session: JarvisSessionMetadata, agentName: string): Promise<void>;
 	interruptAgent(session: JarvisSessionMetadata, agentName: string): Promise<void>;
 	copyExec(session: JarvisSessionMetadata, agentName: string): Promise<void>;
+	runClusterVisit(request: JarvisVisitRequest): Promise<void>;
+	startClusterSession(request: JarvisStartSessionRequest): Promise<void>;
+	runClusterFanout(request: JarvisFanoutRequest): Promise<void>;
+	bootstrapClusterNode(request: JarvisBootstrapRequest): Promise<void>;
+	syncNodeAuth(node: string): Promise<void>;
+	cordonNode(node: string): Promise<void>;
+	uncordonNode(node: string): Promise<void>;
+	reconcileNodes(): Promise<void>;
+	rotateCapsuleKey(): Promise<void>;
+	dispatchOnce(): Promise<void>;
 	runWorkerOffload(
 		session: JarvisSessionMetadata,
 		request: JarvisWorkerOffloadRequest,

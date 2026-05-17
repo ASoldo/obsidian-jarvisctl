@@ -10,6 +10,7 @@ const props = defineProps<{
 	agentCount: number;
 	subagentCount: number;
 	workerCount: number;
+	nodeCount: number;
 	selectedState: string;
 }>();
 
@@ -78,6 +79,10 @@ const selectedTone = computed(() => statusTone(props.selectedState));
 			<div class="cp-topbar__metric">
 				<span class="cp-topbar__metric-label">Workers</span>
 				<span class="cp-topbar__metric-value">{{ workerCount }}</span>
+			</div>
+			<div class="cp-topbar__metric">
+				<span class="cp-topbar__metric-label">Nodes</span>
+				<span class="cp-topbar__metric-value">{{ nodeCount }}</span>
 			</div>
 		</div>
 

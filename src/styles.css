@@ -2191,6 +2191,38 @@
     @apply grid gap-2;
   }
 
+  .cp-cluster-ops {
+    @apply grid gap-3;
+  }
+
+  .cp-node-grid {
+    @apply grid gap-2;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  }
+
+  .cp-cluster-form-grid {
+    @apply grid gap-3;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cp-cluster-form {
+    border: 1px solid var(--cp-border);
+    background: color-mix(in srgb, var(--cp-panel-strong) 72%, transparent);
+    @apply grid min-w-0 gap-2 rounded-2xl p-3;
+  }
+
+  .cp-cluster-form__textarea {
+    min-height: 88px;
+  }
+
+  .cp-cluster-form__submit {
+    inline-size: auto !important;
+    block-size: 2rem !important;
+    min-inline-size: 7rem !important;
+    padding-inline: 0.75rem !important;
+    border-radius: 999px !important;
+  }
+
   @media (max-width: 1480px) {
     .cp-dashboard-grid {
       grid-template-columns: minmax(280px, 316px) minmax(0, 1fr);
@@ -2209,7 +2241,8 @@
 
     .cp-control-plane-grid,
     .cp-control-plane-columns,
-    .cp-offload-service-grid {
+    .cp-offload-service-grid,
+    .cp-cluster-form-grid {
       grid-template-columns: 1fr;
     }
 

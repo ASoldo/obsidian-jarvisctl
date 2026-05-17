@@ -25,9 +25,20 @@ import type {
 import type {
 	JarvisActivitySection,
 	JarvisAgentMetadata,
+	JarvisAuthAuditEvent,
+	JarvisBootstrapRequest,
+	JarvisClusterIndexState,
+	JarvisClusterNode,
+	JarvisClusterState,
 	JarvisControlPlaneResource,
 	JarvisControlPlaneState,
 	JarvisDashboardViewState,
+	JarvisFanoutRequest,
+	JarvisGpgStatus,
+	JarvisNodeDoctorCheck,
+	JarvisNodeLinkCheck,
+	JarvisOrchestrationPolicy,
+	JarvisStartSessionRequest,
 	JarvisDeploymentStatus,
 	JarvisApplicationStatus,
 	JarvisCronJobStatus,
@@ -37,6 +48,7 @@ import type {
 	JarvisResourceSummary,
 	JarvisSessionMetadata,
 	JarvisServiceStatus,
+	JarvisVisitRequest,
 	JarvisWorkerMetadata,
 	JarvisWorkerOffloadRequest,
 	JarvisWorkerOffloadResult,
@@ -47,7 +59,23 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-observer";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control", "jarvisctl-control-live"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-03-22-openclaw-runtime-offload-surface";
+const BUILD_STAMP = "2026-05-17-cluster-orchestration-dashboard";
+
+const EMPTY_CLUSTER_STATE: JarvisClusterState = {
+	nodes: [],
+	doctor: [],
+	links: [],
+	index: {
+		sessions: [],
+		visits: [],
+	},
+	audit: [],
+	policy: null,
+	gpg: {
+		ok: false,
+		detail: "not checked",
+	},
+};
 
 interface TerminalProfile {
 	args?: string[];
@@ -197,6 +225,8 @@ export default class JarvisCtlControlPlugin extends Plugin {
 	private controlPlaneCache = new Map<string, CachedControlPlaneState>();
 	private controlPlanePromises = new Map<string, Promise<JarvisControlPlaneState>>();
 	private workersUnsupportedUntilEpochMs = 0;
+	private clusterStateCache: { state: JarvisClusterState; fetchedAtEpochMs: number } | null = null;
+	private clusterStatePromise: Promise<JarvisClusterState> | null = null;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -473,9 +503,128 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		return promise;
 	}
 
+	async fetchClusterState(): Promise<JarvisClusterState> {
+		if (this.clusterStateCache && Date.now() - this.clusterStateCache.fetchedAtEpochMs < 8_000) {
+			return this.clusterStateCache.state;
+		}
+		if (this.clusterStatePromise) {
+			return this.clusterStatePromise;
+		}
+
+		this.clusterStatePromise = (async () => {
+			const [nodes, doctor, links, index, audit, policy, gpg] = await Promise.all([
+				this.fetchJson<JarvisClusterNode[]>(["get", "nodes", "--output", "json"], []),
+				this.fetchJson<JarvisNodeDoctorCheck[]>(["node", "doctor", "--output", "json"], []),
+				this.fetchJson<JarvisNodeLinkCheck[]>(["node", "links", "--output", "json"], []),
+				this.fetchJson<JarvisClusterIndexState>(
+					["node", "index", "--output", "json"],
+					{ sessions: [], visits: [] },
+				),
+				this.fetchJson<JarvisAuthAuditEvent[]>(["node", "audit", "--limit", "12", "--output", "json"], []),
+				this.fetchJson<JarvisOrchestrationPolicy | null>(["node", "policy", "--output", "json"], null),
+				this.inspectGpgStatus(),
+			]);
+			const state: JarvisClusterState = {
+				nodes: Array.isArray(nodes) ? nodes : [],
+				doctor: Array.isArray(doctor) ? doctor : [],
+				links: Array.isArray(links) ? links : [],
+				index: {
+					sessions: Array.isArray(index.sessions) ? index.sessions : [],
+					visits: Array.isArray(index.visits) ? index.visits : [],
+				},
+				audit: Array.isArray(audit) ? audit : [],
+				policy,
+				gpg,
+			};
+			this.clusterStateCache = {
+				state,
+				fetchedAtEpochMs: Date.now(),
+			};
+			return state;
+		})().finally(() => {
+			this.clusterStatePromise = null;
+		});
+		return this.clusterStatePromise;
+	}
+
 	async runJarvisCtl(args: string[]): Promise<void> {
 		await this.execJarvisCtl(args);
 		this.invalidateRuntimeCaches();
+	}
+
+	async runClusterVisit(request: JarvisVisitRequest): Promise<string> {
+		const args = [
+			"visit",
+			"--node",
+			request.node.trim() || "auto",
+			"--text",
+			request.text.trim() || "Inspect this node and report Jarvis/Codex readiness.",
+			"--timeout-seconds",
+			request.timeoutSeconds.trim() || "900",
+			"--full",
+		];
+		if (request.namespace.trim()) {
+			args.push("--namespace", request.namespace.trim());
+		}
+		const { stdout } = await this.execJarvisCtl(args);
+		this.invalidateRuntimeCaches();
+		return stdout.trim();
+	}
+
+	async startClusterSession(request: JarvisStartSessionRequest): Promise<string> {
+		const taskNote = request.taskNote.trim();
+		if (!taskNote) {
+			throw new Error("Starting a session requires a ticket/task note path.");
+		}
+		const args = ["node", "start-session", "--node", request.node.trim() || "auto", "--task-note", taskNote, "--full"];
+		if (request.namespace.trim()) {
+			args.push("--namespace", request.namespace.trim());
+		}
+		if (request.message.trim()) {
+			args.push("--message", request.message.trim());
+		}
+		const { stdout } = await this.execJarvisCtl(args);
+		this.invalidateRuntimeCaches();
+		return stdout.trim();
+	}
+
+	async runClusterFanout(request: JarvisFanoutRequest): Promise<string> {
+		const args = [
+			"node",
+			"fanout",
+			"--text",
+			request.text.trim() || "Report node readiness.",
+			"--timeout-seconds",
+			request.timeoutSeconds.trim() || "900",
+			"--full",
+		];
+		for (const node of request.nodes.split(/[\s,]+/).filter(Boolean)) {
+			args.push("--node", node);
+		}
+		const { stdout } = await this.execJarvisCtl(args);
+		this.invalidateRuntimeCaches();
+		return stdout.trim();
+	}
+
+	async bootstrapClusterNode(request: JarvisBootstrapRequest): Promise<string> {
+		if (!request.name.trim() || !request.host.trim()) {
+			throw new Error("Bootstrap requires a node name and SSH host.");
+		}
+		const args = [
+			"node",
+			"bootstrap",
+			request.name.trim(),
+			"--ssh-host",
+			request.host.trim(),
+			"--ssh-user",
+			request.user.trim() || "rootster",
+		];
+		if (request.workspaceRoot.trim()) {
+			args.push("--workspace-root", request.workspaceRoot.trim());
+		}
+		const { stdout } = await this.execJarvisCtl(args);
+		this.invalidateRuntimeCaches();
+		return stdout.trim();
 	}
 
 	async promptAndTell(namespace: string, agent: string): Promise<void> {
@@ -845,6 +994,37 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		throw lastError ?? new Error("jarvisctl executable could not be resolved");
 	}
 
+	private async fetchJson<T>(args: string[], fallback: T): Promise<T> {
+		const { stdout } = await this.execJarvisCtl(args);
+		try {
+			return JSON.parse(stdout.trim() || JSON.stringify(fallback)) as T;
+		} catch {
+			return fallback;
+		}
+	}
+
+	private async inspectGpgStatus(): Promise<JarvisGpgStatus> {
+		try {
+			const { stdout } = await execFileAsync("gpg", ["--list-secret-keys", "--with-colons"], {
+				timeout: 8_000,
+			});
+			const keys = stdout.split("\n").filter((line) => line.startsWith("sec:")).length;
+			const capsuleKey = process.env.HOME
+				? join(process.env.HOME, ".jarvis", "codex", "capsule.key")
+				: "";
+			const capsuleKeyPresent = capsuleKey.length > 0 && existsSync(capsuleKey);
+			return {
+				ok: keys > 0 && capsuleKeyPresent,
+				detail: `${keys} secret key(s), capsule key ${capsuleKeyPresent ? "present" : "missing"}`,
+			};
+		} catch (error) {
+			return {
+				ok: false,
+				detail: formatError(error),
+			};
+		}
+	}
+
 	private invalidateRuntimeCaches(): void {
 		this.sessionListCache = null;
 		this.sessionListPromise = null;
@@ -853,6 +1033,8 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		this.workerDetailCache.clear();
 		this.controlPlaneCache.clear();
 		this.controlPlanePromises.clear();
+		this.clusterStateCache = null;
+		this.clusterStatePromise = null;
 	}
 
 	getTerminalJarvisCtlPath(): string {
@@ -1306,6 +1488,7 @@ class JarvisCtlControlView extends ItemView {
 		sessions: [],
 		workers: [],
 		controlPlane: null,
+		cluster: structuredClone(EMPTY_CLUSTER_STATE),
 		selectedNamespace: null,
 		selectedControlNamespace: null,
 		statusMessage: "Idle",
@@ -1503,6 +1686,60 @@ class JarvisCtlControlView extends ItemView {
 				);
 				new Notice(`Copied exec command for ${agentName}`);
 			},
+			runClusterVisit: async (request) => {
+				await this.runAction(`Visiting ${request.node || "auto"}`, async () => {
+					const output = await this.plugin.runClusterVisit(request);
+					this.state.statusMessage = output || "Visit completed";
+				}, true);
+			},
+			startClusterSession: async (request) => {
+				await this.runAction(`Starting session on ${request.node || "auto"}`, async () => {
+					const output = await this.plugin.startClusterSession(request);
+					this.state.statusMessage = output || "Remote session started";
+				}, true);
+			},
+			runClusterFanout: async (request) => {
+				await this.runAction("Running fanout", async () => {
+					const output = await this.plugin.runClusterFanout(request);
+					this.state.statusMessage = output || "Fanout completed";
+				}, true);
+			},
+			bootstrapClusterNode: async (request) => {
+				await this.runAction(`Bootstrapping ${request.name}`, async () => {
+					const output = await this.plugin.bootstrapClusterNode(request);
+					this.state.statusMessage = output || "Bootstrap completed";
+				}, true);
+			},
+			syncNodeAuth: async (node) => {
+				await this.runAction(`Syncing auth to ${node}`, async () => {
+					await this.plugin.runJarvisCtl(["node", "sync-codex-auth", node]);
+				}, true);
+			},
+			cordonNode: async (node) => {
+				await this.runAction(`Cordoning ${node}`, async () => {
+					await this.plugin.runJarvisCtl(["node", "cordon", node]);
+				}, true);
+			},
+			uncordonNode: async (node) => {
+				await this.runAction(`Opening ${node}`, async () => {
+					await this.plugin.runJarvisCtl(["node", "uncordon", node]);
+				}, true);
+			},
+			reconcileNodes: async () => {
+				await this.runAction("Reconciling nodes", async () => {
+					await this.plugin.runJarvisCtl(["node", "reconcile"]);
+				}, true);
+			},
+			rotateCapsuleKey: async () => {
+				await this.runAction("Rotating capsule key", async () => {
+					await this.plugin.runJarvisCtl(["node", "rotate-capsule-key"]);
+				}, true);
+			},
+			dispatchOnce: async () => {
+				await this.runAction("Running one dispatch scan", async () => {
+					await this.plugin.runJarvisCtl(["dispatch", "--once", "--vault-path", this.plugin.getVaultBasePath()]);
+				}, true);
+			},
 			runWorkerOffload: async (session, request) => {
 				this.actionInFlight = true;
 				this.state.statusMessage = `Offloading ${request.serviceName} via ${session.namespace}`;
@@ -1547,12 +1784,14 @@ class JarvisCtlControlView extends ItemView {
 
 	private async refreshSessions(noticeOnError = true): Promise<void> {
 		try {
-			const [sessions, workers] = await Promise.all([
+			const [sessions, workers, cluster] = await Promise.all([
 				this.plugin.fetchSessions(),
 				this.plugin.fetchWorkers(),
+				this.plugin.fetchClusterState(),
 			]);
 			this.state.sessions = sessions;
 			this.state.workers = workers;
+			this.state.cluster = cluster;
 			if (
 				!this.state.selectedNamespace ||
 				!sessions.some((session) => session.namespace === this.state.selectedNamespace)
@@ -1591,6 +1830,7 @@ class JarvisCtlControlView extends ItemView {
 				session_names: sessions.map((session) => session.namespace),
 				workers_count: workers.length,
 				worker_names: workers.map((worker) => `${worker.namespace}/${worker.name}`),
+				cluster_nodes: cluster.nodes.map((node) => node.name),
 				selected_namespace: this.state.selectedNamespace,
 				control_namespace: controlNamespace ?? null,
 				control_plane_resources: this.state.controlPlane?.resources.length ?? 0,

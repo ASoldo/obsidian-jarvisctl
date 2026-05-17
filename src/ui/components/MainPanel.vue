@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import type {
 	JarvisActivitySection,
 	JarvisControlPlaneState,
+	JarvisClusterState,
 	JarvisSessionMetadata,
 	JarvisWorkerMetadata,
 } from "../../types/domain";
@@ -16,6 +17,7 @@ import {
 	workerStatusLabel,
 } from "../helpers";
 import ApplicationsTab from "./ApplicationsTab.vue";
+import ClusterOpsPanel from "./ClusterOpsPanel.vue";
 import ControlPlanePanel from "./ControlPlanePanel.vue";
 import ObservabilitySection from "./ObservabilitySection.vue";
 import OperatorConsole from "./OperatorConsole.vue";
@@ -34,6 +36,7 @@ const props = defineProps<{
 	selectedWorker: JarvisWorkerMetadata | null;
 	selectedWorkerKey: string | null;
 	controlPlane: JarvisControlPlaneState | null;
+	cluster: JarvisClusterState;
 	activitySections: JarvisActivitySection[];
 }>();
 
@@ -46,6 +49,7 @@ const collapsedSections = ref<Record<string, boolean>>({
 	topology: false,
 	workflow: false,
 	controlPlane: false,
+	cluster: false,
 	applications: false,
 	workers: false,
 	snapshot: false,
@@ -145,6 +149,22 @@ function toggleSection(id: keyof typeof collapsedSections.value): void {
 				@toggle="toggleSection('workflow')"
 			>
 				<WorkflowPanel :session="session" embedded />
+			</SurfaceCard>
+
+			<SurfaceCard
+				eyebrow="Cluster Ops"
+				title="Nodes And Remote Codex"
+				icon="⌬"
+				:meta="[
+					`${cluster.nodes.length} nodes`,
+					`${cluster.index.visits.length} visits`,
+				]"
+				:status-label="cluster.gpg.ok ? 'secure' : 'check gpg'"
+				:status-tone="cluster.gpg.ok ? 'live' : 'warning'"
+				:collapsed="collapsedSections.cluster"
+				@toggle="toggleSection('cluster')"
+			>
+				<ClusterOpsPanel :host="host" :cluster="cluster" />
 			</SurfaceCard>
 
 			<SurfaceCard

@@ -194,6 +194,7 @@ function cycleEnvironment(): void {
 			:agent-count="liveAgentCount"
 			:subagent-count="subagentCount"
 			:worker-count="allWorkers.length"
+			:node-count="host.state.cluster.nodes.length"
 			:selected-state="selectedState"
 			@update:search-query="searchQuery = $event"
 			@toggle-environment="cycleEnvironment()"
@@ -226,6 +227,7 @@ function cycleEnvironment(): void {
 				:selected-worker="selectedWorker"
 				:selected-worker-key="selectedWorkerKey"
 				:control-plane="controlPlane"
+				:cluster="host.state.cluster"
 				:activity-sections="selectedActivitySections"
 				@select-worker="handleSelectWorker($event)"
 			/>

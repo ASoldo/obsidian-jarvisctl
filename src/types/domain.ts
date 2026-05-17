@@ -351,10 +351,117 @@ export interface JarvisControlPlaneState {
 	volumes: JarvisControlPlaneResource<JarvisResourcePolicyStatus>[];
 }
 
+export interface JarvisClusterNode {
+	kind?: string;
+	name: string;
+	status?: string;
+	detail?: string;
+}
+
+export interface JarvisNodeDoctorCheck {
+	node: string;
+	target?: string;
+	available: boolean;
+	schedulable?: boolean;
+	codex_auth_present?: boolean;
+	stale_auth_leases?: number | string;
+	stale_visit_artifacts?: number | string;
+	facts?: Record<string, string>;
+	issues?: string[];
+	error?: string | null;
+}
+
+export interface JarvisNodeLinkCheck {
+	from: string;
+	to: string;
+	reachable?: boolean;
+	ok?: boolean;
+	exit_status?: number;
+	detail?: string;
+	error?: string | null;
+}
+
+export interface JarvisVisitIndexEntry {
+	namespace: string;
+	node: string;
+	from_node?: string | null;
+	status?: string | null;
+	cleanup_status?: string | null;
+	failure_class?: string | null;
+	retryable?: boolean | null;
+	started_at_epoch_ms?: number | null;
+	finished_at_epoch_ms?: number | null;
+}
+
+export interface JarvisClusterIndexState {
+	sessions: JarvisSessionMetadata[];
+	visits: JarvisVisitIndexEntry[];
+}
+
+export interface JarvisAuthAuditEvent {
+	timestamp?: string;
+	action?: string;
+	event?: string;
+	node?: string;
+	namespace?: string;
+	path?: string;
+	status?: string;
+}
+
+export interface JarvisOrchestrationPolicy {
+	retries?: number;
+	timeout_seconds?: number;
+	cleanup_retention_days?: number;
+	remote_index_timeout_seconds?: number;
+}
+
+export interface JarvisGpgStatus {
+	ok: boolean;
+	detail: string;
+}
+
+export interface JarvisClusterState {
+	nodes: JarvisClusterNode[];
+	doctor: JarvisNodeDoctorCheck[];
+	links: JarvisNodeLinkCheck[];
+	index: JarvisClusterIndexState;
+	audit: JarvisAuthAuditEvent[];
+	policy: JarvisOrchestrationPolicy | null;
+	gpg: JarvisGpgStatus;
+}
+
+export interface JarvisVisitRequest {
+	namespace: string;
+	node: string;
+	text: string;
+	timeoutSeconds: string;
+}
+
+export interface JarvisStartSessionRequest {
+	namespace: string;
+	node: string;
+	taskNote: string;
+	message: string;
+}
+
+export interface JarvisFanoutRequest {
+	nodes: string;
+	text: string;
+	timeoutSeconds: string;
+}
+
+export interface JarvisBootstrapRequest {
+	name: string;
+	host: string;
+	user: string;
+	workspaceRoot: string;
+}
+
 export interface JarvisDashboardViewState {
 	sessions: JarvisSessionMetadata[];
 	workers: JarvisWorkerMetadata[];
 	controlPlane: JarvisControlPlaneState | null;
+	cluster: JarvisClusterState;
 	selectedNamespace: string | null;
 	selectedControlNamespace: string | null;
 	statusMessage: string;
