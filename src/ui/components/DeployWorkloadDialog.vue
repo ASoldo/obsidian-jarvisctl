@@ -21,12 +21,23 @@ const query = ref("");
 const selectedStatus = ref<string | null>(null);
 const selectedTicketPath = ref("");
 const mode = ref<DeployMode>("start-session");
+const validationMessage = ref("");
+const submitting = ref(false);
 const form = reactive({
+	title: "",
 	namespace: "",
 	node: "auto",
 	nodes: "",
 	timeoutSeconds: "900",
 	message: "",
+	repoPath: "/home/rootster/codex",
+	project: "",
+	status: "ready_for_codex",
+	priority: "medium",
+	model: "gpt-5.5",
+	reasoningEffort: "high",
+	sandboxMode: "danger-full-access",
+	finishMode: "keep",
 	labels: [] as string[],
 });
 
@@ -82,14 +93,48 @@ const filteredTickets = computed(() => {
 
 const nodeOptions = computed(() => ["auto", ...props.cluster.nodes.map((node) => node.name)]);
 
+const canDeploy = computed(() => validationError.value.length === 0 && !submitting.value);
+
+const validationError = computed(() => {
+	if (mode.value === "dispatch") {
+		return "";
+	}
+	if (mode.value === "fanout" && !form.nodes.trim()) {
+		return "Choose at least one fanout node.";
+	}
+	if (!form.timeoutSeconds.trim() || Number(form.timeoutSeconds) <= 0) {
+		return "Timeout must be a positive number.";
+	}
+	if (mode.value === "start-session") {
+		if (!selectedTicket.value && !form.message.trim()) {
+			return "Pick a ticket or enter a prompt so the dashboard can create an ad-hoc ticket.";
+		}
+		if (!selectedTicket.value && !form.repoPath.trim()) {
+			return "Set a repo path for the ad-hoc ticket.";
+		}
+	}
+	if ((mode.value === "visit" || mode.value === "fanout") && !form.message.trim() && !selectedTicket.value) {
+		return "Enter a prompt or pick a ticket.";
+	}
+	return "";
+});
+
 watch(
 	selectedTicket,
 	(ticket) => {
 		if (!ticket) {
 			return;
 		}
+		form.title = ticket.title;
 		form.namespace = slugify(ticket.title || ticket.path);
 		form.message = buildDefaultPrompt(ticket);
+		form.repoPath = ticket.repo_path || form.repoPath;
+		form.project = ticket.project || "";
+		form.priority = ticket.priority || form.priority;
+		form.model = ticket.codex_model || form.model;
+		form.reasoningEffort = ticket.codex_reasoning_effort || form.reasoningEffort;
+		form.sandboxMode = ticket.codex_sandbox_mode || form.sandboxMode;
+		form.finishMode = ticket.codex_finish_mode || form.finishMode;
 	},
 	{ immediate: false },
 );
@@ -123,41 +168,59 @@ function toggleLabel(label: string): void {
 }
 
 async function deploy(): Promise<void> {
-	const ticket = selectedTicket.value;
-	if (mode.value === "dispatch") {
-		await props.host.dispatchOnce();
-		emit("close");
+	validationMessage.value = validationError.value;
+	if (validationMessage.value) {
 		return;
 	}
-	if (mode.value === "visit") {
-		await props.host.runClusterVisit({
+	submitting.value = true;
+	const ticket = selectedTicket.value;
+	try {
+		if (mode.value === "dispatch") {
+			await props.host.dispatchOnce();
+			emit("close");
+			return;
+		}
+		if (mode.value === "visit") {
+			await props.host.runClusterVisit({
+				namespace: form.namespace,
+				node: form.node,
+				text: form.message || (ticket ? buildDefaultPrompt(ticket) : "Inspect node readiness."),
+				timeoutSeconds: form.timeoutSeconds,
+			});
+			emit("close");
+			return;
+		}
+		if (mode.value === "fanout") {
+			await props.host.runClusterFanout({
+				nodes: form.nodes,
+				text: form.message || (ticket ? buildDefaultPrompt(ticket) : "Report node readiness."),
+				timeoutSeconds: form.timeoutSeconds,
+			});
+			emit("close");
+			return;
+		}
+		await props.host.startClusterSession({
 			namespace: form.namespace,
 			node: form.node,
-			text: form.message || (ticket ? buildDefaultPrompt(ticket) : "Inspect node readiness."),
-			timeoutSeconds: form.timeoutSeconds,
+			taskNote: ticket?.absolute_path ?? "",
+			title: form.title,
+			repoPath: form.repoPath,
+			project: form.project,
+			status: form.status,
+			priority: form.priority,
+			model: form.model,
+			reasoningEffort: form.reasoningEffort,
+			sandboxMode: form.sandboxMode,
+			finishMode: form.finishMode,
+			tags: form.labels,
+			message: form.message,
 		});
 		emit("close");
-		return;
+	} catch (error) {
+		validationMessage.value = error instanceof Error ? error.message : String(error);
+	} finally {
+		submitting.value = false;
 	}
-	if (mode.value === "fanout") {
-		await props.host.runClusterFanout({
-			nodes: form.nodes,
-			text: form.message || (ticket ? buildDefaultPrompt(ticket) : "Report node readiness."),
-			timeoutSeconds: form.timeoutSeconds,
-		});
-		emit("close");
-		return;
-	}
-	if (!ticket) {
-		return;
-	}
-	await props.host.startClusterSession({
-		namespace: form.namespace,
-		node: form.node,
-		taskNote: ticket.absolute_path,
-		message: form.message,
-	});
-	emit("close");
 }
 </script>
 
@@ -226,6 +289,10 @@ async function deploy(): Promise<void> {
 						</select>
 					</div>
 					<div class="cp-form-field">
+						<label class="cp-form-field__label">Title</label>
+						<input v-model="form.title" class="cp-form-input" placeholder="ad-hoc ticket title" :disabled="!!selectedTicket || mode === 'dispatch'" />
+					</div>
+					<div class="cp-form-field">
 						<label class="cp-form-field__label">Node</label>
 						<select v-model="form.node" class="cp-form-select" :disabled="mode === 'fanout' || mode === 'dispatch'">
 							<option v-for="node in nodeOptions" :key="node" :value="node">{{ node }}</option>
@@ -246,8 +313,8 @@ async function deploy(): Promise<void> {
 					<div class="cp-form-field">
 						<label class="cp-form-field__label">Selected ticket</label>
 						<div class="cp-deploy-ticket-card">
-							<div class="cp-control-plane-card__title">{{ selectedTicket?.title ?? "Pick a ticket" }}</div>
-							<div class="cp-control-plane-card__meta">{{ selectedTicket?.repo_path ?? selectedTicket?.path ?? "Ticket properties populate workload defaults." }}</div>
+							<div class="cp-control-plane-card__title">{{ selectedTicket?.title ?? "Ad-hoc ticket" }}</div>
+							<div class="cp-control-plane-card__meta">{{ selectedTicket?.repo_path ?? "No ticket selected. Deploy will create a ticket from these fields." }}</div>
 							<div v-if="selectedTicket" class="cp-chip-row">
 								<span v-if="selectedTicket.codex_driver" class="cp-chip">{{ selectedTicket.codex_driver }}</span>
 								<span v-if="selectedTicket.codex_model" class="cp-chip">{{ selectedTicket.codex_model }}</span>
@@ -256,6 +323,63 @@ async function deploy(): Promise<void> {
 								<span v-if="selectedTicket.codex_finish_mode" class="cp-chip">finish {{ selectedTicket.codex_finish_mode }}</span>
 							</div>
 						</div>
+					</div>
+					<div class="cp-form-field">
+						<label class="cp-form-field__label">Repo path</label>
+						<input v-model="form.repoPath" class="cp-form-input" placeholder="/home/rootster/work/project" :disabled="!!selectedTicket || mode === 'dispatch'" />
+					</div>
+					<div class="cp-form-field">
+						<label class="cp-form-field__label">Project</label>
+						<input v-model="form.project" class="cp-form-input" placeholder="Projects/name/Project.md" :disabled="!!selectedTicket || mode === 'dispatch'" />
+					</div>
+					<div class="cp-form-field">
+						<label class="cp-form-field__label">Status</label>
+						<select v-model="form.status" class="cp-form-select" :disabled="!!selectedTicket || mode === 'dispatch'">
+							<option value="ready_for_codex">ready_for_codex</option>
+							<option value="capture">capture</option>
+							<option value="active">active</option>
+							<option value="waiting_on_human">waiting_on_human</option>
+						</select>
+					</div>
+					<div class="cp-form-field">
+						<label class="cp-form-field__label">Priority</label>
+						<select v-model="form.priority" class="cp-form-select" :disabled="!!selectedTicket || mode === 'dispatch'">
+							<option value="low">low</option>
+							<option value="medium">medium</option>
+							<option value="high">high</option>
+						</select>
+					</div>
+					<div class="cp-form-field">
+						<label class="cp-form-field__label">Model</label>
+						<select v-model="form.model" class="cp-form-select" :disabled="!!selectedTicket || mode === 'dispatch'">
+							<option value="gpt-5.5">gpt-5.5</option>
+							<option value="gpt-5.4">gpt-5.4</option>
+							<option value="gpt-5.4-mini">gpt-5.4-mini</option>
+						</select>
+					</div>
+					<div class="cp-form-field">
+						<label class="cp-form-field__label">Effort</label>
+						<select v-model="form.reasoningEffort" class="cp-form-select" :disabled="!!selectedTicket || mode === 'dispatch'">
+							<option value="low">low</option>
+							<option value="medium">medium</option>
+							<option value="high">high</option>
+							<option value="xhigh">xhigh</option>
+						</select>
+					</div>
+					<div class="cp-form-field">
+						<label class="cp-form-field__label">Sandbox</label>
+						<select v-model="form.sandboxMode" class="cp-form-select" :disabled="!!selectedTicket || mode === 'dispatch'">
+							<option value="read-only">read-only</option>
+							<option value="workspace-write">workspace-write</option>
+							<option value="danger-full-access">danger-full-access</option>
+						</select>
+					</div>
+					<div class="cp-form-field">
+						<label class="cp-form-field__label">Finish mode</label>
+						<select v-model="form.finishMode" class="cp-form-select" :disabled="!!selectedTicket || mode === 'dispatch'">
+							<option value="keep">keep</option>
+							<option value="close">close</option>
+						</select>
 					</div>
 					<div class="cp-form-field cp-form-field--full">
 						<label class="cp-form-field__label">Labels</label>
@@ -275,10 +399,13 @@ async function deploy(): Promise<void> {
 						<label class="cp-form-field__label">Prompt / operator message</label>
 						<textarea v-model="form.message" class="cp-form-textarea cp-deploy-message" placeholder="Prompt sent to Codex or remote visit" />
 					</div>
+					<div v-if="validationMessage || validationError" class="cp-deploy-validation">
+						{{ validationMessage || validationError }}
+					</div>
 					<div class="cp-deploy-dialog__actions">
 						<button type="button" class="cp-ghost-button cp-deploy-button" @click="emit('close')">Cancel</button>
-						<button type="submit" class="cp-ghost-button cp-ghost-button--primary cp-deploy-button" :disabled="mode === 'start-session' && !selectedTicket">
-							Deploy
+						<button type="submit" class="cp-ghost-button cp-ghost-button--primary cp-deploy-button" :disabled="!canDeploy">
+							{{ submitting ? "Deploying" : "Deploy" }}
 						</button>
 					</div>
 				</form>

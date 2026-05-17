@@ -464,6 +464,16 @@ export interface JarvisStartSessionRequest {
 	namespace: string;
 	node: string;
 	taskNote: string;
+	title?: string;
+	repoPath?: string;
+	project?: string;
+	status?: string;
+	priority?: string;
+	model?: string;
+	reasoningEffort?: string;
+	sandboxMode?: string;
+	finishMode?: string;
+	tags?: string[];
 	message: string;
 }
 

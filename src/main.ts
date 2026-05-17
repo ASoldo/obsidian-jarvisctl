@@ -95,6 +95,11 @@ interface TerminalProfile {
 	useWin32Conhost?: boolean;
 }
 
+interface JarvisNodeScheduleResult {
+	node: string;
+	target?: string;
+}
+
 interface TerminalPluginData {
 	defaultProfile?: string;
 	profiles?: Record<string, TerminalProfile>;
@@ -614,11 +619,13 @@ export default class JarvisCtlControlPlugin extends Plugin {
 	}
 
 	async startClusterSession(request: JarvisStartSessionRequest): Promise<string> {
-		const taskNote = request.taskNote.trim();
+		const taskNote = request.taskNote.trim() || await this.createAdHocTicket(request);
 		if (!taskNote) {
 			throw new Error("Starting a session requires a ticket/task note path.");
 		}
-		const args = ["node", "start-session", "--node", request.node.trim() || "auto", "--task-note", taskNote, "--full"];
+		const node = await this.resolveStartSessionNode(request.node.trim() || "auto");
+		await this.syncTaskNoteToNode(taskNote, node);
+		const args = ["node", "start-session", "--node", node, "--task-note", taskNote, "--full"];
 		if (request.namespace.trim()) {
 			args.push("--namespace", request.namespace.trim());
 		}
@@ -628,6 +635,111 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		const { stdout } = await this.execJarvisCtl(args);
 		this.invalidateRuntimeCaches();
 		return stdout.trim();
+	}
+
+	private async resolveStartSessionNode(node: string): Promise<string> {
+		if (node !== "auto") {
+			return node;
+		}
+		const scheduled = await this.fetchJson<JarvisNodeScheduleResult | null>(
+			["node", "schedule", "--out", "json"],
+			null,
+		);
+		if (!scheduled?.node) {
+			throw new Error("No schedulable node is available.");
+		}
+		return scheduled.node;
+	}
+
+	private async syncTaskNoteToNode(taskNote: string, nodeName: string): Promise<void> {
+		if (!isAbsolute(taskNote) || !existsSync(taskNote)) {
+			return;
+		}
+		const nodes = await this.fetchJson<JarvisClusterNode[]>(["get", "nodes", "--out", "json"], []);
+		const node = nodes.find((entry) => entry.name === nodeName);
+		const sshTarget = String(node?.detail ?? "").match(/\bssh=([^ ]+)/)?.[1];
+		if (!sshTarget) {
+			return;
+		}
+		await execFileAsync("ssh", [sshTarget, `mkdir -p ${shellQuote(dirname(taskNote))}`], {
+			timeout: 15_000,
+		});
+		await execFileAsync("rsync", ["-a", taskNote, `${sshTarget}:${taskNote}`], {
+			timeout: 30_000,
+		});
+	}
+
+	private async createAdHocTicket(request: JarvisStartSessionRequest): Promise<string> {
+		const title =
+			request.title?.trim() ||
+			firstLine(request.message) ||
+			`Ad hoc Codex workload ${new Date().toISOString().slice(0, 16).replace("T", " ")}`;
+		const slug = slugifyForCli(title) || `ad-hoc-${Date.now()}`;
+		const relativePath = await this.nextAvailableVaultPath(`Tickets/${slug}.md`);
+		const absolutePath = join(this.getVaultBasePath(), relativePath);
+		const created = new Date().toISOString().slice(0, 10);
+		const tags = Array.from(new Set(["ticket", "adhoc", ...(request.tags ?? [])])).filter(Boolean);
+		const body = [
+			"---",
+			"type: ticket",
+			`status: ${request.status?.trim() || "ready_for_codex"}`,
+			"owner: human",
+			"autostart: false",
+			`priority: ${request.priority?.trim() || "medium"}`,
+			`project: ${request.project?.trim() || ""}`,
+			`repo_path: ${request.repoPath?.trim() || this.getVaultBasePath()}`,
+			"codex_driver: app-server",
+			`codex_model: ${request.model?.trim() || "gpt-5.5"}`,
+			"codex_approval_policy: never",
+			`codex_sandbox_mode: ${request.sandboxMode?.trim() || "danger-full-access"}`,
+			`codex_reasoning_effort: ${request.reasoningEffort?.trim() || "high"}`,
+			"codex_search: false",
+			"codex_add_dirs: []",
+			"codex_completion_status: review",
+			"codex_completion_column: Review",
+			`codex_finish_mode: ${request.finishMode?.trim() || "keep"}`,
+			`created: ${created}`,
+			`updated: ${created}`,
+			"tags:",
+			...tags.map((tag) => `  - ${tag}`),
+			"---",
+			"",
+			`# ${title}`,
+			"",
+			"## Request",
+			`- ${request.message.trim() || "Run the requested Codex workload from the dashboard."}`,
+			"",
+			"## Definition Of Done",
+			"- The workload runs from the Obsidian Jarvis dashboard.",
+			"- Progress and outcome are recorded in this ticket.",
+			"",
+			"## Context",
+			`- Created from Jarvis Control deploy dialog on ${new Date().toISOString()}.`,
+			"",
+			"## Progress",
+			"- Ticket created by dashboard deploy flow.",
+			"",
+			"## Outcome",
+			"- ",
+			"",
+		].join("\n");
+		await this.app.vault.create(relativePath, body);
+		return absolutePath;
+	}
+
+	private async nextAvailableVaultPath(initialPath: string): Promise<string> {
+		if (!this.app.vault.getAbstractFileByPath(initialPath)) {
+			return initialPath;
+		}
+		const extension = extname(initialPath);
+		const stem = initialPath.slice(0, -extension.length);
+		for (let index = 2; index < 1000; index += 1) {
+			const candidate = `${stem}-${index}${extension}`;
+			if (!this.app.vault.getAbstractFileByPath(candidate)) {
+				return candidate;
+			}
+		}
+		return `${stem}-${Date.now()}${extension}`;
 	}
 
 	async runClusterFanout(request: JarvisFanoutRequest): Promise<string> {
@@ -1733,19 +1845,19 @@ class JarvisCtlControlView extends ItemView {
 				await this.runAction(`Visiting ${request.node || "auto"}`, async () => {
 					const output = await this.plugin.runClusterVisit(request);
 					this.state.statusMessage = output || "Visit completed";
-				}, true);
+				}, true, true);
 			},
 			startClusterSession: async (request) => {
 				await this.runAction(`Starting session on ${request.node || "auto"}`, async () => {
 					const output = await this.plugin.startClusterSession(request);
 					this.state.statusMessage = output || "Remote session started";
-				}, true);
+				}, true, true);
 			},
 			runClusterFanout: async (request) => {
 				await this.runAction("Running fanout", async () => {
 					const output = await this.plugin.runClusterFanout(request);
 					this.state.statusMessage = output || "Fanout completed";
-				}, true);
+				}, true, true);
 			},
 			bootstrapClusterNode: async (request) => {
 				await this.runAction(`Bootstrapping ${request.name}`, async () => {
@@ -1903,6 +2015,7 @@ class JarvisCtlControlView extends ItemView {
 		status: string,
 		callback: () => Promise<void>,
 		refreshAfter = false,
+		rethrow = false,
 	): Promise<void> {
 		this.actionInFlight = true;
 		this.state.statusMessage = status;
@@ -1916,6 +2029,9 @@ class JarvisCtlControlView extends ItemView {
 			console.error(error);
 			this.state.statusMessage = "Action failed";
 			new Notice(`JarvisCtl Control action failed: ${formatError(error)}`);
+			if (rethrow) {
+				throw error;
+			}
 		} finally {
 			this.actionInFlight = false;
 		}
@@ -2530,6 +2646,13 @@ function frontmatterBoolean(value: unknown): boolean | undefined {
 		return value.toLowerCase() === "true";
 	}
 	return undefined;
+}
+
+function firstLine(value: string): string {
+	return value
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.find(Boolean) ?? "";
 }
 
 function slugifyForCli(value: string): string {
