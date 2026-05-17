@@ -646,9 +646,33 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			args.push("--message", request.message.trim());
 		}
 		const { stdout } = await this.execJarvisCtl(args);
+		const output = stdout.trim();
+		const startedNamespace = this.parseStartedSessionNamespace(output) ?? request.namespace.trim();
 		await this.syncTaskNoteFromNode(taskNote, node);
+		if ((request.finishMode?.trim().toLowerCase() ?? "") === "close") {
+			if (!startedNamespace) {
+				throw new Error("Remote session started, but no namespace was returned to close.");
+			}
+			await this.execJarvisCtl(["delete", "--namespace", startedNamespace]);
+			this.invalidateRuntimeCaches();
+			return `${output}\n\nClosed namespace ${startedNamespace} because finish mode is close.`;
+		}
 		this.invalidateRuntimeCaches();
-		return stdout.trim();
+		return output;
+	}
+
+	private parseStartedSessionNamespace(output: string): string | null {
+		if (!output.trim()) {
+			return null;
+		}
+		try {
+			const parsed = JSON.parse(output) as { namespace?: unknown };
+			return typeof parsed.namespace === "string" && parsed.namespace.trim()
+				? parsed.namespace.trim()
+				: null;
+		} catch {
+			return output.match(/"namespace"\s*:\s*"([^"]+)"/)?.[1] ?? null;
+		}
 	}
 
 	private async resolveStartSessionNode(node: string): Promise<string> {

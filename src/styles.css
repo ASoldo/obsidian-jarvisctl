@@ -1,6 +1,3 @@
-@import "@vue-flow/core/dist/style.css";
-@import "@vue-flow/core/dist/theme-default.css";
-
 @layer theme, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
@@ -488,11 +485,6 @@
     @apply min-h-0 min-w-0;
   }
 
-  .cp-topology-workbench {
-    @apply grid h-full min-h-0 min-w-0 items-start gap-3;
-    grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.92fr);
-  }
-
   .cp-workflow-panel-embedded {
     @apply grid h-full min-h-0 min-w-0;
     grid-template-rows: auto minmax(0, 1fr);
@@ -780,7 +772,8 @@
   }
 
   .cp-runtime-item__row {
-    @apply flex min-w-0 items-center justify-between gap-2.5 px-0.5;
+    @apply grid min-w-0 items-start gap-2 px-0.5;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .cp-runtime-item__identity {
@@ -793,7 +786,15 @@
   }
 
   .cp-runtime-item__summary {
-    @apply flex shrink-0 items-center justify-end gap-1.5;
+    @apply flex min-w-0 flex-wrap items-center justify-start gap-1.5;
+    grid-column: 1 / -1;
+  }
+
+  .cp-runtime-item__close {
+    block-size: 1.55rem !important;
+    inline-size: 1.55rem !important;
+    min-inline-size: 1.55rem !important;
+    @apply text-[13px];
   }
 
   .cp-runtime-item__summary .cp-runtime-item__state-chip,
@@ -811,6 +812,47 @@
 
   .cp-runtime-item__head .cp-badge {
     @apply shrink-0;
+  }
+
+  .cp-node-list {
+    @apply grid gap-2;
+  }
+
+  .cp-node-list__item {
+    border: 1px solid color-mix(in srgb, var(--cp-border) 74%, transparent);
+    background: color-mix(in srgb, var(--cp-panel-strong) 74%, transparent);
+    @apply min-w-0 rounded-xl px-3 py-2.5;
+  }
+
+  .cp-node-list__head {
+    @apply grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2;
+  }
+
+  .cp-node-list__dot {
+    @apply h-2.5 w-2.5 rounded-full;
+    background: var(--cp-text-dim);
+  }
+
+  .cp-node-list__dot.is-live {
+    background: var(--cp-emerald);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--cp-emerald) 14%, transparent);
+  }
+
+  .cp-node-list__dot.is-warning {
+    background: var(--cp-amber);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--cp-amber) 14%, transparent);
+  }
+
+  .cp-node-list__copy {
+    @apply grid min-w-0 gap-0.5;
+  }
+
+  .cp-node-list__name {
+    @apply min-w-0 truncate text-[12px] font-semibold leading-tight text-[color:var(--cp-text-soft)];
+  }
+
+  .cp-node-list__meta {
+    @apply min-w-0 truncate text-[10px] uppercase leading-tight tracking-[0.08em] text-[color:var(--cp-text-dim)];
   }
 
   .cp-entity-heading {
@@ -1049,13 +1091,41 @@
       linear-gradient(180deg, color-mix(in srgb, var(--cp-panel) 97%, #040914 3%), color-mix(in srgb, var(--cp-panel-strong) 98%, #020617 2%));
   }
 
-  .cp-topology-tab {
-    @apply grid h-full min-h-0 min-w-0 content-start gap-3 pr-1;
-    grid-template-rows: minmax(0, 1fr);
+  .cp-workflow-linear {
+    @apply grid min-w-0 gap-3;
   }
 
-  .cp-topology-canvas {
-    @apply relative min-h-[440px] overflow-hidden rounded-2xl border border-[var(--cp-border)] p-0;
+  .cp-workflow-step-list {
+    @apply grid min-w-0 gap-2;
+  }
+
+  .cp-workflow-step-card {
+    border: 1px solid color-mix(in srgb, var(--cp-border) 74%, transparent);
+    background: color-mix(in srgb, var(--cp-panel-strong) 74%, transparent);
+    @apply grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-2.5 text-left transition;
+  }
+
+  .cp-workflow-step-card:hover,
+  .cp-workflow-step-card.is-active {
+    border-color: color-mix(in srgb, var(--cp-blue) 48%, var(--cp-border) 52%);
+  }
+
+  .cp-workflow-step-card__icon {
+    @apply flex h-8 w-8 items-center justify-center rounded-full text-[13px];
+    border: 1px solid color-mix(in srgb, var(--cp-border) 76%, transparent);
+    background: color-mix(in srgb, var(--cp-panel) 78%, transparent);
+  }
+
+  .cp-workflow-step-card__copy {
+    @apply grid min-w-0 gap-0.5;
+  }
+
+  .cp-workflow-step-card__title {
+    @apply min-w-0 truncate text-[12px] font-semibold text-[color:var(--cp-text-soft)];
+  }
+
+  .cp-workflow-step-card__detail {
+    @apply min-w-0 truncate text-[11px] text-[color:var(--cp-text-dim)];
   }
 
   .cp-inspector {
@@ -1492,10 +1562,6 @@
     @apply min-h-0 min-w-0;
   }
 
-  .cp-workflow-canvas {
-    @apply relative min-h-[460px] overflow-hidden rounded-2xl border border-[var(--cp-border)] p-0;
-  }
-
   .cp-workflow-inspector {
     border: 1px solid var(--cp-border);
     background: color-mix(in srgb, var(--cp-panel) 98%, #040914 2%);
@@ -1516,121 +1582,6 @@
 
   .cp-workflow-inspector__resource {
     @apply grid gap-1 border-t border-[color:var(--cp-border)] pt-2;
-  }
-
-  .cp-workflow-shell {
-    @apply grid min-h-0 gap-3;
-    grid-template-rows: minmax(0, 1fr) auto;
-  }
-
-  .cp-flow-scene-shell {
-    @apply relative h-full w-full;
-  }
-
-  .cp-flow-scene-shell--topology {
-    min-height: 100%;
-  }
-
-  .cp-flow-scene-shell--workflow {
-    min-height: 100%;
-  }
-
-  .cp-vue-flow {
-    @apply h-full w-full rounded-xl;
-    --vf-node-bg: transparent;
-    --vf-node-color: inherit;
-    --vf-connection-path: var(--cp-blue);
-    --vf-edge-text: var(--text-normal);
-    --vf-handle: transparent;
-  }
-
-  .cp-vue-flow .vue-flow__pane {
-    cursor: grab;
-  }
-
-  .cp-vue-flow .vue-flow__pane.dragging {
-    cursor: grabbing;
-  }
-
-  .cp-vue-flow .vue-flow__node {
-    background: transparent;
-    border: 0;
-    box-shadow: none;
-    padding: 0;
-  }
-
-  .cp-vue-flow .vue-flow__node.selected .cp-flow-card,
-  .cp-vue-flow .vue-flow__node:focus-visible .cp-flow-card {
-    border-color: var(--cp-border-strong);
-    box-shadow:
-      0 18px 34px color-mix(in srgb, #020617 26%, transparent),
-      inset 0 0 0 1px color-mix(in srgb, var(--cp-sky) 18%, transparent);
-  }
-
-  .cp-vue-flow .vue-flow__edge-path {
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
-  .cp-vue-flow .vue-flow__attribution {
-    display: none;
-  }
-
-  .cp-flow-card {
-    border: 1px solid var(--cp-border);
-    background: linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--cp-panel-strong) 98%, #050b15 2%),
-      color-mix(in srgb, var(--cp-panel) 99%, #020617 1%)
-    );
-    box-shadow:
-      0 12px 28px color-mix(in srgb, #020617 22%, transparent),
-      inset 0 1px 0 color-mix(in srgb, white 4%, transparent);
-    @apply relative rounded-xl px-3 py-2 text-left transition;
-  }
-
-  .cp-flow-card.is-selected {
-    border-color: var(--cp-border-strong);
-  }
-
-  .cp-flow-card--topology {
-    @apply min-h-[74px] min-w-[204px];
-  }
-
-  .cp-flow-card--workflow {
-    @apply min-h-[74px] min-w-[208px];
-  }
-
-  .cp-flow-card__workflow-head {
-    @apply grid min-w-0 grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2;
-  }
-
-  .cp-flow-card__icon {
-    border: 1px solid color-mix(in srgb, var(--cp-blue) 36%, var(--cp-border) 64%);
-    background: color-mix(in srgb, var(--cp-blue) 14%, transparent);
-    @apply flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-bold;
-  }
-
-  .cp-flow-card__body {
-    @apply min-w-0;
-  }
-
-  .cp-flow-card__title {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    overflow: hidden;
-    @apply text-[12px] font-semibold leading-tight;
-  }
-
-  .cp-flow-card__topology-head {
-    @apply flex min-w-0 items-center justify-between gap-3;
-  }
-
-  .cp-flow-handle {
-    opacity: 0;
-    pointer-events: none;
-    @apply !h-1 !w-1 !border-0 !bg-transparent;
   }
 
   .cp-bottom-panel .cp-panel__body {
@@ -1870,29 +1821,12 @@
     @apply min-h-0;
   }
 
-  .cp-topology-tab {
-    @apply h-auto min-w-0 overflow-hidden pr-0;
-  }
-
   .cp-workflow-panel-embedded {
     @apply h-auto min-h-0 min-w-0 overflow-hidden;
   }
 
   .cp-workflow-panel__body-embedded {
     @apply min-h-0 min-w-0 overflow-hidden;
-  }
-
-  .cp-workflow-shell {
-    @apply grid min-h-0 gap-3;
-    grid-template-columns: 1fr;
-  }
-
-  .cp-workflow-shell.has-inspector {
-    grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.92fr);
-  }
-
-  .cp-workflow-canvas {
-    @apply min-h-[460px];
   }
 
   .cp-operator-console {
@@ -2372,12 +2306,7 @@
       grid-template-areas: "sidebar main";
     }
 
-    .cp-topology-workbench {
-      grid-template-columns: 1fr;
-    }
-
-    .cp-operator-console,
-    .cp-workflow-shell.has-inspector {
+    .cp-operator-console {
       grid-template-columns: 1fr;
     }
 

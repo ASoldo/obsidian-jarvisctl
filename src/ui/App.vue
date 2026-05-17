@@ -202,6 +202,7 @@ function cycleEnvironment(): void {
 				:repositories="repositories"
 				:sessions="filteredSessions"
 				:workers="filteredWorkers"
+				:nodes="host.state.cluster.nodes"
 				:selected-namespace="selectedSession?.namespace ?? null"
 				:selected-worker-key="selectedWorkerKey"
 				:selected-repository="selectedRepository"
@@ -211,6 +212,7 @@ function cycleEnvironment(): void {
 				@select-worker="handleSelectWorker($event)"
 				@open-ticket="host.openTicket($event)"
 				@open-transcript="host.openTranscript($event)"
+				@close-namespace="host.closeNamespace($event)"
 			/>
 
 			<MainPanel

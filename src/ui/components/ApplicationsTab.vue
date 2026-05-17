@@ -80,6 +80,15 @@ defineProps<{
 								<span class="cp-button__icon" aria-hidden="true">⌘</span>
 								<span class="cp-action-button__label">Ticket</span>
 						</button>
+						<button
+							type="button"
+							class="cp-mini-button cp-button--danger cp-action-button"
+							title="Close namespace"
+							@click="host.closeNamespace(session)"
+						>
+								<span class="cp-button__icon" aria-hidden="true">×</span>
+								<span class="cp-action-button__label">Close</span>
+						</button>
 						</div>
 					</div>
 				</div>

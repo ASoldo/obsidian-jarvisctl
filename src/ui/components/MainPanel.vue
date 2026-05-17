@@ -24,7 +24,6 @@ import OperatorConsole from "./OperatorConsole.vue";
 import RuntimeTab from "./RuntimeTab.vue";
 import StatusBadge from "./StatusBadge.vue";
 import SurfaceCard from "./SurfaceCard.vue";
-import TopologyTab from "./TopologyTab.vue";
 import WorkersPanel from "./WorkersPanel.vue";
 import WorkflowPanel from "./WorkflowPanel.vue";
 
@@ -46,7 +45,6 @@ defineEmits<{
 
 const collapsedSections = ref<Record<string, boolean>>({
 	operator: false,
-	topology: false,
 	workflow: false,
 	controlPlane: false,
 	cluster: false,
@@ -120,28 +118,12 @@ function toggleSection(id: keyof typeof collapsedSections.value): void {
 			</SurfaceCard>
 
 			<SurfaceCard
-				eyebrow="Cluster Topology"
-				title="Namespace Graph"
-				icon="◎"
-				:meta="[
-					session ? session.namespace : 'select namespace',
-					session ? `${session.context?.subagents?.length ?? 0} branches` : '0 branches',
-				]"
-				:status-label="session ? sessionStateLabel(session) : 'idle'"
-				:status-tone="session ? sessionTone(session) : 'idle'"
-				:collapsed="collapsedSections.topology"
-				@toggle="toggleSection('topology')"
-			>
-				<TopologyTab :session="session" />
-			</SurfaceCard>
-
-			<SurfaceCard
 				eyebrow="Automation Workflow"
-				title="Execution Graph"
+				title="Execution Steps"
 				icon="⑇"
 				:meta="[
 					activeWorkflowStep ? `focus ${activeWorkflowStep.label}` : 'awaiting runtime',
-					`${workflowSteps.length} nodes`,
+					`${workflowSteps.length} steps`,
 				]"
 				:status-label="session ? sessionStateLabel(session) : 'idle'"
 				:status-tone="session ? sessionTone(session) : 'idle'"

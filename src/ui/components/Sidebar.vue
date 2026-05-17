@@ -12,7 +12,7 @@ import {
 	workerScope,
 	workerStatusLabel,
 } from "../helpers";
-import type { JarvisSessionMetadata, JarvisWorkerMetadata } from "../../types/domain";
+import type { JarvisClusterNode, JarvisSessionMetadata, JarvisWorkerMetadata } from "../../types/domain";
 import EntityAvatar from "./EntityAvatar.vue";
 import StatusBadge from "./StatusBadge.vue";
 
@@ -20,6 +20,7 @@ const props = defineProps<{
 	repositories: RepositoryGroupModel[];
 	sessions: JarvisSessionMetadata[];
 	workers: JarvisWorkerMetadata[];
+	nodes: JarvisClusterNode[];
 	selectedNamespace: string | null;
 	selectedWorkerKey: string | null;
 	selectedRepository: string | null;
@@ -32,6 +33,7 @@ const emit = defineEmits<{
 	(event: "select-worker", value: string): void;
 	(event: "open-ticket", session: JarvisSessionMetadata): void;
 	(event: "open-transcript", session: JarvisSessionMetadata): void;
+	(event: "close-namespace", session: JarvisSessionMetadata): void;
 }>();
 
 function backendMarker(backend: string | null | undefined): string {
@@ -47,6 +49,37 @@ function backendMarker(backend: string | null | undefined): string {
 
 function runtimeStateLabel(session: JarvisSessionMetadata): string {
 	return session.context?.thread_status ?? (session.agents.some((agent) => agent.running) ? "running" : "idle");
+}
+
+function nodeTone(node: JarvisClusterNode): "live" | "warning" | "idle" {
+	const status = (node.status ?? "").toLowerCase();
+	const detail = (node.detail ?? "").toLowerCase();
+	if (status.includes("cordon") || status.includes("offline") || detail.includes("cordon")) {
+		return "warning";
+	}
+	return status.includes("ready") || status.includes("online") || status.includes("local") || detail.includes("ssh=")
+		? "live"
+		: "idle";
+}
+
+function nodeRole(node: JarvisClusterNode): string {
+	const labels = [];
+	const detail = (node.detail ?? "").toLowerCase();
+	if (detail.includes("control-plane")) {
+		labels.push("control");
+	}
+	if (detail.includes("worker")) {
+		labels.push("worker");
+	}
+	if (detail.includes("local")) {
+		labels.push("local");
+	}
+	return labels.join(", ") || "node";
+}
+
+function nodeStatusLabel(node: JarvisClusterNode): string {
+	const status = node.status?.trim();
+	return status || (nodeTone(node) === "live" ? "ready" : "idle");
 }
 </script>
 
@@ -94,6 +127,33 @@ function runtimeStateLabel(session: JarvisSessionMetadata): string {
 					</div>
 				</section>
 
+			<section class="cp-sidebar-section">
+				<div class="cp-section__header">
+					<p class="cp-panel__eyebrow">Cluster Nodes</p>
+					<span class="cp-section__meta">{{ nodes.length }} nodes</span>
+				</div>
+				<div v-if="nodes.length === 0" class="cp-empty-state">
+					No cluster nodes are registered.
+				</div>
+				<div v-else class="cp-node-list">
+					<div
+						v-for="node in nodes"
+						:key="node.name"
+						class="cp-node-list__item"
+						:title="node.detail"
+					>
+						<div class="cp-node-list__head">
+							<span :class="['cp-node-list__dot', `is-${nodeTone(node)}`]" />
+							<div class="cp-node-list__copy">
+								<div class="cp-node-list__name">{{ node.name }}</div>
+								<div class="cp-node-list__meta">{{ nodeRole(node) }}</div>
+							</div>
+							<StatusBadge :label="nodeStatusLabel(node)" :tone="nodeTone(node)" compact />
+						</div>
+					</div>
+				</div>
+			</section>
+
 			<section class="cp-sidebar-section cp-sidebar-section--runtime">
 				<div class="cp-section__header">
 					<p class="cp-panel__eyebrow">Agent Runtime</p>
@@ -123,6 +183,15 @@ function runtimeStateLabel(session: JarvisSessionMetadata): string {
 										<div class="cp-runtime-item__subtitle">{{ sessionBackendLabel(session) }}</div>
 									</div>
 								</div>
+								<button
+									type="button"
+									class="cp-mini-button cp-button--danger cp-runtime-item__close"
+									title="Close namespace"
+									aria-label="Close namespace"
+									@click.stop="emit('close-namespace', session)"
+								>
+									×
+								</button>
 								<div class="cp-runtime-item__summary">
 									<span
 										:class="['cp-runtime-item__state-chip', `is-${sessionTone(session)}`]"
