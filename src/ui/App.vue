@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { JarvisDashboardHost } from "./bridge";
 import DeployWorkloadDialog from "./components/DeployWorkloadDialog.vue";
 import MainPanel from "./components/MainPanel.vue";
 import Sidebar from "./components/Sidebar.vue";
-import TopBar from "./components/TopBar.vue";
-import { buildRepositoryGroups } from "./helpers";
+import StatusBadge from "./components/StatusBadge.vue";
+import { buildRepositoryGroups, statusTone } from "./helpers";
 
 const props = defineProps<{
 	host: JarvisDashboardHost;
@@ -105,13 +105,6 @@ const selectedActivitySections = computed(() =>
 	selectedSession.value ? props.host.readActivitySections(selectedSession.value, 10) : [],
 );
 
-const environmentLabel = computed(() => {
-	if (!selectedRepository.value) {
-		return "All Repos";
-	}
-	return repositories.value.find((group) => group.id === selectedRepository.value)?.label ?? "All Repos";
-});
-
 const liveAgentCount = computed(() =>
 	allSessions.value.reduce(
 		(total, session) => total + session.agents.filter((agent) => agent.running).length,
@@ -131,6 +124,19 @@ const selectedState = computed(() =>
 	selectedSession.value?.context?.turn_status ??
 	"idle",
 );
+const selectedTone = computed(() => statusTone(selectedState.value));
+
+function openDeployDialog(): void {
+	deployDialogOpen.value = true;
+}
+
+onMounted(() => {
+	window.addEventListener("jarvisctl-open-deploy", openDeployDialog);
+});
+
+onBeforeUnmount(() => {
+	window.removeEventListener("jarvisctl-open-deploy", openDeployDialog);
+});
 
 watch(
 	selectedSession,
@@ -168,34 +174,50 @@ function handleSelectWorker(key: string): void {
 	props.host.selectControlNamespace(worker?.namespace ?? null);
 }
 
-function cycleEnvironment(): void {
-	const options = [null, ...repositories.value.map((group) => group.id)];
-	if (options.length === 0) {
-		selectedRepository.value = null;
-		return;
-	}
-	const index = options.findIndex((value) => value === selectedRepository.value);
-	selectedRepository.value = options[(index + 1 + options.length) % options.length] ?? null;
-}
 </script>
 
 <template>
 	<div class="cp-root">
-		<TopBar
-			:environment-label="environmentLabel"
-			:search-query="searchQuery"
-			:namespace-count="allSessions.length"
-			:agent-count="liveAgentCount"
-			:subagent-count="subagentCount"
-			:worker-count="allWorkers.length"
-			:node-count="host.state.cluster.nodes.length"
-			:selected-state="selectedState"
-			@update:search-query="searchQuery = $event"
-			@toggle-environment="cycleEnvironment()"
-			@refresh="host.refresh()"
-			@open-dashboard="host.openDashboard()"
-			@deploy="deployDialogOpen = true"
-		/>
+		<div class="cp-view-toolbar">
+			<select
+				class="dropdown cp-view-toolbar__select"
+				:value="selectedRepository ?? ''"
+				title="Repository scope"
+				@change="selectedRepository = (($event.target as HTMLSelectElement).value || null)"
+			>
+				<option value="">All Repos</option>
+				<option v-for="repository in repositories" :key="repository.id" :value="repository.id">
+					{{ repository.label }}
+				</option>
+			</select>
+
+			<label class="search-input-container cp-view-toolbar__search">
+				<input
+					:value="searchQuery"
+					type="search"
+					class="search-input"
+					placeholder="Search namespaces, workers, logs"
+					@input="searchQuery = ($event.target as HTMLInputElement).value"
+				/>
+				<button
+					v-if="searchQuery"
+					type="button"
+					class="search-input-clear-button"
+					aria-label="Clear search"
+					@click.prevent="searchQuery = ''"
+				/>
+			</label>
+
+			<div class="cp-view-toolbar__metrics">
+				<span class="cp-toolbar-pill" title="Namespaces">ns {{ allSessions.length }}</span>
+				<span class="cp-toolbar-pill" title="Live agents">ag {{ liveAgentCount }}</span>
+				<span class="cp-toolbar-pill" title="Subagents">sub {{ subagentCount }}</span>
+				<span class="cp-toolbar-pill" title="Workers">wrk {{ allWorkers.length }}</span>
+				<span class="cp-toolbar-pill" title="Nodes">node {{ host.state.cluster.nodes.length }}</span>
+			</div>
+
+			<StatusBadge :label="selectedState" :tone="selectedTone" compact />
+		</div>
 
 		<div class="cp-dashboard-grid">
 			<Sidebar

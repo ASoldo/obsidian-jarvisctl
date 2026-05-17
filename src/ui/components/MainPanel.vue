@@ -22,10 +22,36 @@ import ControlPlanePanel from "./ControlPlanePanel.vue";
 import ObservabilitySection from "./ObservabilitySection.vue";
 import OperatorConsole from "./OperatorConsole.vue";
 import RuntimeTab from "./RuntimeTab.vue";
-import StatusBadge from "./StatusBadge.vue";
 import SurfaceCard from "./SurfaceCard.vue";
 import WorkersPanel from "./WorkersPanel.vue";
 import WorkflowPanel from "./WorkflowPanel.vue";
+
+type SurfaceId =
+	| "operator"
+	| "workflow"
+	| "cluster"
+	| "controlPlane"
+	| "applications"
+	| "workers"
+	| "snapshot"
+	| "feed"
+	| "activity"
+	| "branches"
+	| "agents"
+	| "logs"
+	| "events"
+	| "reasoning"
+	| "metrics";
+
+interface SurfaceModel {
+	id: SurfaceId;
+	eyebrow: string;
+	title: string;
+	icon: string;
+	meta: string[];
+	statusLabel: string;
+	statusTone: "live" | "warning" | "error" | "idle" | "info";
+}
 
 const props = defineProps<{
 	host: JarvisDashboardHost;
@@ -39,185 +65,248 @@ const props = defineProps<{
 	activitySections: JarvisActivitySection[];
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
 	(event: "select-worker", value: string): void;
 }>();
 
-const collapsedSections = ref<Record<string, boolean>>({
-	operator: false,
-	workflow: false,
-	controlPlane: false,
-	cluster: false,
-	applications: false,
-	workers: false,
-	snapshot: false,
-	feed: false,
-	activity: false,
-	branches: false,
-	agents: false,
-	logs: false,
-	events: false,
-	reasoning: false,
-	metrics: false,
-});
-
+const activeSurface = ref<SurfaceId>("operator");
 const metrics = computed(() => metricsSnapshot(props.session));
 const workflowSteps = computed(() => buildWorkflow(props.session));
 const activeWorkerCount = computed(() => props.workers.filter((worker) => worker.loaded).length);
 const activeWorkflowStep = computed(
 	() =>
-			workflowSteps.value.find((step) => {
-				const tone = statusTone(step.status);
-				return tone === "live" || tone === "warning" || tone === "error";
-			}) ??
-			workflowSteps.value[0] ??
-			null,
+		workflowSteps.value.find((step) => {
+			const tone = statusTone(step.status);
+			return tone === "live" || tone === "warning" || tone === "error";
+		}) ??
+		workflowSteps.value[0] ??
+		null,
 );
 
-function toggleSection(id: keyof typeof collapsedSections.value): void {
-	collapsedSections.value[id] = !collapsedSections.value[id];
-}
+const surfaces = computed<SurfaceModel[]>(() => [
+	{
+		id: "operator",
+		eyebrow: "Operator Console",
+		title: "Agent Chat",
+		icon: "✎",
+		meta: [
+			props.session ? `${props.session.agents.length} agents` : "no namespace",
+			props.session ? `${props.session.context?.subagents?.length ?? 0} subagents` : "0 subagents",
+		],
+		statusLabel: props.session ? sessionStateLabel(props.session) : "idle",
+		statusTone: props.session ? sessionTone(props.session) : "idle",
+	},
+	{
+		id: "workflow",
+		eyebrow: "Automation Workflow",
+		title: "Execution Steps",
+		icon: "⑇",
+		meta: [
+			activeWorkflowStep.value ? `focus ${activeWorkflowStep.value.label}` : "awaiting runtime",
+			`${workflowSteps.value.length} steps`,
+		],
+		statusLabel: props.session ? sessionStateLabel(props.session) : "idle",
+		statusTone: props.session ? sessionTone(props.session) : "idle",
+	},
+	{
+		id: "cluster",
+		eyebrow: "Cluster Ops",
+		title: "Nodes And Remote Codex",
+		icon: "⌬",
+		meta: [`${props.cluster.nodes.length} nodes`, `${props.cluster.index.visits.length} visits`],
+		statusLabel: props.cluster.gpg.ok ? "secure" : "check gpg",
+		statusTone: props.cluster.gpg.ok ? "live" : "warning",
+	},
+	{
+		id: "controlPlane",
+		eyebrow: "Control Plane",
+		title: "Policies And Workloads",
+		icon: "⌘",
+		meta: [
+			props.controlPlane ? `${props.controlPlane.resources.length} resources` : "no control namespace",
+			props.selectedWorker?.namespace ?? props.session?.context?.control_namespace ?? "n/a",
+		],
+		statusLabel: props.controlPlane ? "tracked" : "idle",
+		statusTone: props.controlPlane ? "info" : "idle",
+	},
+	{
+		id: "applications",
+		eyebrow: "Application Matrix",
+		title: "Namespaces",
+		icon: "▤",
+		meta: [`${props.sessions.length} listed`, "action grid"],
+		statusLabel: "ready",
+		statusTone: "info",
+	},
+	{
+		id: "workers",
+		eyebrow: "Worker Pool",
+		title: "Bounded Workers",
+		icon: "⬡",
+		meta: [
+			props.selectedWorker ? `${props.selectedWorker.namespace}/${props.selectedWorker.name}` : `${props.workers.length} registered`,
+			activeWorkerCount.value ? `${activeWorkerCount.value} loaded` : "cold pool",
+		],
+		statusLabel: props.selectedWorker
+			? workerStatusLabel(props.selectedWorker)
+			: activeWorkerCount.value
+				? "loaded"
+				: props.workers[0]
+					? workerStatusLabel(props.workers[0])
+					: "idle",
+		statusTone: props.selectedWorker
+			? statusTone(workerStatusLabel(props.selectedWorker))
+			: activeWorkerCount.value
+				? "live"
+				: props.workers[0]
+					? statusTone(workerStatusLabel(props.workers[0]))
+					: "idle",
+	},
+	{
+		id: "snapshot",
+		eyebrow: "Runtime Contract",
+		title: "Session Snapshot",
+		icon: "◇",
+		meta: [props.session?.backend ?? "n/a", props.session?.context?.launch_mode ?? "launch n/a"],
+		statusLabel: props.session ? props.session.context?.turn_status ?? "idle" : "idle",
+		statusTone: props.session ? statusTone(props.session.context?.turn_status) : "idle",
+	},
+	{
+		id: "feed",
+		eyebrow: "Runtime Feed",
+		title: "Live Events",
+		icon: "≣",
+		meta: [`${props.session?.context?.recent_events?.length ?? 0} events`, props.session?.context?.last_activity ?? "idle"],
+		statusLabel: props.session ? props.session.context?.turn_status ?? "idle" : "idle",
+		statusTone: props.session ? sessionTone(props.session) : "idle",
+	},
+	{
+		id: "activity",
+		eyebrow: "Observed Activity",
+		title: "Event Log Tail",
+		icon: "◫",
+		meta: [`${props.activitySections.length} sections`, props.session?.context?.event_log_path ? "live tail" : "no log"],
+		statusLabel: props.session?.context?.event_log_path ? "healthy" : "idle",
+		statusTone: props.session?.context?.event_log_path ? "live" : "idle",
+	},
+	{
+		id: "branches",
+		eyebrow: "Subagent Branches",
+		title: "Branch Runtime",
+		icon: "⑂",
+		meta: [`${props.session?.context?.subagents?.length ?? 0} tracked`, activeWorkflowStep.value?.label ?? "runtime"],
+		statusLabel: props.session?.context?.subagents?.length ? "tracking" : "idle",
+		statusTone: props.session?.context?.subagents?.length ? "live" : "idle",
+	},
+	{
+		id: "agents",
+		eyebrow: "Execution Controls",
+		title: "Agents",
+		icon: "⚙",
+		meta: [`${props.session?.agents.length ?? 0} total`, props.session?.backend ?? "n/a"],
+		statusLabel: props.session ? sessionStateLabel(props.session) : "idle",
+		statusTone: props.session ? sessionTone(props.session) : "idle",
+	},
+	{
+		id: "logs",
+		eyebrow: "Logs",
+		title: "Console Tail",
+		icon: "≡",
+		meta: ["last 40 lines", props.session?.context?.event_log_path ? "event sourced" : "waiting"],
+		statusLabel: props.session?.context?.event_log_path ? "streaming" : "idle",
+		statusTone: props.session?.context?.event_log_path ? "info" : "idle",
+	},
+	{
+		id: "events",
+		eyebrow: "Events",
+		title: "Structured Runtime Events",
+		icon: "◈",
+		meta: [`${props.session?.context?.recent_events?.length ?? 0} tracked`, "runtime feed"],
+		statusLabel: props.session?.context?.recent_events?.length ? "ready" : "idle",
+		statusTone: props.session?.context?.recent_events?.length ? "info" : "idle",
+	},
+	{
+		id: "reasoning",
+		eyebrow: "AI Reasoning",
+		title: "Assistant And Branch Thinking",
+		icon: "◍",
+		meta: [`${props.session?.context?.subagents?.length ?? 0} branch lanes`, props.session?.context?.live_message ?? "runtime summary"],
+		statusLabel: activeWorkflowStep.value?.status ?? "idle",
+		statusTone: statusTone(activeWorkflowStep.value?.status),
+	},
+	{
+		id: "metrics",
+		eyebrow: "Metrics",
+		title: "Runtime Summary",
+		icon: "◉",
+		meta: [metrics.value.Thread, metrics.value.Turn],
+		statusLabel: props.session ? sessionStateLabel(props.session) : "idle",
+		statusTone: props.session ? sessionTone(props.session) : "idle",
+	},
+]);
+
+const activeSurfaceModel = computed(
+	() => surfaces.value.find((surface) => surface.id === activeSurface.value) ?? surfaces.value[0],
+);
 </script>
 
 <template>
 	<section class="cp-panel cp-main-panel">
-		<div class="cp-panel__header cp-main-panel__header">
-			<div class="cp-panel__header-caption">
-				<p class="cp-panel__eyebrow">Main System Surface</p>
+		<div class="cp-panel__header cp-main-panel__header cp-main-panel__header--tabs">
+			<div class="cp-main-surface-tabs" role="tablist" aria-label="Main system surfaces">
+				<button
+					v-for="surface in surfaces"
+					:key="surface.id"
+					type="button"
+					:class="['cp-main-surface-tab', activeSurface === surface.id && 'is-active']"
+					:title="surface.title"
+					role="tab"
+					:aria-selected="activeSurface === surface.id"
+					@click="activeSurface = surface.id"
+				>
+					<span class="cp-button__icon" aria-hidden="true">{{ surface.icon }}</span>
+					<span class="cp-main-surface-tab__label">{{ surface.title }}</span>
+				</button>
 			</div>
 
 			<div class="cp-main-panel__summary">
 				<span class="cp-chip">Tokens: {{ metrics.Tokens }}</span>
 				<span class="cp-chip">Latency: {{ metrics.Latency }}</span>
 				<span v-if="activeWorkflowStep" class="cp-chip">Step: {{ activeWorkflowStep.label }}</span>
-				<StatusBadge
-					v-if="session"
-					:label="sessionStateLabel(session)"
-					:tone="sessionTone(session)"
-					compact
-				/>
 			</div>
 		</div>
 
 		<div class="cp-panel__body cp-main-panel__body">
-			<div class="cp-main-surface-stack">
 			<SurfaceCard
-				eyebrow="Operator Console"
-				title="Agent Chat"
-				icon="✎"
-				:meta="[
-					session ? `${session.agents.length} agents` : 'no namespace',
-					session ? `${session.context?.subagents?.length ?? 0} subagents` : '0 subagents',
-				]"
-				:status-label="session ? sessionStateLabel(session) : 'idle'"
-				:status-tone="session ? sessionTone(session) : 'idle'"
-				:collapsed="collapsedSections.operator"
-				@toggle="toggleSection('operator')"
+				v-if="activeSurfaceModel"
+				:eyebrow="activeSurfaceModel.eyebrow"
+				:title="activeSurfaceModel.title"
+				:icon="activeSurfaceModel.icon"
+				:meta="activeSurfaceModel.meta"
+				:status-label="activeSurfaceModel.statusLabel"
+				:status-tone="activeSurfaceModel.statusTone"
+				:toggleable="false"
 			>
-				<OperatorConsole :host="host" :session="session" />
-			</SurfaceCard>
-
-			<SurfaceCard
-				eyebrow="Automation Workflow"
-				title="Execution Steps"
-				icon="⑇"
-				:meta="[
-					activeWorkflowStep ? `focus ${activeWorkflowStep.label}` : 'awaiting runtime',
-					`${workflowSteps.length} steps`,
-				]"
-				:status-label="session ? sessionStateLabel(session) : 'idle'"
-				:status-tone="session ? sessionTone(session) : 'idle'"
-				:collapsed="collapsedSections.workflow"
-				@toggle="toggleSection('workflow')"
-			>
-				<WorkflowPanel :session="session" embedded />
-			</SurfaceCard>
-
-			<SurfaceCard
-				eyebrow="Cluster Ops"
-				title="Nodes And Remote Codex"
-				icon="⌬"
-				:meta="[
-					`${cluster.nodes.length} nodes`,
-					`${cluster.index.visits.length} visits`,
-				]"
-				:status-label="cluster.gpg.ok ? 'secure' : 'check gpg'"
-				:status-tone="cluster.gpg.ok ? 'live' : 'warning'"
-				:collapsed="collapsedSections.cluster"
-				@toggle="toggleSection('cluster')"
-			>
-				<ClusterOpsPanel :host="host" :cluster="cluster" />
-			</SurfaceCard>
-
-			<SurfaceCard
-				eyebrow="Control Plane"
-				title="Policies And Workloads"
-				icon="⌘"
-				:meta="[
-					controlPlane ? `${controlPlane.resources.length} resources` : 'no control namespace',
-					selectedWorker?.namespace ?? session?.context?.control_namespace ?? 'n/a',
-				]"
-				:status-label="controlPlane ? 'tracked' : 'idle'"
-				:status-tone="controlPlane ? 'info' : 'idle'"
-				:collapsed="collapsedSections.controlPlane"
-				@toggle="toggleSection('controlPlane')"
-			>
+				<OperatorConsole v-if="activeSurface === 'operator'" :host="host" :session="session" />
+				<WorkflowPanel v-else-if="activeSurface === 'workflow'" :session="session" embedded />
+				<ClusterOpsPanel v-else-if="activeSurface === 'cluster'" :host="host" :cluster="cluster" />
 				<ControlPlanePanel
+					v-else-if="activeSurface === 'controlPlane'"
 					:host="host"
 					:session="session"
 					:sessions="sessions"
 					:control-plane="controlPlane"
 					:workers="workers"
 				/>
-			</SurfaceCard>
-
-			<SurfaceCard
-				eyebrow="Application Matrix"
-				title="Namespaces"
-				icon="▤"
-				:meta="[`${sessions.length} listed`, 'action grid']"
-				status-label="ready"
-				status-tone="info"
-				:collapsed="collapsedSections.applications"
-				@toggle="toggleSection('applications')"
-			>
-				<ApplicationsTab :host="host" :sessions="sessions" />
-			</SurfaceCard>
-
-			<SurfaceCard
-				eyebrow="Worker Pool"
-				title="Bounded Workers"
-				icon="⬡"
-				:meta="[
-					selectedWorker ? `${selectedWorker.namespace}/${selectedWorker.name}` : `${workers.length} registered`,
-					activeWorkerCount ? `${activeWorkerCount} loaded` : 'cold pool',
-				]"
-				:status-label="selectedWorker ? workerStatusLabel(selectedWorker) : (activeWorkerCount ? 'loaded' : (workers[0] ? workerStatusLabel(workers[0]) : 'idle'))"
-				:status-tone="selectedWorker ? statusTone(workerStatusLabel(selectedWorker)) : (activeWorkerCount ? 'live' : (workers[0] ? statusTone(workerStatusLabel(workers[0])) : 'idle'))"
-				:collapsed="collapsedSections.workers"
-				@toggle="toggleSection('workers')"
-			>
+				<ApplicationsTab v-else-if="activeSurface === 'applications'" :host="host" :sessions="sessions" />
 				<WorkersPanel
+					v-else-if="activeSurface === 'workers'"
 					:workers="workers"
 					:selected-worker-key="selectedWorkerKey"
-					@select-worker="$emit('select-worker', $event)"
+					@select-worker="emit('select-worker', $event)"
 				/>
-			</SurfaceCard>
-
-			<SurfaceCard
-				eyebrow="Runtime Contract"
-				title="Session Snapshot"
-				icon="◇"
-				:meta="[
-					session?.backend ?? 'n/a',
-					session?.context?.launch_mode ?? 'launch n/a',
-				]"
-				:status-label="session ? session.context?.turn_status ?? 'idle' : 'idle'"
-				:status-tone="session ? statusTone(session.context?.turn_status) : 'idle'"
-				:collapsed="collapsedSections.snapshot"
-				@toggle="toggleSection('snapshot')"
-			>
 				<RuntimeTab
+					v-else-if="activeSurface === 'snapshot'"
 					:host="host"
 					:session="session"
 					:activity-sections="activitySections"
@@ -225,19 +314,8 @@ function toggleSection(id: keyof typeof collapsedSections.value): void {
 					embedded
 					:show-toolbar="false"
 				/>
-			</SurfaceCard>
-
-			<SurfaceCard
-				eyebrow="Runtime Feed"
-				title="Live Events"
-				icon="≣"
-				:meta="[`${session?.context?.recent_events?.length ?? 0} events`, session?.context?.last_activity ?? 'idle']"
-				:status-label="session ? session.context?.turn_status ?? 'idle' : 'idle'"
-				:status-tone="session ? sessionTone(session) : 'idle'"
-				:collapsed="collapsedSections.feed"
-				@toggle="toggleSection('feed')"
-			>
 				<RuntimeTab
+					v-else-if="activeSurface === 'feed'"
 					:host="host"
 					:session="session"
 					:activity-sections="activitySections"
@@ -245,19 +323,8 @@ function toggleSection(id: keyof typeof collapsedSections.value): void {
 					embedded
 					:show-toolbar="false"
 				/>
-			</SurfaceCard>
-
-			<SurfaceCard
-				eyebrow="Observed Activity"
-				title="Event Log Tail"
-				icon="◫"
-				:meta="[`${activitySections.length} sections`, session?.context?.event_log_path ? 'live tail' : 'no log']"
-				:status-label="session?.context?.event_log_path ? 'healthy' : 'idle'"
-				:status-tone="session?.context?.event_log_path ? 'live' : 'idle'"
-				:collapsed="collapsedSections.activity"
-				@toggle="toggleSection('activity')"
-			>
 				<RuntimeTab
+					v-else-if="activeSurface === 'activity'"
 					:host="host"
 					:session="session"
 					:activity-sections="activitySections"
@@ -265,19 +332,8 @@ function toggleSection(id: keyof typeof collapsedSections.value): void {
 					embedded
 					:show-toolbar="false"
 				/>
-			</SurfaceCard>
-
-			<SurfaceCard
-				eyebrow="Subagent Branches"
-				title="Branch Runtime"
-				icon="⑂"
-				:meta="[`${session?.context?.subagents?.length ?? 0} tracked`, activeWorkflowStep?.label ?? 'runtime']"
-				:status-label="session?.context?.subagents?.length ? 'tracking' : 'idle'"
-				:status-tone="session?.context?.subagents?.length ? 'live' : 'idle'"
-				:collapsed="collapsedSections.branches"
-				@toggle="toggleSection('branches')"
-			>
 				<RuntimeTab
+					v-else-if="activeSurface === 'branches'"
 					:host="host"
 					:session="session"
 					:activity-sections="activitySections"
@@ -285,19 +341,8 @@ function toggleSection(id: keyof typeof collapsedSections.value): void {
 					embedded
 					:show-toolbar="false"
 				/>
-			</SurfaceCard>
-
-			<SurfaceCard
-				eyebrow="Execution Controls"
-				title="Agents"
-				icon="⚙"
-				:meta="[`${session?.agents.length ?? 0} total`, session?.backend ?? 'n/a']"
-				:status-label="session ? sessionStateLabel(session) : 'idle'"
-				:status-tone="session ? sessionTone(session) : 'idle'"
-				:collapsed="collapsedSections.agents"
-				@toggle="toggleSection('agents')"
-			>
 				<RuntimeTab
+					v-else-if="activeSurface === 'agents'"
 					:host="host"
 					:session="session"
 					:activity-sections="activitySections"
@@ -305,76 +350,31 @@ function toggleSection(id: keyof typeof collapsedSections.value): void {
 					embedded
 					:show-toolbar="false"
 				/>
-			</SurfaceCard>
-
-			<SurfaceCard
-				eyebrow="Logs"
-				title="Console Tail"
-				icon="≡"
-				:meta="['last 40 lines', session?.context?.event_log_path ? 'event sourced' : 'waiting']"
-				:status-label="session?.context?.event_log_path ? 'streaming' : 'idle'"
-				:status-tone="session?.context?.event_log_path ? 'info' : 'idle'"
-				:collapsed="collapsedSections.logs"
-				@toggle="toggleSection('logs')"
-			>
 				<ObservabilitySection
+					v-else-if="activeSurface === 'logs'"
 					:session="session"
 					:activity-sections="activitySections"
 					section="logs"
 				/>
-			</SurfaceCard>
-
-			<SurfaceCard
-				eyebrow="Events"
-				title="Structured Runtime Events"
-				icon="◈"
-				:meta="[`${session?.context?.recent_events?.length ?? 0} tracked`, 'runtime feed']"
-				:status-label="session?.context?.recent_events?.length ? 'ready' : 'idle'"
-				:status-tone="session?.context?.recent_events?.length ? 'info' : 'idle'"
-				:collapsed="collapsedSections.events"
-				@toggle="toggleSection('events')"
-			>
 				<ObservabilitySection
+					v-else-if="activeSurface === 'events'"
 					:session="session"
 					:activity-sections="activitySections"
 					section="events"
 				/>
-			</SurfaceCard>
-
-			<SurfaceCard
-				eyebrow="AI Reasoning"
-				title="Assistant And Branch Thinking"
-				icon="◍"
-				:meta="[`${session?.context?.subagents?.length ?? 0} branch lanes`, session?.context?.live_message ?? 'runtime summary']"
-				:status-label="activeWorkflowStep?.status ?? 'idle'"
-				:status-tone="statusTone(activeWorkflowStep?.status)"
-				:collapsed="collapsedSections.reasoning"
-				@toggle="toggleSection('reasoning')"
-			>
 				<ObservabilitySection
+					v-else-if="activeSurface === 'reasoning'"
 					:session="session"
 					:activity-sections="activitySections"
 					section="reasoning"
 				/>
-			</SurfaceCard>
-
-			<SurfaceCard
-				eyebrow="Metrics"
-				title="Runtime Summary"
-				icon="◉"
-				:meta="[metrics.Thread, metrics.Turn]"
-				:status-label="session ? sessionStateLabel(session) : 'idle'"
-				:status-tone="session ? sessionTone(session) : 'idle'"
-				:collapsed="collapsedSections.metrics"
-				@toggle="toggleSection('metrics')"
-			>
 				<ObservabilitySection
+					v-else
 					:session="session"
 					:activity-sections="activitySections"
 					section="metrics"
 				/>
 			</SurfaceCard>
-			</div>
 		</div>
 	</section>
 </template>

@@ -1717,28 +1717,15 @@ class JarvisCtlControlView extends ItemView {
 		this.addAction("refresh-cw", "Refresh namespaces", () => {
 			void this.refreshSessions();
 		});
-		this.addAction("layout-dashboard", "Open jarvisctl dashboard", () => {
+		this.addAction("rocket", "Deploy workload", () => {
+			window.dispatchEvent(new CustomEvent("jarvisctl-open-deploy"));
+		});
+		this.addAction("layout-dashboard", "Open terminal dashboard", () => {
 			void this.plugin.openTerminalCommand(
 				[this.plugin.getTerminalJarvisCtlPath()],
 				"JarvisCtl Dashboard",
 				this.plugin.getVaultBasePath(),
 			);
-		});
-		this.addAction("terminal-square", "Attach selected namespace", () => {
-			const session = this.getSelectedSession();
-			if (!session) {
-				new Notice("Select a namespace first.");
-				return;
-			}
-			void this.plugin.openNamespaceAttach(session);
-		});
-		this.addAction("file-text", "Open selected ticket", () => {
-			const taskNote = this.getSelectedSession()?.context?.task_note;
-			if (!taskNote) {
-				new Notice("Selected namespace does not expose a ticket note.");
-				return;
-			}
-			void this.plugin.openTaskNote(taskNote);
 		});
 	}
 

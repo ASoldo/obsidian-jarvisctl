@@ -9,6 +9,7 @@ defineProps<{
 	statusLabel?: string | null;
 	statusTone?: "live" | "warning" | "error" | "idle" | "info";
 	collapsed?: boolean;
+	toggleable?: boolean;
 	bodyClass?: string;
 }>();
 
@@ -45,6 +46,7 @@ const emit = defineEmits<{
 					compact
 				/>
 				<button
+					v-if="toggleable !== false"
 					type="button"
 					class="cp-icon-button cp-icon-button--circle"
 					:title="collapsed ? 'Expand section' : 'Collapse section'"

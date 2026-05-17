@@ -32,7 +32,36 @@
     grid-template-rows: auto minmax(0, 1fr);
   }
 
-  .cp-topbar,
+  .cp-view-toolbar {
+    border: 1px solid color-mix(in srgb, var(--cp-border) 70%, transparent);
+    background: color-mix(in srgb, var(--background-secondary) 72%, transparent);
+    @apply grid min-h-0 min-w-0 items-center gap-2 rounded-xl px-2 py-1.5;
+    grid-template-columns: minmax(132px, 180px) minmax(180px, 1fr) auto auto;
+  }
+
+  .cp-view-toolbar__select {
+    @apply h-8 min-w-0 text-xs;
+  }
+
+  .cp-view-toolbar__search {
+    @apply h-8 min-w-0;
+  }
+
+  .cp-view-toolbar__search .search-input {
+    @apply h-8 min-w-0 text-xs;
+  }
+
+  .cp-view-toolbar__metrics {
+    @apply flex min-w-0 flex-wrap items-center justify-end gap-1;
+  }
+
+  .cp-toolbar-pill {
+    border: 1px solid color-mix(in srgb, var(--cp-border) 70%, transparent);
+    background: color-mix(in srgb, var(--background-primary) 62%, transparent);
+    color: var(--cp-text-dim);
+    @apply inline-flex h-7 items-center rounded-full px-2 text-[10px] font-medium uppercase tracking-[0.08em];
+  }
+
   .cp-panel,
   .cp-subpanel {
     border: 1px solid var(--cp-border);
@@ -49,13 +78,6 @@
     @apply relative overflow-hidden rounded-2xl;
   }
 
-  .cp-topbar {
-    @apply grid items-center gap-3 px-4 py-3;
-    grid-template-columns: auto minmax(260px, 1fr) auto auto;
-  }
-
-  .cp-topbar__env,
-  .cp-topbar__actions,
   .cp-control-strip {
     @apply flex items-center gap-2;
   }
@@ -94,30 +116,14 @@
     gap: 0.25rem;
   }
 
-  .cp-topbar__label,
   .cp-panel__eyebrow,
   .cp-section__title,
   .cp-kv-card__label,
-  .cp-stat-chip__label,
   .cp-resource-item__label {
     color: var(--cp-text-dim);
     @apply text-[10px] font-medium uppercase tracking-[0.18em];
   }
 
-  .cp-topbar__env-button {
-    border: 1px solid color-mix(in srgb, var(--cp-border) 76%, transparent);
-    background: linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--cp-panel-strong) 92%, #09111e 8%),
-      color-mix(in srgb, var(--cp-panel) 98%, #020617 2%)
-    );
-    box-shadow:
-      0 10px 24px color-mix(in srgb, #020617 16%, transparent),
-      inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
-    @apply inline-flex h-9 w-9 min-w-0 shrink-0 items-center justify-center rounded-full p-0 text-[12px] font-semibold transition;
-  }
-
-  .jarvisctl-control-view .cp-topbar__env-button,
   .jarvisctl-control-view .cp-search__clear,
   .jarvisctl-control-view .cp-button,
   .jarvisctl-control-view .cp-mini-button,
@@ -131,15 +137,10 @@
     aspect-ratio: 1 / 1;
   }
 
-  .jarvisctl-control-view .cp-topbar__env-button,
   .jarvisctl-control-view .cp-search__clear {
     inline-size: 2.125rem !important;
     block-size: 2.125rem !important;
     min-inline-size: 2.125rem !important;
-  }
-
-  .cp-topbar__env-button:hover {
-    border-color: var(--cp-border-strong);
   }
 
   .cp-button__icon {
@@ -197,33 +198,6 @@
 
   .cp-search__clear:hover {
     border-color: var(--cp-border-strong);
-  }
-
-  .cp-topbar__env-copy {
-    @apply grid gap-0.5;
-  }
-
-  .cp-topbar__env-value {
-    color: var(--cp-text-soft);
-    @apply text-[12px] font-medium leading-none;
-  }
-
-  .cp-topbar__stats {
-    @apply flex items-center gap-2;
-  }
-
-  .cp-stat-chip {
-    border: 1px solid var(--cp-border);
-    background: color-mix(in srgb, var(--cp-panel) 88%, transparent);
-    @apply grid min-w-[78px] gap-0.5 rounded-xl px-2.5 py-2;
-  }
-
-  .cp-stat-chip--focus {
-    border-color: color-mix(in srgb, var(--cp-blue) 38%, var(--cp-border) 62%);
-  }
-
-  .cp-stat-chip__value {
-    @apply text-[13px] font-semibold leading-none;
   }
 
   .cp-ghost-button,
@@ -1676,11 +1650,6 @@
     @apply w-full rounded-xl border border-[var(--cp-border)] bg-[color:var(--cp-panel)] px-3 py-2 text-sm;
   }
 
-  .cp-topbar {
-    @apply gap-x-4 gap-y-3;
-    grid-template-columns: auto minmax(240px, 1fr) auto auto;
-  }
-
   .cp-search {
     border-color: transparent;
     background: transparent;
@@ -1690,31 +1659,6 @@
 
   .cp-search__input {
     @apply text-[13px];
-  }
-
-  .cp-topbar__stats {
-    @apply flex flex-wrap items-center justify-end gap-3;
-  }
-
-  .cp-topbar__metric {
-    @apply inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em];
-  }
-
-  .cp-topbar__metric-label {
-    color: var(--cp-text-dim);
-  }
-
-  .cp-topbar__metric-value {
-    color: var(--cp-text-soft);
-    @apply text-[12px] normal-case tracking-normal;
-  }
-
-  .cp-topbar__actions {
-    @apply flex-wrap justify-end;
-  }
-
-  .cp-topbar__action-button .cp-button__icon {
-    @apply text-sm;
   }
 
   .cp-dashboard-grid {
@@ -1729,6 +1673,33 @@
 
   .cp-main-panel__header {
     @apply items-center;
+  }
+
+  .cp-main-panel__header--tabs {
+    @apply items-center gap-2;
+  }
+
+  .cp-main-surface-tabs {
+    @apply flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pr-1;
+    scrollbar-width: thin;
+  }
+
+  .cp-main-surface-tab {
+    border: 1px solid color-mix(in srgb, var(--cp-border) 74%, transparent);
+    background: color-mix(in srgb, var(--background-secondary-alt) 60%, transparent);
+    color: var(--cp-text-dim);
+    @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-medium transition;
+  }
+
+  .cp-main-surface-tab:hover,
+  .cp-main-surface-tab.is-active {
+    border-color: color-mix(in srgb, var(--cp-blue) 46%, var(--cp-border) 54%);
+    color: var(--cp-text-soft);
+    background: color-mix(in srgb, var(--cp-blue) 14%, var(--background-secondary-alt) 86%);
+  }
+
+  .cp-main-surface-tab__label {
+    @apply max-w-[132px] truncate;
   }
 
   .cp-main-panel__summary {
@@ -2323,6 +2294,14 @@
   }
 
   @media (max-width: 1120px) {
+    .cp-view-toolbar {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .cp-view-toolbar__metrics {
+      @apply justify-start;
+    }
+
     .cp-dialog-backdrop {
       @apply p-2;
     }
@@ -2330,10 +2309,6 @@
     .cp-deploy-dialog {
       block-size: 100%;
       max-block-size: 100%;
-    }
-
-    .cp-topbar {
-      grid-template-columns: 1fr;
     }
 
     .cp-dashboard-grid {
