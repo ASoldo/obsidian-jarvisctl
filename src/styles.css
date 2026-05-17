@@ -2233,9 +2233,10 @@
   .cp-deploy-dialog {
     border: 1px solid var(--cp-border-strong);
     background: linear-gradient(180deg, var(--cp-panel), var(--cp-panel-strong));
-    inline-size: min(1120px, 100%);
-    block-size: calc(100vh - 2rem);
-    max-block-size: calc(100vh - 2rem);
+    inline-size: 100%;
+    max-inline-size: 1440px;
+    block-size: 100%;
+    max-block-size: 100%;
     margin-block: 0;
     box-shadow: 0 28px 70px rgb(0 0 0 / 45%);
     @apply grid min-h-0 gap-3 overflow-hidden rounded-2xl p-4;
@@ -2395,6 +2396,15 @@
   }
 
   @media (max-width: 1120px) {
+    .cp-dialog-backdrop {
+      @apply p-2;
+    }
+
+    .cp-deploy-dialog {
+      block-size: 100%;
+      max-block-size: 100%;
+    }
+
     .cp-topbar {
       grid-template-columns: 1fr;
     }
