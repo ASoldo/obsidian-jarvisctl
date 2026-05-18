@@ -1,4 +1,5 @@
 export type SurfaceId =
+	| "mission"
 	| "operator"
 	| "workflow"
 	| "cluster"
@@ -22,6 +23,7 @@ export interface SurfaceTab {
 }
 
 export const SURFACE_TABS: SurfaceTab[] = [
+	{ id: "mission", title: "Mission Chain", icon: "⌁" },
 	{ id: "operator", title: "Agent Chat", icon: "✎" },
 	{ id: "workflow", title: "Execution Steps", icon: "▥" },
 	{ id: "cluster", title: "Nodes And Remote Codex", icon: "⌬" },

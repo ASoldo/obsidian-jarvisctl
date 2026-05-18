@@ -1237,6 +1237,94 @@
     @apply min-w-0 truncate text-[11px] text-[color:var(--cp-text-dim)];
   }
 
+  .cp-mission-chain {
+    @apply grid h-full min-h-0 gap-3 overflow-auto overscroll-contain;
+  }
+
+  .cp-mission-command {
+    border: 1px solid color-mix(in srgb, var(--cp-border) 78%, transparent);
+    background: color-mix(in srgb, var(--cp-panel-strong) 82%, transparent);
+    @apply grid min-w-0 gap-3 rounded-2xl p-4;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+  }
+
+  .cp-mission-command__title {
+    color: var(--cp-text);
+    @apply text-xl font-semibold;
+  }
+
+  .cp-mission-command__copy {
+    color: var(--cp-text-dim);
+    @apply mt-2 max-w-3xl text-sm leading-relaxed;
+  }
+
+  .cp-mission-command__metrics {
+    @apply grid min-w-0 gap-2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cp-mission-metric {
+    border: 1px solid color-mix(in srgb, var(--cp-border) 70%, transparent);
+    background: color-mix(in srgb, var(--cp-panel) 86%, transparent);
+    @apply grid min-w-0 gap-1 rounded-xl px-3 py-2;
+  }
+
+  .cp-mission-metric__label {
+    color: var(--cp-text-dim);
+    @apply text-[10px] font-semibold uppercase tracking-[0.14em];
+  }
+
+  .cp-mission-metric__value {
+    color: var(--cp-text);
+    @apply text-lg font-semibold;
+  }
+
+  .cp-mission-stage-grid {
+    @apply grid min-w-0 gap-2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cp-mission-stage {
+    border: 1px solid color-mix(in srgb, var(--cp-border) 74%, transparent);
+    background: color-mix(in srgb, var(--cp-panel) 88%, transparent);
+    @apply grid min-w-0 content-start gap-3 rounded-2xl p-3;
+  }
+
+  .cp-mission-stage__head {
+    @apply grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3;
+  }
+
+  .cp-mission-stage__index {
+    color: var(--cp-text-dim);
+    border: 1px solid color-mix(in srgb, var(--cp-border) 72%, transparent);
+    background: color-mix(in srgb, var(--cp-panel-strong) 88%, transparent);
+    @apply flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-semibold;
+  }
+
+  .cp-mission-stage__identity {
+    @apply min-w-0;
+  }
+
+  .cp-mission-stage__identity h4 {
+    color: var(--cp-text);
+    @apply truncate text-sm font-semibold;
+  }
+
+  .cp-mission-stage__identity p,
+  .cp-mission-stage__detail {
+    color: var(--cp-text-dim);
+    @apply text-xs leading-relaxed;
+  }
+
+  .cp-mission-stage__metric {
+    color: var(--cp-text-soft);
+    @apply text-lg font-semibold;
+  }
+
+  .cp-mission-stage__evidence {
+    @apply flex min-w-0 flex-wrap gap-1.5;
+  }
+
   .cp-inspector {
     @apply grid h-full min-h-0 gap-3 overflow-auto overscroll-contain;
   }
@@ -2416,6 +2504,8 @@
     .cp-control-plane-columns,
     .cp-offload-service-grid,
     .cp-cluster-form-grid,
+    .cp-mission-command,
+    .cp-mission-stage-grid,
     .cp-deploy-dialog__body,
     .cp-deploy-form {
       grid-template-columns: 1fr;

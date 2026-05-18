@@ -16,7 +16,7 @@ const searchQuery = ref("");
 const selectedRepository = ref<string | null>(null);
 const selectedWorkerKey = ref<string | null>(null);
 const deployDialogOpen = ref(false);
-const activeSurface = ref<SurfaceId>("operator");
+const activeSurface = ref<SurfaceId>("mission");
 const sidebarCollapsed = ref(false);
 
 const allSessions = computed(() => props.host.state.sessions);

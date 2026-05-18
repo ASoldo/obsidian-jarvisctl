@@ -20,6 +20,7 @@ import ApplicationsTab from "./ApplicationsTab.vue";
 import ClusterOpsPanel from "./ClusterOpsPanel.vue";
 import ControlPlanePanel from "./ControlPlanePanel.vue";
 import ObservabilitySection from "./ObservabilitySection.vue";
+import MissionChainPanel from "./MissionChainPanel.vue";
 import OperatorConsole from "./OperatorConsole.vue";
 import RuntimeTab from "./RuntimeTab.vue";
 import SurfaceCard from "./SurfaceCard.vue";
@@ -68,6 +69,19 @@ const activeWorkflowStep = computed(
 );
 
 const surfaces = computed<SurfaceModel[]>(() => [
+	{
+		id: "mission",
+		eyebrow: "Mission Command",
+		title: "Mission Chain",
+		icon: "⌁",
+		meta: [
+			`${props.sessions.length} namespaces`,
+			`${props.cluster.nodes.length} nodes`,
+			`${props.workers.length} workers`,
+		],
+		statusLabel: props.cluster.nodes.length ? "ready" : "idle",
+		statusTone: props.cluster.nodes.length ? "info" : "idle",
+	},
 	{
 		id: "operator",
 		eyebrow: "Operator Console",
@@ -247,6 +261,13 @@ const activeSurfaceModel = computed(
 				:status-tone="activeSurfaceModel.statusTone"
 				:toggleable="false"
 			>
+				<MissionChainPanel
+					v-if="activeSurface === 'mission'"
+					:sessions="sessions"
+					:workers="workers"
+					:tickets="host.state.tickets"
+					:cluster="cluster"
+				/>
 				<OperatorConsole v-if="activeSurface === 'operator'" :host="host" :session="session" />
 				<WorkflowPanel v-else-if="activeSurface === 'workflow'" :session="session" embedded />
 				<ClusterOpsPanel v-else-if="activeSurface === 'cluster'" :host="host" :cluster="cluster" />
