@@ -59,7 +59,7 @@ function nodeTone(node: JarvisClusterNode): "live" | "warning" | "idle" {
 	if (status.includes("cordon") || status.includes("offline") || detail.includes("cordon")) {
 		return "warning";
 	}
-	return status.includes("ready") || status.includes("online") || status.includes("local") || detail.includes("ssh=")
+	return status.includes("schedulable") || status.includes("ready") || status.includes("online") || status.includes("local") || detail.includes("ssh=")
 		? "live"
 		: "idle";
 }
