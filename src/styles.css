@@ -2003,6 +2003,11 @@
     @apply min-h-[164px] resize-y;
   }
 
+  .cp-operator-message-textarea {
+    max-height: 164px;
+    @apply min-h-[82px] resize-none overflow-hidden;
+  }
+
   .cp-operator-note {
     color: var(--cp-text-dim);
     @apply rounded-xl border border-dashed border-[color:var(--cp-border)] px-3 py-2 text-[11px] leading-relaxed;

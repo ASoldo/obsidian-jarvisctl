@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import type {
 	JarvisRuntimeFeedEntry,
 	JarvisRuntimeSubagentAction,
@@ -40,6 +40,7 @@ const draftAttachmentPath = ref("");
 const draftMessage = ref("");
 const sending = ref(false);
 const attachmentFileInput = ref<HTMLInputElement | null>(null);
+const messageTextarea = ref<HTMLTextAreaElement | null>(null);
 
 const targetOptions = computed<ConsoleTargetOption[]>(() => {
 	if (!props.session) {
@@ -141,10 +142,27 @@ async function handleSend(): Promise<void> {
 		await props.host.sendOperatorMessage(props.session, request);
 		draftMessage.value = "";
 		draftAttachmentPath.value = "";
+		void nextTick(resizeMessageTextarea);
 	} finally {
 		sending.value = false;
 	}
 }
+
+function resizeMessageTextarea(): void {
+	const textarea = messageTextarea.value;
+	if (!textarea) {
+		return;
+	}
+	const maxHeight = 164;
+	textarea.style.height = "auto";
+	const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+	textarea.style.height = `${nextHeight}px`;
+	textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+}
+
+watch(draftMessage, () => {
+	void nextTick(resizeMessageTextarea);
+});
 
 async function handlePickVaultAttachment(): Promise<void> {
 	if (!props.session || sending.value) {
@@ -419,10 +437,13 @@ function entryAvatarScope(role: ConsoleEntry["role"]): "cloud" | "local" | "remo
 				<label class="cp-form-field cp-form-field--full">
 					<span class="cp-form-field__label">Message</span>
 					<textarea
+						ref="messageTextarea"
 						v-model="draftMessage"
-						class="cp-form-textarea"
+						class="cp-form-textarea cp-operator-message-textarea"
 						:disabled="composerDisabled"
 						placeholder="Write like a live operator note: correction, next step, review feedback, or branch routing."
+						rows="3"
+						@input="resizeMessageTextarea"
 					/>
 				</label>
 			</div>
