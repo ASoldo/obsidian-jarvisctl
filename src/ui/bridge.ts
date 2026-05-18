@@ -45,6 +45,10 @@ export interface JarvisDashboardHost {
 		responseJson: string | null,
 		error: string | null,
 	): Promise<void>;
+	promptServerRequestResponse(
+		session: JarvisSessionMetadata,
+		request: JarvisRuntimeServerRequest,
+	): Promise<string | null>;
 	pickVaultAttachment(session: JarvisSessionMetadata): Promise<string | null>;
 	pickExternalAttachment(session: JarvisSessionMetadata, file: File): Promise<string | null>;
 	pasteClipboardAttachment(session: JarvisSessionMetadata): Promise<string | null>;

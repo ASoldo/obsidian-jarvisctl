@@ -232,10 +232,7 @@ async function sendCustomServerResponse(request: JarvisRuntimeServerRequest): Pr
 	if (!props.session) {
 		return;
 	}
-	const raw = window.prompt(
-		`JSON response for ${request.method}`,
-		request.method.includes("elicitation") || request.method.includes("requestUserInput") ? "{}" : "null",
-	);
+	const raw = await props.host.promptServerRequestResponse(props.session, request);
 	if (raw === null) {
 		return;
 	}

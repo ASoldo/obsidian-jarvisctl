@@ -46,6 +46,7 @@ import type {
 	JarvisNetworkPolicyStatus,
 	JarvisResourcePolicyStatus,
 	JarvisResourceSummary,
+	JarvisRuntimeServerRequest,
 	JarvisSessionMetadata,
 	JarvisServiceStatus,
 	JarvisTicketSummary,
@@ -908,6 +909,13 @@ export default class JarvisCtlControlPlugin extends Plugin {
 				attachmentPath: request.attachmentPath,
 			},
 		);
+	}
+
+	async promptServerRequestResponse(
+		session: JarvisSessionMetadata,
+		request: JarvisRuntimeServerRequest,
+	): Promise<string | null> {
+		return await promptForServerRequestResponse(this.app, session, request);
 	}
 
 	async launchCodexForActiveNote(fresh: boolean): Promise<void> {
@@ -1944,6 +1952,9 @@ class JarvisCtlControlView extends ItemView {
 					await this.plugin.runJarvisCtl(args);
 				}, true);
 			},
+			promptServerRequestResponse: async (session, request) => {
+				return await this.plugin.promptServerRequestResponse(session, request);
+			},
 			pickVaultAttachment: async () => {
 				return await this.plugin.pickVaultAttachmentPath();
 			},
@@ -2417,6 +2428,108 @@ class JarvisTextModal extends Modal {
 	}
 }
 
+class JarvisServerRequestResponseModal extends Modal {
+	private readonly session: JarvisSessionMetadata;
+	private readonly request: JarvisRuntimeServerRequest;
+	private readonly resolveResult: (result: string | null) => void;
+	private resolved = false;
+
+	constructor(
+		app: App,
+		session: JarvisSessionMetadata,
+		request: JarvisRuntimeServerRequest,
+		resolveResult: (result: string | null) => void,
+	) {
+		super(app);
+		this.session = session;
+		this.request = request;
+		this.resolveResult = resolveResult;
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl("h2", { text: "Respond to app-server request" });
+		contentEl.createEl("p", {
+			cls: "jarvisctl-modal-copy",
+			text: `${this.session.namespace} requested ${this.request.method}. Provide a JSON result that will be returned to the headless Codex app-server request.`,
+		});
+
+		contentEl.createEl("label", {
+			cls: "jarvisctl-modal-label",
+			text: "Request id",
+		});
+		const requestIdEl = contentEl.createEl("input", {
+			cls: "jarvisctl-modal-input",
+			type: "text",
+		});
+		requestIdEl.value = this.request.id;
+		requestIdEl.disabled = true;
+
+		contentEl.createEl("label", {
+			cls: "jarvisctl-modal-label",
+			text: "Request params",
+		});
+		const paramsEl = contentEl.createEl("textarea", {
+			cls: "jarvisctl-modal-textarea jarvisctl-modal-textarea--readonly",
+		});
+		paramsEl.value = JSON.stringify(this.request.params ?? null, null, 2);
+		paramsEl.readOnly = true;
+
+		contentEl.createEl("label", {
+			cls: "jarvisctl-modal-label",
+			text: "JSON response",
+		});
+		const responseEl = contentEl.createEl("textarea", {
+			cls: "jarvisctl-modal-textarea",
+		});
+		responseEl.value =
+			this.request.method.includes("elicitation") || this.request.method.includes("requestUserInput")
+				? "{}"
+				: "null";
+
+		const errorEl = contentEl.createDiv({
+			cls: "jarvisctl-modal-error",
+		});
+
+		const actions = contentEl.createDiv({ cls: "jarvisctl-modal-actions" });
+		const cancel = actions.createEl("button", { text: "Cancel" });
+		cancel.addEventListener("click", () => this.finish(null));
+
+		const submit = actions.createEl("button", {
+			text: "Send response",
+			cls: "mod-cta",
+		});
+		submit.addEventListener("click", () => {
+			const raw = responseEl.value.trim();
+			try {
+				JSON.parse(raw);
+			} catch (error) {
+				errorEl.setText(error instanceof Error ? error.message : "Response must be valid JSON.");
+				return;
+			}
+			this.finish(raw);
+		});
+
+		window.setTimeout(() => responseEl.focus(), 0);
+	}
+
+	onClose(): void {
+		if (!this.resolved) {
+			this.resolveResult(null);
+		}
+	}
+
+	private finish(result: string | null): void {
+		if (this.resolved) {
+			return;
+		}
+		this.resolved = true;
+		this.resolveResult(result);
+		this.close();
+	}
+}
+
 class JarvisCodexLaunchModal extends Modal {
 	private readonly titleText: string;
 	private readonly description: string;
@@ -2511,6 +2624,16 @@ function promptForTell(app: App, namespace: string, agent: string): Promise<Jarv
 			"Send",
 			resolve,
 		).open();
+	});
+}
+
+function promptForServerRequestResponse(
+	app: App,
+	session: JarvisSessionMetadata,
+	request: JarvisRuntimeServerRequest,
+): Promise<string | null> {
+	return new Promise((resolve) => {
+		new JarvisServerRequestResponseModal(app, session, request, resolve).open();
 	});
 }
 

@@ -1776,6 +1776,15 @@
     @apply min-h-[120px] w-full rounded-xl border border-[var(--cp-border)] bg-[color:var(--cp-panel)] px-3 py-2 text-sm;
   }
 
+  .jarvisctl-modal-textarea--readonly {
+    @apply min-h-[88px] opacity-80;
+  }
+
+  .jarvisctl-modal-error {
+    color: var(--cp-red);
+    @apply mt-2 min-h-5 text-xs;
+  }
+
   .jarvisctl-modal-actions {
     @apply mt-4 flex justify-end gap-2;
   }
