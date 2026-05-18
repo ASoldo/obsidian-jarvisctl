@@ -48,6 +48,7 @@ const filteredSessions = computed(() => {
 		return [
 			session.namespace,
 			session.backend,
+			session.working_directory,
 			session.context?.task_title,
 			session.context?.task_note,
 			session.context?.codex_session_id,
@@ -78,6 +79,18 @@ const filteredWorkers = computed(() => {
 			worker.summaryDetail,
 			worker.admissionReason,
 		]
+			.filter(Boolean)
+			.some((value) => String(value).toLowerCase().includes(query)),
+	);
+});
+
+const filteredRepositories = computed(() => {
+	const query = searchQuery.value.trim().toLowerCase();
+	if (!query) {
+		return repositories.value;
+	}
+	return repositories.value.filter((repository) =>
+		[repository.label, repository.path]
 			.filter(Boolean)
 			.some((value) => String(value).toLowerCase().includes(query)),
 	);
@@ -170,11 +183,49 @@ watch(
 	{ immediate: true },
 );
 
+watch(
+	[searchQuery, filteredSessions, filteredWorkers],
+	([query, nextSessions, nextWorkers]) => {
+		if (!query.trim()) {
+			return;
+		}
+		const nextSession = nextSessions[0];
+		if (nextSession && nextSession.namespace !== props.host.state.selectedNamespace) {
+			props.host.selectNamespace(nextSession.namespace);
+			return;
+		}
+		if (!nextSession && nextWorkers[0]) {
+			handleSelectWorker(`${nextWorkers[0].namespace}/${nextWorkers[0].name}`);
+		}
+	},
+);
+
 function handleSelectWorker(key: string): void {
 	selectedWorkerKey.value = key;
 	const worker =
 		allWorkers.value.find((entry) => `${entry.namespace}/${entry.name}` === key) ?? null;
 	props.host.selectControlNamespace(worker?.namespace ?? null);
+}
+
+function clearSearch(): void {
+	searchQuery.value = "";
+}
+
+function applySearchPrimary(): void {
+	const session = filteredSessions.value[0];
+	if (session) {
+		props.host.selectNamespace(session.namespace);
+		return;
+	}
+	const worker = filteredWorkers.value[0];
+	if (worker) {
+		handleSelectWorker(`${worker.namespace}/${worker.name}`);
+		return;
+	}
+	const repository = filteredRepositories.value[0];
+	if (repository) {
+		selectedRepository.value = repository.id;
+	}
 }
 
 </script>
@@ -187,6 +238,8 @@ function handleSelectWorker(key: string): void {
 					class="dropdown cp-native-toolbar__select"
 					:value="selectedRepository ?? ''"
 					title="Repository scope"
+					@keydown.stop
+					@click.stop
 					@change="selectedRepository = (($event.target as HTMLSelectElement).value || null)"
 				>
 					<option value="">All Repos</option>
@@ -201,14 +254,19 @@ function handleSelectWorker(key: string): void {
 						type="search"
 						class="search-input"
 						placeholder="Search namespaces, workers, logs"
+						@keydown.stop
+						@keyup.stop
+						@click.stop
 						@input="searchQuery = ($event.target as HTMLInputElement).value"
+						@keydown.enter.prevent.stop="applySearchPrimary"
+						@keydown.esc.prevent.stop="clearSearch"
 					/>
 					<button
 						v-if="searchQuery"
 						type="button"
 						class="search-input-clear-button"
 						aria-label="Clear search"
-						@click.prevent="searchQuery = ''"
+						@click.prevent.stop="clearSearch"
 					/>
 				</label>
 
