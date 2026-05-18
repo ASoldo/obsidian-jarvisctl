@@ -466,6 +466,25 @@ export interface JarvisTicketSummary {
 	tags: string[];
 }
 
+export interface JarvisMissionRecord {
+	id: string;
+	title: string;
+	objective?: string | null;
+	status: string;
+	priority?: string | null;
+	owner?: string | null;
+	labels?: Record<string, string> | null;
+	tickets?: string[] | null;
+	namespaces?: string[] | null;
+	nodes?: string[] | null;
+	visits?: string[] | null;
+	approvals?: string[] | null;
+	evidence?: string[] | null;
+	outcome?: string | null;
+	created_at_epoch_ms: number;
+	updated_at_epoch_ms: number;
+}
+
 export interface JarvisVisitRequest {
 	namespace: string;
 	node: string;
@@ -523,6 +542,7 @@ export interface JarvisDashboardViewState {
 	controlPlane: JarvisControlPlaneState | null;
 	cluster: JarvisClusterState;
 	tickets: JarvisTicketSummary[];
+	missions: JarvisMissionRecord[];
 	selectedNamespace: string | null;
 	selectedControlNamespace: string | null;
 	statusMessage: string;

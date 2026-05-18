@@ -266,6 +266,7 @@ const activeSurfaceModel = computed(
 					:sessions="sessions"
 					:workers="workers"
 					:tickets="host.state.tickets"
+					:missions="host.state.missions"
 					:cluster="cluster"
 				/>
 				<OperatorConsole v-if="activeSurface === 'operator'" :host="host" :session="session" />

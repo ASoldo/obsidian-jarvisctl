@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import type {
 	JarvisClusterState,
+	JarvisMissionRecord,
 	JarvisSessionMetadata,
 	JarvisTicketSummary,
 	JarvisWorkerMetadata,
@@ -24,6 +25,7 @@ const props = defineProps<{
 	sessions: JarvisSessionMetadata[];
 	workers: JarvisWorkerMetadata[];
 	tickets: JarvisTicketSummary[];
+	missions: JarvisMissionRecord[];
 	cluster: JarvisClusterState;
 }>();
 
@@ -188,12 +190,13 @@ const stages = computed<MissionChainStage[]>(() => [
 		id: "learn",
 		label: "Learn",
 		doctrine: "Preserve decisions and improve the playbook.",
-		status: props.cluster.audit.length ? "audited" : "baseline",
-		tone: props.cluster.audit.length ? "info" : "idle",
-		metric: `${props.cluster.audit.length} audit events`,
+		status: props.missions.length || props.cluster.audit.length ? "audited" : "baseline",
+		tone: props.missions.length || props.cluster.audit.length ? "info" : "idle",
+		metric: `${props.missions.length} missions`,
 		detail: "Session notes, audit logs, and tickets become reusable operational memory for future missions.",
 		evidence: [
 			props.cluster.policy ? "orchestration policy loaded" : "policy not loaded",
+			`${props.cluster.audit.length} audit events`,
 			`${props.cluster.index.visits.length} remote visits indexed`,
 		],
 	},
@@ -202,6 +205,7 @@ const stages = computed<MissionChainStage[]>(() => [
 const commandPost = computed(() => [
 	{ label: "Readiness", value: `${operationalReadiness.value}%`, tone: operationalReadiness.value >= 80 ? "live" : "warning" },
 	{ label: "Namespaces", value: String(props.sessions.length), tone: props.sessions.length ? "info" : "idle" },
+	{ label: "Missions", value: String(props.missions.length), tone: props.missions.length ? "info" : "idle" },
 	{ label: "Nodes", value: `${schedulableNodes.value.length}/${props.cluster.nodes.length}`, tone: schedulableNodes.value.length === props.cluster.nodes.length ? "live" : "warning" },
 	{ label: "Approvals", value: String(pendingServerRequests.value.length), tone: pendingServerRequests.value.length ? "warning" : "live" },
 ] as const);
@@ -227,6 +231,21 @@ const commandPost = computed(() => [
 		</section>
 
 		<section class="cp-mission-stage-grid">
+			<article v-if="missions.length" class="cp-mission-stage cp-mission-stage--ledger">
+				<div class="cp-mission-stage__head">
+					<div class="cp-mission-stage__index">ML</div>
+					<div class="cp-mission-stage__identity">
+						<h4>Mission ledger</h4>
+						<p>Current decision and evidence objects.</p>
+					</div>
+					<StatusBadge :label="`${missions.length} tracked`" tone="info" compact />
+				</div>
+				<div class="cp-mission-stage__evidence">
+					<span v-for="mission in missions.slice(0, 6)" :key="mission.id" class="cp-chip" :title="mission.objective ?? mission.id">
+						{{ mission.title }} · {{ mission.status }}
+					</span>
+				</div>
+			</article>
 			<article
 				v-for="(stage, index) in stages"
 				:key="stage.id"

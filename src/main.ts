@@ -35,6 +35,7 @@ import type {
 	JarvisDashboardViewState,
 	JarvisFanoutRequest,
 	JarvisGpgStatus,
+	JarvisMissionRecord,
 	JarvisNodeDoctorCheck,
 	JarvisNodeLinkCheck,
 	JarvisOrchestrationPolicy,
@@ -593,6 +594,13 @@ export default class JarvisCtlControlPlugin extends Plugin {
 				}
 				return left.title.localeCompare(right.title);
 			});
+	}
+
+	async fetchMissions(): Promise<JarvisMissionRecord[]> {
+		const missions = await this.fetchJson<JarvisMissionRecord[]>(["mission", "list", "--output", "json"], []);
+		return Array.isArray(missions)
+			? missions.sort((left, right) => right.updated_at_epoch_ms - left.updated_at_epoch_ms)
+			: [];
 	}
 
 	async syncRemoteSessionTickets(sessions: JarvisSessionMetadata[]): Promise<void> {
@@ -1756,6 +1764,7 @@ class JarvisCtlControlView extends ItemView {
 		controlPlane: null,
 		cluster: structuredClone(EMPTY_CLUSTER_STATE),
 		tickets: [],
+		missions: [],
 		selectedNamespace: null,
 		selectedControlNamespace: null,
 		statusMessage: "Idle",
@@ -2106,12 +2115,16 @@ class JarvisCtlControlView extends ItemView {
 				this.plugin.fetchClusterState(),
 			]);
 			await this.plugin.syncRemoteSessionTickets(cluster.index.sessions);
-			const tickets = await this.plugin.fetchTickets();
+			const [tickets, missions] = await Promise.all([
+				this.plugin.fetchTickets(),
+				this.plugin.fetchMissions(),
+			]);
 			const sessions = mergeSessions(localSessions, cluster.index.sessions);
 			this.state.sessions = sessions;
 			this.state.workers = workers;
 			this.state.cluster = cluster;
 			this.state.tickets = tickets;
+			this.state.missions = missions;
 			if (
 				!this.state.selectedNamespace ||
 				!sessions.some((session) => session.namespace === this.state.selectedNamespace)
