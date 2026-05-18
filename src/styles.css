@@ -540,7 +540,7 @@
   }
 
   .cp-main-panel__body {
-    @apply h-full overflow-hidden overscroll-contain p-2;
+    @apply h-full overflow-hidden overscroll-contain p-0;
   }
 
   .cp-main-panel__body > * {
@@ -1254,7 +1254,7 @@
   }
 
   .cp-runtime-section__body {
-    @apply min-h-0 min-w-0 overflow-visible pr-0;
+    @apply min-h-0 min-w-0 overflow-auto overscroll-contain pr-1;
   }
 
   .cp-runtime-section__body > * {
@@ -1808,7 +1808,7 @@
   }
 
   .cp-surface-card__body {
-    @apply h-full min-h-0 min-w-0 overflow-hidden p-4;
+    @apply h-full min-h-0 min-w-0 overflow-auto overscroll-contain p-4;
   }
 
   .cp-surface-card__body > * {

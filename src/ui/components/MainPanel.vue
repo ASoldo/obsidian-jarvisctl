@@ -235,8 +235,8 @@ const activeSurfaceModel = computed(
 </script>
 
 <template>
-	<section class="cp-panel cp-main-panel">
-		<div class="cp-panel__body cp-main-panel__body">
+	<section class="cp-main-panel">
+		<div class="cp-main-panel__body">
 			<SurfaceCard
 				v-if="activeSurfaceModel"
 				:eyebrow="activeSurfaceModel.eyebrow"
