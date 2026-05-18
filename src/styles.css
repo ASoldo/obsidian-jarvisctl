@@ -477,8 +477,57 @@
     background: color-mix(in srgb, var(--cp-blue) 14%, var(--cp-panel-strong) 86%);
   }
 
+  .cp-sidebar-rail__button.is-active {
+    box-shadow:
+      inset 3px 0 0 color-mix(in srgb, var(--cp-sky) 80%, white 20%),
+      0 0 0 3px color-mix(in srgb, var(--cp-blue) 12%, transparent);
+  }
+
+  .cp-sidebar-rail__button.is-active::after {
+    content: "";
+    position: absolute;
+    inset-block: 0.45rem;
+    inset-inline-end: -0.45rem;
+    width: 3px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--cp-sky) 82%, white 18%);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--cp-sky) 38%, transparent);
+  }
+
   .cp-sidebar-rail__button .cp-entity-avatar {
     @apply h-8 w-8;
+  }
+
+  .cp-sidebar-rail__button.is-active .cp-entity-avatar {
+    border-color: color-mix(in srgb, var(--cp-sky) 68%, var(--cp-border) 32%);
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--cp-sky) 18%, transparent),
+      0 10px 20px color-mix(in srgb, #020617 18%, transparent);
+  }
+
+  .cp-sidebar-rail__selected-dot {
+    position: absolute;
+    inset-inline-start: 0.35rem;
+    inset-block-start: 0.35rem;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 999px;
+    background: var(--cp-emerald);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--cp-emerald) 18%, transparent);
+  }
+
+  .cp-sidebar-rail__short-label {
+    position: absolute;
+    inset-inline: 0.35rem;
+    inset-block-end: -0.48rem;
+    color: var(--cp-text-soft);
+    background: color-mix(in srgb, var(--cp-panel) 96%, #020617 4%);
+    border: 1px solid color-mix(in srgb, var(--cp-border) 82%, transparent);
+    @apply truncate rounded-full px-1 text-center text-[7px] font-semibold uppercase leading-3 tracking-[0.04em];
+  }
+
+  .cp-sidebar-rail__button--resource {
+    margin-top: 0.25rem;
   }
 
   .cp-sidebar-rail__badge {

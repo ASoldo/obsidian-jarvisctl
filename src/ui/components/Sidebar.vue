@@ -106,7 +106,7 @@ function nodeStatusLabel(node: JarvisClusterNode): string {
 		<div v-if="collapsed" class="cp-sidebar-rail" aria-label="Collapsed source navigation">
 			<button
 				type="button"
-				class="cp-sidebar-rail__button"
+				:class="['cp-sidebar-rail__button', selectedRepository === null && 'is-active']"
 				title="Show all projects"
 				aria-label="Show all projects"
 				@click="emit('select-repository', null)"
@@ -133,6 +133,8 @@ function nodeStatusLabel(node: JarvisClusterNode): string {
 				@click="emit('select-namespace', session.namespace)"
 			>
 				<EntityAvatar kind="session" :scope="sessionScope(session)" :tone="sessionTone(session)" size="sm" />
+				<span v-if="selectedNamespace === session.namespace" class="cp-sidebar-rail__selected-dot" aria-hidden="true" />
+				<span class="cp-sidebar-rail__short-label" aria-hidden="true">{{ session.namespace.slice(0, 2).toUpperCase() }}</span>
 			</button>
 			<button
 				type="button"
@@ -146,8 +148,8 @@ function nodeStatusLabel(node: JarvisClusterNode): string {
 			<button
 				v-if="selectedSession"
 				type="button"
-				class="cp-sidebar-rail__button"
-				title="Open selected ticket"
+				class="cp-sidebar-rail__button cp-sidebar-rail__button--resource"
+				:title="selectedSession.context?.task_note ?? 'Open selected ticket'"
 				aria-label="Open selected ticket"
 				@click="emit('open-ticket', selectedSession)"
 			>
