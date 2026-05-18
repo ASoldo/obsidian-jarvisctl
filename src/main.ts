@@ -639,11 +639,34 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		const node = await this.resolveStartSessionNode(request.node.trim() || "auto");
 		await this.syncTaskNoteToNode(taskNote, node);
 		const args = ["node", "start-session", "--node", node, "--task-note", taskNote, "--full"];
+		if (request.role?.trim()) {
+			args.push("--role", request.role.trim());
+		}
+		if (request.labels?.trim()) {
+			for (const label of request.labels.split(/[\n,]+/).map((entry) => entry.trim()).filter(Boolean)) {
+				args.push("--label", label);
+			}
+		}
+		if (request.retries?.trim()) {
+			args.push("--retries", request.retries.trim());
+		}
 		if (request.namespace.trim()) {
 			args.push("--namespace", request.namespace.trim());
 		}
+		if (request.resumeSessionId?.trim()) {
+			args.push("--resume-session-id", request.resumeSessionId.trim());
+		}
+		if (request.workingDirectory?.trim()) {
+			args.push("--working-directory", request.workingDirectory.trim());
+		}
 		if (request.message.trim()) {
 			args.push("--message", request.message.trim());
+		}
+		if (request.startupDelayMs?.trim()) {
+			args.push("--startup-delay-ms", request.startupDelayMs.trim());
+		}
+		if (request.command?.trim()) {
+			args.push("--", ...request.command.trim().split(/\s+/));
 		}
 		const { stdout } = await this.execJarvisCtl(args);
 		const output = stdout.trim();
@@ -807,6 +830,29 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			request.timeoutSeconds.trim() || "900",
 			"--full",
 		];
+		if (request.role?.trim()) {
+			args.push("--role", request.role.trim());
+		}
+		if (request.labels?.trim()) {
+			for (const label of request.labels.split(/[\n,]+/).map((entry) => entry.trim()).filter(Boolean)) {
+				args.push("--label", label);
+			}
+		}
+		if (request.sandbox?.trim()) {
+			args.push("--sandbox", request.sandbox.trim());
+		}
+		if (request.model?.trim()) {
+			args.push("--model", request.model.trim());
+		}
+		if (request.reasoningEffort?.trim()) {
+			args.push("--reasoning-effort", request.reasoningEffort.trim());
+		}
+		if (request.maxConcurrency?.trim()) {
+			args.push("--max-concurrency", request.maxConcurrency.trim());
+		}
+		if (request.ephemeral) {
+			args.push("--ephemeral");
+		}
 		for (const node of request.nodes.split(/[\s,]+/).filter(Boolean)) {
 			args.push("--node", node);
 		}
@@ -1877,6 +1923,25 @@ class JarvisCtlControlView extends ItemView {
 			sendOperatorMessage: async (session, request) => {
 				await this.runAction(`Sending context into ${session.namespace}`, async () => {
 					await this.plugin.sendOperatorMessage(session, request);
+				}, true);
+			},
+			respondServerRequest: async (session, request, responseJson, error) => {
+				await this.runAction(`Responding to ${request.method}`, async () => {
+					const args = [
+						"respond-request",
+						"--namespace",
+						session.namespace,
+						"--request-id",
+						request.id,
+					];
+					if (error?.trim()) {
+						args.push("--error", error.trim());
+					} else if (responseJson?.trim()) {
+						args.push("--response-json", responseJson.trim());
+					} else {
+						throw new Error("A request response requires JSON or an error message.");
+					}
+					await this.plugin.runJarvisCtl(args);
 				}, true);
 			},
 			pickVaultAttachment: async () => {

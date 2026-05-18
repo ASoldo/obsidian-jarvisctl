@@ -11,7 +11,7 @@
     "dev:css": "tailwindcss -i ./src/styles.css -o ./styles.css --watch",
     "dev:js": "node esbuild.config.mjs development",
     "dev": "concurrently -k \"npm:dev:css\" \"npm:dev:js\"",
-    "install-local": "mkdir -p /home/rootster/documents/codex/.obsidian/plugins/jarvisctl-control && cp manifest.json main.js styles.css /home/rootster/documents/codex/.obsidian/plugins/jarvisctl-control/"
+    "install-local": "VAULT=${OBSIDIAN_VAULT:-/home/rootster/codex}; mkdir -p \"$VAULT/.obsidian/plugins/jarvisctl-control\" && cp manifest.json main.js styles.css \"$VAULT/.obsidian/plugins/jarvisctl-control/\""
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.2.2",

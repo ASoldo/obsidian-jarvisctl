@@ -28,6 +28,13 @@ const form = reactive({
 	namespace: "",
 	node: "auto",
 	nodes: "",
+	role: "",
+	schedulerLabels: "",
+	retries: "1",
+	resumeSessionId: "",
+	workingDirectory: "",
+	startupDelayMs: "1500",
+	command: "",
 	timeoutSeconds: "900",
 	message: "",
 	repoPath: "/home/rootster/codex",
@@ -38,6 +45,8 @@ const form = reactive({
 	reasoningEffort: "high",
 	sandboxMode: "danger-full-access",
 	finishMode: "keep",
+	maxConcurrency: "4",
+	ephemeral: false,
 	labels: [] as string[],
 });
 
@@ -193,8 +202,15 @@ async function deploy(): Promise<void> {
 		if (mode.value === "fanout") {
 			await props.host.runClusterFanout({
 				nodes: form.nodes,
+				role: form.role,
+				labels: form.schedulerLabels,
 				text: form.message || (ticket ? buildDefaultPrompt(ticket) : "Report node readiness."),
 				timeoutSeconds: form.timeoutSeconds,
+				sandbox: form.sandboxMode,
+				model: form.model,
+				reasoningEffort: form.reasoningEffort,
+				ephemeral: form.ephemeral,
+				maxConcurrency: form.maxConcurrency,
 			});
 			emit("close");
 			return;
@@ -202,7 +218,14 @@ async function deploy(): Promise<void> {
 		await props.host.startClusterSession({
 			namespace: form.namespace,
 			node: form.node,
+			role: form.role,
+			labels: form.schedulerLabels,
+			retries: form.retries,
 			taskNote: ticket?.absolute_path ?? "",
+			resumeSessionId: form.resumeSessionId,
+			workingDirectory: form.workingDirectory,
+			startupDelayMs: form.startupDelayMs,
+			command: form.command,
 			title: form.title,
 			repoPath: form.repoPath,
 			project: form.project,
@@ -307,6 +330,22 @@ async function deploy(): Promise<void> {
 						<input v-model="form.nodes" class="cp-form-input" placeholder="archiebald, archiechokie" :disabled="mode !== 'fanout'" />
 					</div>
 					<div class="cp-form-field">
+						<label class="cp-form-field__label">Role</label>
+						<input v-model="form.role" class="cp-form-input" placeholder="worker" :disabled="mode === 'visit' || mode === 'dispatch'" />
+					</div>
+					<div class="cp-form-field">
+						<label class="cp-form-field__label">Scheduler labels</label>
+						<input v-model="form.schedulerLabels" class="cp-form-input" placeholder="gpu=true,zone=local" :disabled="mode === 'visit' || mode === 'dispatch'" />
+					</div>
+					<div class="cp-form-field">
+						<label class="cp-form-field__label">Retries</label>
+						<input v-model="form.retries" class="cp-form-input" placeholder="1" :disabled="mode !== 'start-session'" />
+					</div>
+					<div class="cp-form-field">
+						<label class="cp-form-field__label">Max concurrency</label>
+						<input v-model="form.maxConcurrency" class="cp-form-input" placeholder="4" :disabled="mode !== 'fanout'" />
+					</div>
+					<div class="cp-form-field">
 						<label class="cp-form-field__label">Timeout</label>
 						<input v-model="form.timeoutSeconds" class="cp-form-input" placeholder="900" :disabled="mode === 'dispatch'" />
 					</div>
@@ -380,6 +419,26 @@ async function deploy(): Promise<void> {
 							<option value="keep">keep</option>
 							<option value="close">close</option>
 						</select>
+					</div>
+					<div class="cp-form-field">
+						<label class="cp-form-field__label">Resume session</label>
+						<input v-model="form.resumeSessionId" class="cp-form-input" placeholder="optional Codex thread/session id" :disabled="mode !== 'start-session'" />
+					</div>
+					<div class="cp-form-field">
+						<label class="cp-form-field__label">Working directory</label>
+						<input v-model="form.workingDirectory" class="cp-form-input" placeholder="override working directory" :disabled="mode !== 'start-session'" />
+					</div>
+					<div class="cp-form-field">
+						<label class="cp-form-field__label">Startup delay ms</label>
+						<input v-model="form.startupDelayMs" class="cp-form-input" placeholder="1500" :disabled="mode !== 'start-session'" />
+					</div>
+					<label class="cp-form-field cp-form-field--inline">
+						<span class="cp-form-field__label">Ephemeral fanout</span>
+						<input v-model="form.ephemeral" type="checkbox" :disabled="mode !== 'fanout'" />
+					</label>
+					<div class="cp-form-field cp-form-field--full">
+						<label class="cp-form-field__label">Command override</label>
+						<input v-model="form.command" class="cp-form-input" placeholder="codex --model gpt-5.4" :disabled="mode !== 'start-session'" />
 					</div>
 					<div class="cp-form-field cp-form-field--full">
 						<label class="cp-form-field__label">Labels</label>

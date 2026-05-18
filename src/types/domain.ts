@@ -8,6 +8,18 @@ export interface JarvisRuntimeFeedEntry {
 	status?: string | null;
 }
 
+export interface JarvisRuntimeServerRequest {
+	id: string;
+	method: string;
+	status: string;
+	created_at_epoch_ms: number;
+	resolved_at_epoch_ms?: number | null;
+	detail?: string | null;
+	params?: unknown;
+	response?: unknown;
+	error?: string | null;
+}
+
 export interface JarvisRuntimeSubagentAction {
 	id: string;
 	kind: string;
@@ -68,6 +80,7 @@ export interface JarvisRuntimeContext {
 	secrets?: string[] | null;
 	volumes?: string[] | null;
 	recent_events?: JarvisRuntimeFeedEntry[] | null;
+	server_requests?: JarvisRuntimeServerRequest[] | null;
 	subagents?: JarvisRuntimeSubagentMetadata[] | null;
 }
 
@@ -463,7 +476,14 @@ export interface JarvisVisitRequest {
 export interface JarvisStartSessionRequest {
 	namespace: string;
 	node: string;
+	role?: string;
+	labels?: string;
+	retries?: string;
 	taskNote: string;
+	resumeSessionId?: string;
+	workingDirectory?: string;
+	startupDelayMs?: string;
+	command?: string;
 	title?: string;
 	repoPath?: string;
 	project?: string;
@@ -479,8 +499,15 @@ export interface JarvisStartSessionRequest {
 
 export interface JarvisFanoutRequest {
 	nodes: string;
+	role?: string;
+	labels?: string;
 	text: string;
 	timeoutSeconds: string;
+	sandbox?: string;
+	model?: string;
+	reasoningEffort?: string;
+	ephemeral?: boolean;
+	maxConcurrency?: string;
 }
 
 export interface JarvisBootstrapRequest {

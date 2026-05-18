@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from "vue";
 import type {
 	JarvisRuntimeFeedEntry,
+	JarvisRuntimeServerRequest,
 	JarvisRuntimeSubagentAction,
 	JarvisRuntimeSubagentMetadata,
 	JarvisSessionMetadata,
@@ -120,6 +121,13 @@ const conversationEntries = computed<ConsoleEntry[]>(() => {
 		.slice(-24);
 });
 
+const pendingServerRequests = computed<JarvisRuntimeServerRequest[]>(() =>
+	(props.session?.context?.server_requests ?? [])
+		.filter((request) => request.status === "pending")
+		.slice()
+		.sort((left, right) => left.created_at_epoch_ms - right.created_at_epoch_ms),
+);
+
 const composerDisabled = computed(() => !props.session || sending.value);
 const hasAttachment = computed(() => draftAttachmentPath.value.trim().length > 0);
 
@@ -206,6 +214,32 @@ async function handlePasteClipboardAttachment(): Promise<void> {
 
 function clearAttachment(): void {
 	draftAttachmentPath.value = "";
+}
+
+async function denyServerRequest(request: JarvisRuntimeServerRequest): Promise<void> {
+	if (!props.session) {
+		return;
+	}
+	await props.host.respondServerRequest(
+		props.session,
+		request,
+		null,
+		"Denied by operator from Jarvis Control.",
+	);
+}
+
+async function sendCustomServerResponse(request: JarvisRuntimeServerRequest): Promise<void> {
+	if (!props.session) {
+		return;
+	}
+	const raw = window.prompt(
+		`JSON response for ${request.method}`,
+		request.method.includes("elicitation") || request.method.includes("requestUserInput") ? "{}" : "null",
+	);
+	if (raw === null) {
+		return;
+	}
+	await props.host.respondServerRequest(props.session, request, raw, null);
 }
 
 function mapEventToConversationEntry(event: JarvisRuntimeFeedEntry): ConsoleEntry | null {
@@ -336,6 +370,35 @@ function entryAvatarScope(role: ConsoleEntry["role"]): "cloud" | "local" | "remo
 				</article>
 			</div>
 		</div>
+
+		<section v-if="pendingServerRequests.length > 0" class="cp-server-request-panel">
+			<div class="cp-operator-compose__header">
+				<p class="cp-panel__eyebrow">Action Required</p>
+				<div class="cp-panel__meta">
+					<StatusBadge :label="`${pendingServerRequests.length} pending`" tone="warning" compact />
+				</div>
+			</div>
+			<article v-for="request in pendingServerRequests" :key="request.id" class="cp-server-request-card">
+				<div class="cp-server-request-card__head">
+					<div>
+						<div class="cp-control-plane-card__title">{{ request.method }}</div>
+						<div class="cp-control-plane-card__meta">{{ request.id }} · {{ formatClock(request.created_at_epoch_ms) }}</div>
+					</div>
+					<StatusBadge :label="request.status" tone="warning" compact />
+				</div>
+				<ExpandableText :text="JSON.stringify(request.params ?? {}, null, 2)" :lines="8" />
+				<div class="cp-control-strip cp-control-strip--right">
+					<button type="button" class="cp-button cp-action-button" title="Send custom JSON response" @click="sendCustomServerResponse(request)">
+						<span class="cp-button__icon" aria-hidden="true">↵</span>
+						<span class="cp-action-button__label">Respond</span>
+					</button>
+					<button type="button" class="cp-button cp-button--danger cp-action-button" title="Deny request" @click="denyServerRequest(request)">
+						<span class="cp-button__icon" aria-hidden="true">×</span>
+						<span class="cp-action-button__label">Deny</span>
+					</button>
+				</div>
+			</article>
+		</section>
 
 		<div class="cp-operator-compose">
 			<div class="cp-operator-compose__header">

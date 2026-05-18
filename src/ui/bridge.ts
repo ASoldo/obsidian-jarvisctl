@@ -3,6 +3,7 @@ import type {
 	JarvisDashboardViewState,
 	JarvisBootstrapRequest,
 	JarvisFanoutRequest,
+	JarvisRuntimeServerRequest,
 	JarvisSessionMetadata,
 	JarvisStartSessionRequest,
 	JarvisVisitRequest,
@@ -37,6 +38,12 @@ export interface JarvisDashboardHost {
 	sendOperatorMessage(
 		session: JarvisSessionMetadata,
 		request: JarvisOperatorMessageRequest,
+	): Promise<void>;
+	respondServerRequest(
+		session: JarvisSessionMetadata,
+		request: JarvisRuntimeServerRequest,
+		responseJson: string | null,
+		error: string | null,
 	): Promise<void>;
 	pickVaultAttachment(session: JarvisSessionMetadata): Promise<string | null>;
 	pickExternalAttachment(session: JarvisSessionMetadata, file: File): Promise<string | null>;
