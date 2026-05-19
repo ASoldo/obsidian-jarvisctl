@@ -12,6 +12,7 @@ import type {
 	JarvisOperatorRequestRecord,
 	JarvisProposalRecord,
 	JarvisRecurringMissionSmokeStatus,
+	JarvisRuntimeServerRequest,
 	JarvisSessionMetadata,
 	JarvisTicketSummary,
 	JarvisWorkerMetadata,
@@ -31,6 +32,18 @@ interface MissionChainStage {
 	metric: string;
 	detail: string;
 	evidence: string[];
+}
+
+interface PendingServerRequest {
+	session: JarvisSessionMetadata;
+	request: JarvisRuntimeServerRequest;
+}
+
+interface ServerRequestDecision {
+	key: string;
+	label: string;
+	responseJson: string;
+	tone: "default" | "danger";
 }
 
 const props = defineProps<{
@@ -81,7 +94,7 @@ const subagentCount = computed(() =>
 	),
 );
 
-const pendingServerRequests = computed(() =>
+const pendingServerRequests = computed<PendingServerRequest[]>(() =>
 	props.sessions.flatMap((session) =>
 		(session.context?.server_requests ?? [])
 			.filter((request) => request.status === "pending")
@@ -298,6 +311,73 @@ async function resolveOperatorRequest(request: JarvisOperatorRequestRecord, stat
 		response,
 		null,
 		`Approved from Jarvis Control: ${request.title}.`,
+	);
+}
+
+function serverRequestTitle(request: JarvisRuntimeServerRequest): string {
+	const params = request.params as Record<string, unknown> | null | undefined;
+	if (request.method.includes("requestApproval")) {
+		return "Command approval";
+	}
+	const command = typeof params?.command === "string" ? params.command : null;
+	return command ?? request.method.replaceAll("/", " / ");
+}
+
+function serverRequestDecisions(request: JarvisRuntimeServerRequest): ServerRequestDecision[] {
+	const params = request.params as Record<string, unknown> | null | undefined;
+	if (!Array.isArray(params?.availableDecisions)) {
+		return [];
+	}
+	return params.availableDecisions.map((decision, index) => {
+		const key =
+			typeof decision === "string"
+				? decision
+				: decision && typeof decision === "object"
+					? Object.keys(decision as Record<string, unknown>)[0] ?? `decision-${index}`
+					: `decision-${index}`;
+		return {
+			key: `${index}:${key}`,
+			label: formatDecisionLabel(key),
+			responseJson: JSON.stringify(decision),
+			tone: key === "cancel" ? "danger" : "default",
+		};
+	});
+}
+
+function formatDecisionLabel(decision: string): string {
+	switch (decision) {
+		case "accept":
+			return "Approve";
+		case "cancel":
+			return "Cancel";
+		case "acceptWithExecpolicyAmendment":
+			return "Approve with policy";
+		default:
+			return decision.replaceAll(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ");
+	}
+}
+
+async function promptServerRequest(item: PendingServerRequest): Promise<void> {
+	const raw = await props.host.promptServerRequestResponse(item.session, item.request);
+	if (raw === null) {
+		return;
+	}
+	await props.host.respondServerRequest(item.session, item.request, raw, null);
+}
+
+async function sendServerRequestDecision(
+	item: PendingServerRequest,
+	decision: ServerRequestDecision,
+): Promise<void> {
+	await props.host.respondServerRequest(item.session, item.request, decision.responseJson, null);
+}
+
+async function denyServerRequest(item: PendingServerRequest): Promise<void> {
+	await props.host.respondServerRequest(
+		item.session,
+		item.request,
+		null,
+		"Denied by operator from Mission Chain.",
 	);
 }
 
@@ -719,6 +799,51 @@ async function previewWorkerRetention(): Promise<void> {
 					<span v-for="item in stage.evidence.filter(Boolean)" :key="item" class="cp-chip">
 						{{ item }}
 					</span>
+				</div>
+				<div v-if="stage.id === 'authorize' && pendingServerRequests.length" class="cp-mission-authorize-list">
+					<div
+						v-for="item in pendingServerRequests.slice(0, 3)"
+						:key="`${item.session.namespace}:${item.request.id}`"
+						class="cp-mission-authorize-row"
+					>
+						<div class="cp-mission-authorize-row__copy">
+							<div class="cp-mission-row__title">{{ serverRequestTitle(item.request) }}</div>
+							<div class="cp-mission-row__meta">
+								{{ item.session.namespace }} · {{ item.request.id }}
+							</div>
+						</div>
+						<div class="cp-mission-authorize-row__actions">
+							<button
+								type="button"
+								class="cp-mini-button cp-mini-button--primary"
+								title="Reopen the response prompt for this pending request"
+								@click="promptServerRequest(item)"
+							>
+								↵
+							</button>
+							<button
+								v-for="decision in serverRequestDecisions(item.request)"
+								:key="decision.key"
+								type="button"
+								:class="[
+									'cp-mini-button',
+									decision.tone === 'danger' ? 'cp-button--danger' : '',
+								]"
+								:title="decision.label"
+								@click="sendServerRequestDecision(item, decision)"
+							>
+								{{ decision.tone === 'danger' ? '×' : '✓' }}
+							</button>
+							<button
+								type="button"
+								class="cp-mini-button cp-button--danger"
+								title="Deny this pending request"
+								@click="denyServerRequest(item)"
+							>
+								!
+							</button>
+						</div>
+					</div>
 				</div>
 			</article>
 		</section>

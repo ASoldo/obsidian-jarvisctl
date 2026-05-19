@@ -1377,6 +1377,25 @@
     color: var(--cp-danger);
   }
 
+  .cp-mission-authorize-list {
+    @apply grid min-w-0 gap-2;
+  }
+
+  .cp-mission-authorize-row {
+    border: 1px solid color-mix(in srgb, var(--cp-amber) 28%, var(--cp-border) 72%);
+    background: color-mix(in srgb, var(--cp-amber) 8%, var(--cp-panel-strong) 92%);
+    @apply grid min-w-0 items-center gap-2 rounded-xl px-3 py-2;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .cp-mission-authorize-row__copy {
+    @apply min-w-0;
+  }
+
+  .cp-mission-authorize-row__actions {
+    @apply flex min-w-0 flex-wrap justify-end gap-1.5;
+  }
+
   .cp-mission-scoregrid {
     @apply grid min-w-0 gap-2;
     grid-template-columns: repeat(2, minmax(0, 1fr));
