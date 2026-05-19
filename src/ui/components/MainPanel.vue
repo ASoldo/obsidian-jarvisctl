@@ -13,6 +13,7 @@ import type {
 	JarvisMissionPlan,
 	JarvisAutonomyPolicyRule,
 	JarvisWorkerLaneScorecard,
+	JarvisWorkerRunRecord,
 	JarvisProposalRecord,
 	JarvisOperatorRequestRecord,
 	JarvisRecurringMissionSmokeStatus,
@@ -61,6 +62,7 @@ const props = defineProps<{
 	missionPlans: JarvisMissionPlan[];
 	autonomyPolicy: JarvisAutonomyPolicyRule[];
 	laneScorecards: JarvisWorkerLaneScorecard[];
+	workerRuns: JarvisWorkerRunRecord[];
 	capabilities: JarvisCapabilityRecord[];
 	autonomyReport: JarvisAutonomyReconcileReport | null;
 	autonomyServiceStatus: JarvisAutonomyServiceStatus | null;
@@ -291,6 +293,7 @@ const activeSurfaceModel = computed(
 					:plans="missionPlans"
 					:policy="autonomyPolicy"
 					:scorecards="laneScorecards"
+					:worker-runs="workerRuns"
 					:capabilities="capabilities"
 					:autonomy-report="autonomyReport"
 					:autonomy-service-status="autonomyServiceStatus"

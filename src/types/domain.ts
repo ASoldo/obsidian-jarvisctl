@@ -131,12 +131,14 @@ export interface JarvisWorkerOffloadRequest {
 	controlNamespace: string;
 	serviceName: string;
 	prompt: string;
+	execute?: boolean;
 	intent?: string | null;
 	jobName?: string | null;
 	outputPath?: string | null;
 }
 
 export interface JarvisWorkerOffloadResult {
+	run_id: string;
 	job_name: string;
 	namespace: string;
 	service_name: string;
@@ -529,6 +531,36 @@ export interface JarvisWorkerLaneScorecard {
 	gaps: string[];
 }
 
+export interface JarvisWorkerRunRecord {
+	id: string;
+	job_name: string;
+	namespace: string;
+	service_name: string;
+	phase: string;
+	execution_mode: string;
+	started_at_epoch_ms: number;
+	completed_at_epoch_ms: number;
+	duration_ms: number;
+	intent?: string;
+	prompt_sha256: string;
+	prompt_bytes: number;
+	prompt_preview: string;
+	selected_class?: string;
+	fallback_class: boolean;
+	worker?: string;
+	worker_namespace?: string;
+	worker_provider?: string;
+	worker_model?: string;
+	worker_locality?: string;
+	validation_state?: string;
+	validation_message?: string;
+	artifact_path?: string;
+	output_path?: string;
+	response_preview?: string;
+	error?: string;
+	node?: string;
+}
+
 export interface JarvisCapabilityValidator {
 	id: string;
 	kind: string;
@@ -746,6 +778,7 @@ export interface JarvisDashboardViewState {
 	missionPlans: JarvisMissionPlan[];
 	autonomyPolicy: JarvisAutonomyPolicyRule[];
 	laneScorecards: JarvisWorkerLaneScorecard[];
+	workerRuns: JarvisWorkerRunRecord[];
 	capabilities: JarvisCapabilityRecord[];
 	autonomyReport: JarvisAutonomyReconcileReport | null;
 	autonomyServiceStatus: JarvisAutonomyServiceStatus | null;

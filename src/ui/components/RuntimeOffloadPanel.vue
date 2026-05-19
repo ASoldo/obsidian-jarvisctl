@@ -69,6 +69,7 @@ const props = defineProps<{
 const selectedRuntimeNamespace = ref("");
 const selectedServiceName = ref("");
 const prompt = ref("");
+const executeProvider = ref(false);
 const lastResult = ref<JarvisWorkerOffloadResult | null>(null);
 const errorMessage = ref<string | null>(null);
 const running = ref(false);
@@ -302,6 +303,7 @@ function buildRequest(): JarvisWorkerOffloadRequest | null {
 		controlNamespace: props.controlPlane.namespace,
 		serviceName,
 		prompt: requestPrompt,
+		execute: executeProvider.value,
 	};
 }
 
@@ -478,6 +480,10 @@ async function runOffload(): Promise<void> {
 						via <code>worker offload --via-runtime-namespace</code>
 					</div>
 				</div>
+				<label class="cp-toggle-row cp-form-field--full">
+					<input v-model="executeProvider" type="checkbox" />
+					<span>Execute provider-backed worker lane when available</span>
+				</label>
 				<div class="cp-form-field cp-form-field--full">
 					<label class="cp-form-field__label" for="cp-offload-prompt">Prompt</label>
 					<textarea
@@ -525,7 +531,7 @@ async function runOffload(): Promise<void> {
 					<div>
 						<div class="cp-control-plane-card__title">Last offload result</div>
 						<div class="cp-control-plane-card__meta">
-							{{ lastResult.service_name }} · {{ lastResult.job_name }}
+							{{ lastResult.service_name }} · {{ lastResult.job_name }} · {{ lastResult.run_id }}
 						</div>
 					</div>
 					<div class="cp-control-plane-card__badges">

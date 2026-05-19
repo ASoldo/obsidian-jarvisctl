@@ -16,6 +16,7 @@ import type {
 	JarvisTicketSummary,
 	JarvisWorkerMetadata,
 	JarvisWorkerLaneScorecard,
+	JarvisWorkerRunRecord,
 } from "../../types/domain";
 import type { JarvisDashboardHost } from "../bridge";
 import { relativeAge, sessionTone, statusTone } from "../helpers";
@@ -41,6 +42,7 @@ const props = defineProps<{
 	plans: JarvisMissionPlan[];
 	policy: JarvisAutonomyPolicyRule[];
 	scorecards: JarvisWorkerLaneScorecard[];
+	workerRuns: JarvisWorkerRunRecord[];
 	capabilities: JarvisCapabilityRecord[];
 	autonomyReport: JarvisAutonomyReconcileReport | null;
 	autonomyServiceStatus: JarvisAutonomyServiceStatus | null;
@@ -105,6 +107,7 @@ const pendingOperatorRequests = computed(() =>
 );
 const latestPlans = computed(() => props.plans.slice(0, 5));
 const visibleScorecards = computed(() => props.scorecards.slice(0, 4));
+const visibleWorkerRuns = computed(() => props.workerRuns.slice(0, 6));
 const visibleCapabilities = computed(() => props.capabilities.slice(0, 5));
 const visibleTemplates = computed(() => props.templates.slice(0, 7));
 const visiblePolicy = computed(() => props.policy.slice(0, 5));
@@ -549,6 +552,33 @@ async function runMissionSmoke(): Promise<void> {
 						</div>
 					</div>
 				</div>
+			</article>
+
+			<article class="cp-mission-stage cp-mission-stage--wide">
+				<div class="cp-mission-stage__head">
+					<div class="cp-mission-stage__index">WR</div>
+					<div class="cp-mission-stage__identity">
+						<h4>Worker runs</h4>
+						<p>Recent bounded offload records across local and remote nodes.</p>
+					</div>
+					<StatusBadge :label="`${workerRuns.length} runs`" tone="info" compact />
+				</div>
+				<div v-if="visibleWorkerRuns.length" class="cp-mission-scoregrid">
+					<div v-for="run in visibleWorkerRuns" :key="run.id" class="cp-mission-score">
+						<div class="cp-mission-row__title">{{ run.job_name }}</div>
+						<div class="cp-mission-row__meta">
+							{{ run.namespace }}/{{ run.service_name }} · {{ run.worker ?? "worker" }} · {{ run.node ?? "local" }}
+						</div>
+						<div class="cp-chip-row">
+							<span class="cp-chip">{{ run.phase }}</span>
+							<span class="cp-chip">{{ run.execution_mode }}</span>
+							<span class="cp-chip">{{ run.validation_state ?? "unvalidated" }}</span>
+						</div>
+						<div v-if="run.response_preview" class="cp-mission-row__meta">{{ run.response_preview }}</div>
+						<div v-if="run.error" class="cp-mission-row__meta cp-mission-row__meta--danger">{{ run.error }}</div>
+					</div>
+				</div>
+				<div v-else class="cp-empty-state">No worker run records yet. Use a service-backed worker offload to create the first record.</div>
 			</article>
 
 			<article class="cp-mission-stage cp-mission-stage--wide">

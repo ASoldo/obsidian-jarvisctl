@@ -67,6 +67,7 @@ import type {
 	JarvisWorkerLaneScorecard,
 	JarvisWorkerOffloadRequest,
 	JarvisWorkerOffloadResult,
+	JarvisWorkerRunRecord,
 } from "./types/domain";
 
 const execFileAsync = promisify(execFile);
@@ -74,7 +75,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-observer";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control", "jarvisctl-control-live"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-05-17-cluster-orchestration-dashboard";
+const BUILD_STAMP = "2026-05-19-worker-run-ledger";
 
 const EMPTY_CLUSTER_STATE: JarvisClusterState = {
 	nodes: [],
@@ -633,6 +634,14 @@ export default class JarvisCtlControlPlugin extends Plugin {
 	async fetchLaneScorecards(): Promise<JarvisWorkerLaneScorecard[]> {
 		const scorecards = await this.fetchJson<JarvisWorkerLaneScorecard[]>(["mission", "scorecards", "--output", "json"], []);
 		return Array.isArray(scorecards) ? scorecards : [];
+	}
+
+	async fetchWorkerRuns(): Promise<JarvisWorkerRunRecord[]> {
+		const runs = await this.fetchJson<JarvisWorkerRunRecord[]>(
+			["worker", "runs", "--all", "--limit", "30", "--output", "json"],
+			[],
+		);
+		return Array.isArray(runs) ? runs : [];
 	}
 
 	async fetchCapabilities(): Promise<JarvisCapabilityRecord[]> {
@@ -1361,6 +1370,9 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		if (intent) {
 			args.push("--intent", intent);
 		}
+		if (request.execute) {
+			args.push("--execute");
+		}
 
 		args.push("--prompt", prompt);
 
@@ -1636,6 +1648,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 				if (!run) {
 					if (status.pending > 0 || status.active > 0 || status.succeeded > 0) {
 						return {
+							run_id: jobName,
 							job_name: jobName,
 							namespace,
 							service_name: "unknown",
@@ -1656,6 +1669,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 					status.pending > 0
 				) {
 					return {
+						run_id: jobName,
 						job_name: jobName,
 						namespace,
 						service_name: run.service_name ?? "unknown",
@@ -1979,6 +1993,7 @@ class JarvisCtlControlView extends ItemView {
 		missionPlans: [],
 		autonomyPolicy: [],
 		laneScorecards: [],
+		workerRuns: [],
 		capabilities: [],
 		autonomyReport: null,
 		autonomyServiceStatus: null,
@@ -2412,6 +2427,7 @@ class JarvisCtlControlView extends ItemView {
 				missionPlans,
 				autonomyPolicy,
 				laneScorecards,
+				workerRuns,
 				capabilities,
 				autonomyServiceStatus,
 				missionSmokeStatus,
@@ -2424,6 +2440,7 @@ class JarvisCtlControlView extends ItemView {
 				this.plugin.fetchMissionPlans(),
 				this.plugin.fetchAutonomyPolicy(),
 				this.plugin.fetchLaneScorecards(),
+				this.plugin.fetchWorkerRuns(),
 				this.plugin.fetchCapabilities(),
 				this.plugin.fetchAutonomyServiceStatus(),
 				this.plugin.fetchMissionSmokeStatus(),
@@ -2440,6 +2457,7 @@ class JarvisCtlControlView extends ItemView {
 			this.state.missionPlans = missionPlans;
 			this.state.autonomyPolicy = autonomyPolicy;
 			this.state.laneScorecards = laneScorecards;
+			this.state.workerRuns = workerRuns;
 			this.state.capabilities = capabilities;
 			this.state.autonomyServiceStatus = autonomyServiceStatus;
 			this.state.missionSmokeStatus = missionSmokeStatus;
