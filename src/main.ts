@@ -65,9 +65,12 @@ import type {
 	JarvisVisitRequest,
 	JarvisWorkerMetadata,
 	JarvisWorkerLaneScorecard,
+	JarvisWorkerDriftSmokeReport,
 	JarvisWorkerOffloadRequest,
 	JarvisWorkerOffloadResult,
+	JarvisWorkerRunArtifactReport,
 	JarvisWorkerRunRecord,
+	JarvisWorkerRunPruneReport,
 } from "./types/domain";
 
 const execFileAsync = promisify(execFile);
@@ -664,6 +667,77 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			[],
 		);
 		return Array.isArray(runs) ? runs : [];
+	}
+
+	async readWorkerRunArtifact(id: string): Promise<JarvisWorkerRunArtifactReport> {
+		const { stdout } = await this.execJarvisCtl([
+			"worker",
+			"artifact",
+			id,
+			"--all",
+			"--output",
+			"json",
+		]);
+		return JSON.parse(stdout.trim() || "{}") as JarvisWorkerRunArtifactReport;
+	}
+
+	async markWorkerRun(id: string, status: string, note?: string): Promise<JarvisWorkerRunRecord> {
+		const args = [
+			"worker",
+			"mark-run",
+			id,
+			"--status",
+			status,
+			"--all",
+			"--output",
+			"json",
+		];
+		if (note?.trim()) {
+			args.push("--note", note.trim());
+		}
+		const { stdout } = await this.execJarvisCtl(args);
+		this.invalidateRuntimeCaches();
+		const parsed = JSON.parse(stdout.trim() || "[]") as JarvisWorkerRunRecord[] | JarvisWorkerRunRecord;
+		const record = Array.isArray(parsed) ? parsed[0] : parsed;
+		if (!record?.id) {
+			throw new Error("Worker mark-run did not return a record.");
+		}
+		return record;
+	}
+
+	async runWorkerDriftSmoke(serviceName: string, namespace: string): Promise<JarvisWorkerDriftSmokeReport> {
+		const { stdout } = await this.execJarvisCtl([
+			"worker",
+			"drift-smoke",
+			"--service",
+			serviceName,
+			"-n",
+			namespace,
+			"--all",
+			"--output",
+			"json",
+		]);
+		this.invalidateRuntimeCaches();
+		return JSON.parse(stdout.trim() || "{}") as JarvisWorkerDriftSmokeReport;
+	}
+
+	async pruneWorkerRuns(maxAgeDays: number, apply: boolean, redact: boolean): Promise<JarvisWorkerRunPruneReport> {
+		const args = [
+			"worker",
+			"prune-runs",
+			"--max-age-days",
+			String(maxAgeDays),
+			"--all",
+			"--output",
+			"json",
+		];
+		args.push(apply ? "--apply" : "--dry-run");
+		if (redact) {
+			args.push("--redact");
+		}
+		const { stdout } = await this.execJarvisCtl(args);
+		this.invalidateRuntimeCaches();
+		return JSON.parse(stdout.trim() || "{}") as JarvisWorkerRunPruneReport;
 	}
 
 	async fetchCapabilities(): Promise<JarvisCapabilityRecord[]> {
@@ -2416,6 +2490,49 @@ class JarvisCtlControlView extends ItemView {
 				} finally {
 					this.actionInFlight = false;
 				}
+			},
+			copyWorkerRunArtifact: async (runId) => {
+				await this.runAction(`Reading artifact ${runId}`, async () => {
+					const artifact = await this.plugin.readWorkerRunArtifact(runId);
+					if (!artifact.available || !artifact.content) {
+						throw new Error(`No artifact content is available for ${runId}.`);
+					}
+					await navigator.clipboard.writeText(artifact.content);
+					this.state.statusMessage = `Copied artifact ${runId}`;
+					new Notice(`Copied artifact from ${artifact.node ?? "local"}${artifact.path ? ` · ${artifact.path}` : ""}`);
+				}, false);
+			},
+			markWorkerRun: async (runId, status, note) => {
+				await this.runAction(`Marking ${runId}`, async () => {
+					await this.plugin.markWorkerRun(runId, status, note);
+					await this.refreshSessions(false);
+					this.state.statusMessage = `Marked worker run ${runId} as ${status}`;
+				}, true);
+			},
+			runWorkerDriftSmoke: async (serviceName, namespace) => {
+				let report!: JarvisWorkerDriftSmokeReport;
+				await this.runAction(`Running ${serviceName} drift smoke`, async () => {
+					report = await this.plugin.runWorkerDriftSmoke(serviceName, namespace);
+					await this.refreshSessions(false);
+					this.state.statusMessage = `Drift smoke ${report.status}: ${serviceName}`;
+				}, true);
+				return report;
+			},
+			pruneWorkerRuns: async (maxAgeDays, apply, redact) => {
+				let report!: JarvisWorkerRunPruneReport;
+				await this.runAction("Applying worker run retention", async () => {
+					report = await this.plugin.pruneWorkerRuns(maxAgeDays, apply, redact);
+					await this.refreshSessions(false);
+					this.state.statusMessage = apply
+						? `Pruned ${report.removed_records} worker run records`
+						: `Retention dry run scanned ${report.scanned} worker runs`;
+				}, true);
+				return report;
+			},
+			openExternalLink: async (url) => {
+				await this.runAction("Opening auth link", async () => {
+					await execFileAsync("xdg-open", [url]);
+				}, false);
 			},
 			readActivitySections: (session, limit = 10) => {
 				if (!session.context?.event_log_path) {

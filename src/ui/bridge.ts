@@ -16,6 +16,8 @@ import type {
 	JarvisVisitRequest,
 	JarvisWorkerOffloadRequest,
 	JarvisWorkerOffloadResult,
+	JarvisWorkerDriftSmokeReport,
+	JarvisWorkerRunPruneReport,
 } from "../types/domain";
 
 export type JarvisOperatorMode = "auto" | "steer" | "queue";
@@ -92,5 +94,10 @@ export interface JarvisDashboardHost {
 		session: JarvisSessionMetadata,
 		request: JarvisWorkerOffloadRequest,
 	): Promise<JarvisWorkerOffloadResult>;
+	copyWorkerRunArtifact(runId: string): Promise<void>;
+	markWorkerRun(runId: string, status: string, note?: string): Promise<void>;
+	runWorkerDriftSmoke(serviceName: string, namespace: string): Promise<JarvisWorkerDriftSmokeReport>;
+	pruneWorkerRuns(maxAgeDays: number, apply: boolean, redact: boolean): Promise<JarvisWorkerRunPruneReport>;
+	openExternalLink(url: string): Promise<void>;
 	readActivitySections(session: JarvisSessionMetadata, limit?: number): JarvisActivitySection[];
 }

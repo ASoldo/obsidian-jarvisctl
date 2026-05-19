@@ -49,6 +49,9 @@ const readyNodeCount = computed(() => props.cluster.doctor.filter((check) => che
 const reachableLinkCount = computed(
 	() => props.cluster.links.filter((link) => link.reachable ?? link.ok ?? false).length,
 );
+const authLinks = computed(() =>
+	props.cluster.links.filter((link) => !Boolean(link.reachable ?? link.ok) && Boolean(link.auth_url)),
+);
 
 function nodeDetail(node: JarvisClusterNode, key: string): string {
 	return String(node.detail ?? "").match(new RegExp(`${key}=([^ ]+)`))?.[1] ?? "";
@@ -95,6 +98,13 @@ function nodeTone(node: JarvisClusterNode): "live" | "warning" | "error" | "idle
 	}
 	return statusTone(label);
 }
+
+async function openAuthLink(url: string | null | undefined): Promise<void> {
+	if (!url) {
+		return;
+	}
+	await props.host.openExternalLink(url);
+}
 </script>
 
 <template>
@@ -114,6 +124,27 @@ function nodeTone(node: JarvisClusterNode): "live" | "warning" | "error" | "idle
 				<span class="cp-chip">{{ cluster.index.visits.length }} visits</span>
 				<span class="cp-chip">{{ reachableLinkCount }}/{{ cluster.links.length }} links</span>
 				<span class="cp-chip">{{ cluster.gpg.ok ? "GPG ready" : "GPG attention" }}</span>
+			</div>
+		</section>
+
+		<section v-if="authLinks.length" class="cp-control-plane-section">
+			<div class="cp-control-plane-section__head">
+				<div>
+					<p class="cp-panel__eyebrow">Auth Attention</p>
+					<h4 class="cp-control-plane-section__title">Tailscale SSH check mode</h4>
+				</div>
+				<StatusBadge :label="`${authLinks.length} link${authLinks.length === 1 ? '' : 's'}`" tone="warning" compact />
+			</div>
+			<div class="cp-node-grid">
+				<article v-for="link in authLinks" :key="`${link.from}-${link.to}`" class="cp-control-plane-card">
+					<div class="cp-control-plane-card__head">
+						<div>
+							<div class="cp-control-plane-card__title">{{ link.from }} → {{ link.to }}</div>
+							<div class="cp-control-plane-card__meta">{{ link.failure_class ?? "auth" }} · {{ link.detail ?? "authentication required" }}</div>
+						</div>
+						<button type="button" class="cp-mini-button cp-mini-button--primary" title="Open Tailscale auth URL" @click="openAuthLink(link.auth_url)">↗</button>
+					</div>
+				</article>
 			</div>
 		</section>
 

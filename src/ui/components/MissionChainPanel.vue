@@ -332,6 +332,22 @@ async function configureMissionSmoke(): Promise<void> {
 async function runMissionSmoke(): Promise<void> {
 	await props.host.runMissionSmoke();
 }
+
+async function copyWorkerArtifact(run: JarvisWorkerRunRecord): Promise<void> {
+	await props.host.copyWorkerRunArtifact(run.id);
+}
+
+async function remediateWorkerRun(run: JarvisWorkerRunRecord): Promise<void> {
+	await props.host.markWorkerRun(run.id, "remediated", `Remediated from Jarvis Control: ${run.job_name}.`);
+}
+
+async function runProviderDriftSmoke(): Promise<void> {
+	await props.host.runWorkerDriftSmoke("code-svc", "openclaw");
+}
+
+async function previewWorkerRetention(): Promise<void> {
+	await props.host.pruneWorkerRuns(30, false, true);
+}
 </script>
 
 <template>
@@ -564,7 +580,11 @@ async function runMissionSmoke(): Promise<void> {
 						<h4>Worker runs</h4>
 						<p>Recent bounded offload records across local and remote nodes.</p>
 					</div>
-					<StatusBadge :label="`${workerRuns.length} runs`" tone="info" compact />
+					<div class="cp-control-plane-card__badges">
+						<button type="button" class="cp-mini-button" title="Run provider drift smoke through openclaw/code-svc" @click="runProviderDriftSmoke()">Δ</button>
+						<button type="button" class="cp-mini-button" title="Preview retention and redaction policy" @click="previewWorkerRetention()">⌁</button>
+						<StatusBadge :label="`${workerRuns.length} runs`" tone="info" compact />
+					</div>
 				</div>
 				<div v-if="visibleWorkerRuns.length" class="cp-mission-scoregrid">
 					<div v-for="run in visibleWorkerRuns" :key="run.id" class="cp-mission-score">
@@ -576,9 +596,22 @@ async function runMissionSmoke(): Promise<void> {
 							<span class="cp-chip">{{ run.phase }}</span>
 							<span class="cp-chip">{{ run.execution_mode }}</span>
 							<span class="cp-chip">{{ run.validation_state ?? "unvalidated" }}</span>
+							<span v-if="run.remediation_status" class="cp-chip">{{ run.remediation_status }}</span>
 						</div>
 						<div v-if="run.response_preview" class="cp-mission-row__meta">{{ run.response_preview }}</div>
 						<div v-if="run.error" class="cp-mission-row__meta cp-mission-row__meta--danger">{{ run.error }}</div>
+						<div class="cp-chip-row">
+							<button type="button" class="cp-mini-button" title="Copy worker artifact" @click="copyWorkerArtifact(run)">⧉</button>
+							<button
+								type="button"
+								class="cp-mini-button"
+								title="Mark worker run remediated"
+								:disabled="run.remediation_status === 'remediated'"
+								@click="remediateWorkerRun(run)"
+							>
+								✓
+							</button>
+						</div>
 					</div>
 				</div>
 				<div v-else class="cp-empty-state">No worker run records yet. Use a service-backed worker offload to create the first record.</div>

@@ -397,6 +397,8 @@ export interface JarvisNodeLinkCheck {
 	ok?: boolean;
 	exit_status?: number;
 	detail?: string;
+	failure_class?: string | null;
+	auth_url?: string | null;
 	error?: string | null;
 }
 
@@ -563,6 +565,42 @@ export interface JarvisWorkerRunRecord {
 	response_preview?: string;
 	error?: string;
 	node?: string;
+	remediation_status?: string | null;
+	remediation_note?: string | null;
+	remediated_at_epoch_ms?: number | null;
+	redacted?: boolean;
+}
+
+export interface JarvisWorkerRunArtifactReport {
+	id: string;
+	node?: string | null;
+	path?: string | null;
+	available: boolean;
+	content?: string | null;
+}
+
+export interface JarvisWorkerDriftSmokeReport {
+	status: string;
+	model_validation: {
+		status: string;
+		workers: number;
+		checked: number;
+		available: number;
+		unavailable: number;
+		skipped: number;
+		results: unknown[];
+	};
+	offload?: JarvisWorkerOffloadResult | null;
+}
+
+export interface JarvisWorkerRunPruneReport {
+	dry_run: boolean;
+	max_age_days: number;
+	scanned: number;
+	removed_records: number;
+	removed_artifacts: number;
+	redacted_records: number;
+	remote_reports: JarvisWorkerRunPruneReport[];
 }
 
 export interface JarvisCapabilityValidator {
