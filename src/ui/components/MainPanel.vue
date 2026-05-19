@@ -282,6 +282,7 @@ const activeSurfaceModel = computed(
 				:status-label="activeSurfaceModel.statusLabel"
 				:status-tone="activeSurfaceModel.statusTone"
 				:toggleable="false"
+				body-class="cp-main-surface-body"
 			>
 				<MissionChainPanel
 					v-if="activeSurface === 'mission'"

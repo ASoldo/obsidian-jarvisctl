@@ -1261,8 +1261,8 @@
 
   .cp-mission-chain {
     @apply grid h-full min-h-0 content-start gap-2.5 overflow-auto overscroll-contain pr-1;
-    padding-block-end: max(3rem, env(safe-area-inset-bottom));
-    scroll-padding-block-end: 3rem;
+    padding-block-end: max(5rem, env(safe-area-inset-bottom));
+    scroll-padding-block-end: 5rem;
   }
 
   .cp-mission-command {
@@ -1311,7 +1311,13 @@
   .cp-mission-stage-grid {
     @apply grid min-w-0 gap-2;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    padding-block-end: 1rem;
+    padding-block-end: 3rem;
+  }
+
+  .cp-mission-stage-grid::after {
+    content: "";
+    grid-column: 1 / -1;
+    block-size: 2rem;
   }
 
   .cp-mission-stage {
@@ -2058,6 +2064,10 @@
 
   .cp-surface-card__body {
     @apply h-full min-h-0 min-w-0 overflow-hidden overscroll-contain p-2.5;
+  }
+
+  .cp-main-surface-body {
+    padding-block-end: 0 !important;
   }
 
   .cp-surface-card__body > * {
