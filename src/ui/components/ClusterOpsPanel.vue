@@ -105,6 +105,10 @@ async function openAuthLink(url: string | null | undefined): Promise<void> {
 	}
 	await props.host.openExternalLink(url);
 }
+
+async function verifyNodeSudo(nodeName: string): Promise<void> {
+	await props.host.runNodeSudo(nodeName, "id -u && hostname");
+}
 </script>
 
 <template>
@@ -173,6 +177,7 @@ async function openAuthLink(url: string | null | undefined): Promise<void> {
 					</div>
 					<div class="cp-kv-inline">
 						<button type="button" class="cp-mini-button" title="Sync Codex auth" @click="host.syncNodeAuth(node.name)">A</button>
+						<button type="button" class="cp-mini-button" title="Verify remote sudo from this dashboard" @click="verifyNodeSudo(node.name)">⚿</button>
 						<button type="button" class="cp-mini-button" title="Cordon node" @click="host.cordonNode(node.name)">C</button>
 						<button type="button" class="cp-mini-button" title="Uncordon node" @click="host.uncordonNode(node.name)">U</button>
 						<span class="cp-chip">leases {{ factNumber(doctorFor(node), "auth_leases") }}</span>

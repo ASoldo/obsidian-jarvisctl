@@ -304,7 +304,7 @@ const activeSurfaceModel = computed(
 					:cluster="cluster"
 					:host="host"
 				/>
-				<OperatorConsole v-if="activeSurface === 'operator'" :host="host" :session="session" />
+				<OperatorConsole v-else-if="activeSurface === 'operator'" :host="host" :session="session" />
 				<WorkflowPanel v-else-if="activeSurface === 'workflow'" :session="session" embedded />
 				<ClusterOpsPanel v-else-if="activeSurface === 'cluster'" :host="host" :cluster="cluster" />
 				<ControlPlanePanel
