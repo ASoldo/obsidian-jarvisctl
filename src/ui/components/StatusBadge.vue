@@ -20,8 +20,8 @@ const stateClass = computed(() => `cp-badge--state-${props.label.trim().toLowerC
 </script>
 
 <template>
-	<span :class="['cp-badge', toneClass, stateClass, compact && 'cp-badge--compact']">
+	<span :class="['cp-badge', toneClass, stateClass, compact && 'cp-badge--compact']" :title="label">
 		<span class="cp-badge__dot" aria-hidden="true" />
-		<span>{{ label }}</span>
+		<span class="cp-badge__label">{{ label }}</span>
 	</span>
 </template>

@@ -345,6 +345,10 @@ async function runProviderDriftSmoke(): Promise<void> {
 	await props.host.runWorkerDriftSmoke("code-svc", "openclaw");
 }
 
+async function scheduleProviderDriftSmoke(): Promise<void> {
+	await props.host.scheduleWorkerDriftSmoke("code-svc", "openclaw", 6 * 60 * 60);
+}
+
 async function previewWorkerRetention(): Promise<void> {
 	await props.host.pruneWorkerRuns(30, false, true);
 }
@@ -582,6 +586,7 @@ async function previewWorkerRetention(): Promise<void> {
 					</div>
 					<div class="cp-control-plane-card__badges">
 						<button type="button" class="cp-mini-button" title="Run provider drift smoke through openclaw/code-svc" @click="runProviderDriftSmoke()">Δ</button>
+						<button type="button" class="cp-mini-button" title="Schedule provider drift smoke every 6 hours" @click="scheduleProviderDriftSmoke()">⏱</button>
 						<button type="button" class="cp-mini-button" title="Preview retention and redaction policy" @click="previewWorkerRetention()">⌁</button>
 						<StatusBadge :label="`${workerRuns.length} runs`" tone="info" compact />
 					</div>

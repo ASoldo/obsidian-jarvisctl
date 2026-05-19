@@ -681,11 +681,16 @@
     box-shadow:
       0 8px 18px color-mix(in srgb, #020617 14%, transparent),
       inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
-    @apply inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em];
+    max-width: 100%;
+    @apply inline-flex min-w-0 items-center gap-2 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em];
   }
 
   .cp-badge__dot {
-    @apply h-2 w-2 rounded-full;
+    @apply h-2 w-2 shrink-0 rounded-full;
+  }
+
+  .cp-badge__label {
+    @apply min-w-0 truncate;
   }
 
   .cp-badge--compact {
@@ -1186,23 +1191,29 @@
   .cp-worker-list__item {
     border: 1px solid var(--cp-border);
     background: color-mix(in srgb, var(--cp-panel) 97%, #040914 3%);
-    @apply grid min-w-0 gap-2.5 rounded-xl px-3 py-3;
+    max-width: 100%;
+    @apply grid min-w-0 gap-2.5 rounded-xl px-3 py-3 overflow-hidden;
   }
 
   .cp-worker-list__head {
-    @apply flex min-w-0 items-start justify-between gap-2.5;
+    @apply grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2;
   }
 
   .cp-worker-list__status {
-    @apply shrink-0;
+    max-width: 6.8rem;
+    @apply min-w-0 shrink;
   }
 
   .cp-worker-list__status .cp-badge {
-    max-width: 100%;
+    max-width: 6.8rem;
   }
 
   .cp-worker-list__chips {
-    @apply flex min-w-0 flex-wrap items-center gap-1.5;
+    @apply flex min-w-0 flex-wrap items-center gap-1.5 overflow-hidden;
+  }
+
+  .cp-worker-list__chips .cp-chip {
+    max-width: min(100%, 8.5rem);
   }
 
   .cp-grid-surface {

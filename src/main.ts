@@ -66,6 +66,7 @@ import type {
 	JarvisWorkerMetadata,
 	JarvisWorkerLaneScorecard,
 	JarvisWorkerDriftSmokeReport,
+	JarvisWorkerDriftSmokeScheduleStatus,
 	JarvisWorkerOffloadRequest,
 	JarvisWorkerOffloadResult,
 	JarvisWorkerRunArtifactReport,
@@ -719,6 +720,28 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		]);
 		this.invalidateRuntimeCaches();
 		return JSON.parse(stdout.trim() || "{}") as JarvisWorkerDriftSmokeReport;
+	}
+
+	async scheduleWorkerDriftSmoke(
+		serviceName: string,
+		namespace: string,
+		intervalSeconds: number,
+	): Promise<JarvisWorkerDriftSmokeScheduleStatus> {
+		const { stdout } = await this.execJarvisCtl([
+			"worker",
+			"drift-schedule",
+			"--service",
+			serviceName,
+			"-n",
+			namespace,
+			"--interval-seconds",
+			String(intervalSeconds),
+			"--all",
+			"--output",
+			"json",
+		]);
+		this.invalidateRuntimeCaches();
+		return JSON.parse(stdout.trim() || "{}") as JarvisWorkerDriftSmokeScheduleStatus;
 	}
 
 	async pruneWorkerRuns(maxAgeDays: number, apply: boolean, redact: boolean): Promise<JarvisWorkerRunPruneReport> {
@@ -2517,6 +2540,15 @@ class JarvisCtlControlView extends ItemView {
 					this.state.statusMessage = `Drift smoke ${report.status}: ${serviceName}`;
 				}, true);
 				return report;
+			},
+			scheduleWorkerDriftSmoke: async (serviceName, namespace, intervalSeconds) => {
+				let status!: JarvisWorkerDriftSmokeScheduleStatus;
+				await this.runAction(`Scheduling ${serviceName} drift smoke`, async () => {
+					status = await this.plugin.scheduleWorkerDriftSmoke(serviceName, namespace, intervalSeconds);
+					await this.refreshSessions(false);
+					this.state.statusMessage = `Scheduled drift smoke every ${Math.round(intervalSeconds / 60)}m`;
+				}, true);
+				return status;
 			},
 			pruneWorkerRuns: async (maxAgeDays, apply, redact) => {
 				let report!: JarvisWorkerRunPruneReport;

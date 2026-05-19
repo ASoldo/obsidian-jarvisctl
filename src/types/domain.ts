@@ -603,6 +603,27 @@ export interface JarvisWorkerRunPruneReport {
 	remote_reports: JarvisWorkerRunPruneReport[];
 }
 
+export interface JarvisWorkerDriftSmokeScheduleStatus {
+	configured: boolean;
+	due: boolean;
+	next_run_epoch_ms?: number | null;
+	config?: {
+		enabled: boolean;
+		service_name: string;
+		namespace?: string | null;
+		interval_seconds: number;
+		all: boolean;
+		updated_at_epoch_ms: number;
+	} | null;
+	state: {
+		last_run_epoch_ms?: number | null;
+		last_status?: string | null;
+		last_run_id?: string | null;
+		last_error?: string | null;
+		run_count: number;
+	};
+}
+
 export interface JarvisCapabilityValidator {
 	id: string;
 	kind: string;
