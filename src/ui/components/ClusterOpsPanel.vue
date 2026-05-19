@@ -107,7 +107,7 @@ async function openAuthLink(url: string | null | undefined): Promise<void> {
 }
 
 async function verifyNodeSudo(nodeName: string): Promise<void> {
-	await props.host.runNodeSudo(nodeName, "id -u && hostname");
+	await props.host.runNodeSudo(nodeName, "id -u && cat /proc/sys/kernel/hostname");
 }
 </script>
 

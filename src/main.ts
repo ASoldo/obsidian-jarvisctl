@@ -3473,6 +3473,9 @@ function escapeForDoubleQuotes(value: string): string {
 
 function formatError(error: unknown): string {
 	if (error instanceof Error) {
+		if (hasFormattedJarvisMessage(error)) {
+			return error.message;
+		}
 		const detail = commandFailureDetail(error);
 		return detail ? `${error.message}\n${detail}` : error.message;
 	}
@@ -3499,12 +3502,12 @@ function appendCommandFailureDetail(error: unknown): Error {
 
 function commandOutputError(message: string, stdout: string, stderr: string): Error {
 	const error = new Error(commandFailureMessage(message, stdout, stderr));
-	Object.assign(error, { stdout, stderr });
+	Object.assign(error, { stdout, stderr, jarvisFormatted: true });
 	return error;
 }
 
 function commandFailureMessage(message: string, stdout: string, stderr: string): string {
-	const parsed = parseNodeSudoReport(stdout);
+	const parsed = parseNodeSudoReport(stdout) ?? parseNodeSudoReport(stderr) ?? parseNodeSudoReport(`${stdout}\n${stderr}`);
 	if (parsed) {
 		const detail = parsed.stderr.trim() || parsed.stdout.trim() || "no command output";
 		return `sudo on ${parsed.node} (${parsed.target}) failed with exit ${parsed.exit_status}: ${detail}`;
@@ -3528,8 +3531,8 @@ function commandFailureDetail(error: unknown): string | null {
 }
 
 function parseNodeSudoReport(text: string): { node: string; target: string; exit_status: number; stdout: string; stderr: string } | null {
-	const trimmed = text.trim();
-	if (!trimmed.startsWith("{")) {
+	const trimmed = extractJsonObject(text.trim());
+	if (!trimmed) {
 		return null;
 	}
 	try {
@@ -3551,6 +3554,23 @@ function parseNodeSudoReport(text: string): { node: string; target: string; exit
 	} catch {
 		return null;
 	}
+}
+
+function extractJsonObject(text: string): string | null {
+	if (text.length === 0) {
+		return null;
+	}
+	const start = text.indexOf("{");
+	const end = text.lastIndexOf("}");
+	if (start < 0 || end <= start) {
+		return null;
+	}
+	return text.slice(start, end + 1);
+}
+
+function hasFormattedJarvisMessage(error: Error): boolean {
+	const record = error as Error & { jarvisFormatted?: unknown };
+	return record.jarvisFormatted === true;
 }
 
 function isDescribeMissingError(error: unknown): boolean {
