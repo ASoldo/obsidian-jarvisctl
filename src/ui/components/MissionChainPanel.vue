@@ -2,6 +2,8 @@
 import { computed } from "vue";
 import type {
 	JarvisAutonomyPolicyRule,
+	JarvisAutonomyReconcileReport,
+	JarvisCapabilityRecord,
 	JarvisClusterState,
 	JarvisMissionRecord,
 	JarvisMissionPlan,
@@ -37,6 +39,8 @@ const props = defineProps<{
 	plans: JarvisMissionPlan[];
 	policy: JarvisAutonomyPolicyRule[];
 	scorecards: JarvisWorkerLaneScorecard[];
+	capabilities: JarvisCapabilityRecord[];
+	autonomyReport: JarvisAutonomyReconcileReport | null;
 	proposals: JarvisProposalRecord[];
 	operatorRequests: JarvisOperatorRequestRecord[];
 	cluster: JarvisClusterState;
@@ -97,8 +101,11 @@ const pendingOperatorRequests = computed(() =>
 );
 const latestPlans = computed(() => props.plans.slice(0, 5));
 const visibleScorecards = computed(() => props.scorecards.slice(0, 4));
+const visibleCapabilities = computed(() => props.capabilities.slice(0, 5));
 const visibleTemplates = computed(() => props.templates.slice(0, 7));
 const visiblePolicy = computed(() => props.policy.slice(0, 5));
+const reconcileBlockers = computed(() => props.autonomyReport?.blocked_actions ?? []);
+const reconcileSafeActions = computed(() => props.autonomyReport?.safe_actions ?? []);
 
 const latestSession = computed(() =>
 	props.sessions
@@ -257,6 +264,10 @@ async function resolveOperatorRequest(request: JarvisOperatorRequestRecord, stat
 		`Approved from Jarvis Control: ${request.title}.`,
 	);
 }
+
+async function runAutonomyReconcile(notify: boolean): Promise<void> {
+	await props.host.runAutonomyReconcile(notify);
+}
 </script>
 
 <template>
@@ -339,6 +350,42 @@ async function resolveOperatorRequest(request: JarvisOperatorRequestRecord, stat
 
 			<article class="cp-mission-stage cp-mission-stage--wide">
 				<div class="cp-mission-stage__head">
+					<div class="cp-mission-stage__index">RC</div>
+					<div class="cp-mission-stage__identity">
+						<h4>Autonomy reconciler</h4>
+						<p>Retries safe work, surfaces blockers, and can page the operator with persistent desktop notifications.</p>
+					</div>
+					<StatusBadge
+						:label="autonomyReport?.status ?? 'not run'"
+						:tone="reconcileBlockers.length ? 'warning' : autonomyReport ? 'live' : 'idle'"
+						compact
+					/>
+				</div>
+				<div class="cp-control-strip">
+					<button type="button" class="cp-mini-button cp-mini-button--primary" title="Run autonomy reconcile" @click="runAutonomyReconcile(false)">Reconcile</button>
+					<button type="button" class="cp-mini-button" title="Run and send persistent desktop notifications for pending operator requests" @click="runAutonomyReconcile(true)">Notify</button>
+				</div>
+				<div v-if="autonomyReport" class="cp-mission-scoregrid">
+					<div class="cp-mission-score">
+						<div class="cp-mission-row__title">Safe actions</div>
+						<div class="cp-mission-row__meta">{{ reconcileSafeActions.length }} planned or completed</div>
+						<div class="cp-chip-row">
+							<span v-for="action in reconcileSafeActions.slice(0, 3)" :key="`${action.kind}-${action.summary}`" class="cp-chip">{{ action.kind }} · {{ action.status }}</span>
+						</div>
+					</div>
+					<div class="cp-mission-score">
+						<div class="cp-mission-row__title">Decision blockers</div>
+						<div class="cp-mission-row__meta">{{ reconcileBlockers.length }} need operator judgment</div>
+						<div class="cp-chip-row">
+							<span v-for="action in reconcileBlockers.slice(0, 3)" :key="`${action.kind}-${action.summary}`" class="cp-chip">{{ action.kind }}</span>
+						</div>
+					</div>
+				</div>
+				<div v-else class="cp-empty-state">Reconciler status will load on refresh and can be run from here.</div>
+			</article>
+
+			<article class="cp-mission-stage cp-mission-stage--wide">
+				<div class="cp-mission-stage__head">
 					<div class="cp-mission-stage__index">NX</div>
 					<div class="cp-mission-stage__identity">
 						<h4>Next actions</h4>
@@ -379,6 +426,30 @@ async function resolveOperatorRequest(request: JarvisOperatorRequestRecord, stat
 						<div class="cp-chip-row">
 							<span v-for="gap in scorecard.gaps.slice(0, 2)" :key="gap" class="cp-chip">{{ gap }}</span>
 						</div>
+					</div>
+				</div>
+			</article>
+
+			<article class="cp-mission-stage cp-mission-stage--wide">
+				<div class="cp-mission-stage__head">
+					<div class="cp-mission-stage__index">CR</div>
+					<div class="cp-mission-stage__identity">
+						<h4>Capability registry</h4>
+						<p>Operational lanes with validators, artifact contracts, confidence, and remaining gaps.</p>
+					</div>
+					<StatusBadge :label="`${capabilities.length} capabilities`" tone="info" compact />
+				</div>
+				<div class="cp-mission-scoregrid">
+					<div v-for="capability in visibleCapabilities" :key="capability.id" class="cp-mission-score">
+						<div class="cp-mission-row__title">{{ capability.title }}</div>
+						<div class="cp-mission-row__meta">{{ capability.lane }} · {{ capability.status }} · {{ capability.confidence }}%</div>
+						<div class="cp-mission-meter"><span :style="{ width: `${capability.confidence}%` }" /></div>
+						<div class="cp-chip-row">
+							<span class="cp-chip">{{ capability.schedulable ? "schedulable" : "manual" }}</span>
+							<span class="cp-chip">{{ capability.validators.length }} validators</span>
+							<span class="cp-chip">{{ capability.artifact_contracts.length }} contracts</span>
+						</div>
+						<div v-if="capability.gaps.length" class="cp-mission-row__meta">{{ capability.gaps[0] }}</div>
 					</div>
 				</div>
 			</article>

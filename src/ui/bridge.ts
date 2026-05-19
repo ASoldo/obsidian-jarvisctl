@@ -1,5 +1,6 @@
 import type {
 	JarvisActivitySection,
+	JarvisAutonomyReconcileReport,
 	JarvisDashboardViewState,
 	JarvisBootstrapRequest,
 	JarvisFanoutRequest,
@@ -79,6 +80,7 @@ export interface JarvisDashboardHost {
 	cordonNode(node: string): Promise<void>;
 	uncordonNode(node: string): Promise<void>;
 	reconcileNodes(): Promise<void>;
+	runAutonomyReconcile(notify: boolean): Promise<JarvisAutonomyReconcileReport>;
 	rotateCapsuleKey(): Promise<void>;
 	dispatchOnce(): Promise<void>;
 	runWorkerOffload(

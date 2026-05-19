@@ -529,6 +529,55 @@ export interface JarvisWorkerLaneScorecard {
 	gaps: string[];
 }
 
+export interface JarvisCapabilityValidator {
+	id: string;
+	kind: string;
+	target: string;
+	required: boolean;
+}
+
+export interface JarvisCapabilityArtifactContract {
+	id: string;
+	path_hint: string;
+	required: boolean;
+	description: string;
+}
+
+export interface JarvisCapabilityRecord {
+	id: string;
+	title: string;
+	lane: string;
+	status: string;
+	confidence: number;
+	schedulable: boolean;
+	description: string;
+	validators: JarvisCapabilityValidator[];
+	artifact_contracts: JarvisCapabilityArtifactContract[];
+	evidence: string[];
+	gaps: string[];
+	created_at_epoch_ms: number;
+	updated_at_epoch_ms: number;
+}
+
+export interface JarvisAutonomyReconcileAction {
+	kind: string;
+	status: string;
+	summary: string;
+	command?: string | null;
+}
+
+export interface JarvisAutonomyReconcileReport {
+	status: string;
+	dry_run: boolean;
+	pending_operator_requests: number;
+	pending_proposals: number;
+	capability_count: number;
+	safe_actions: JarvisAutonomyReconcileAction[];
+	blocked_actions: JarvisAutonomyReconcileAction[];
+	notifications_sent: number;
+	expired_requests: string[];
+}
+
 export interface JarvisProposalRecord {
 	id: string;
 	title: string;
@@ -633,6 +682,8 @@ export interface JarvisDashboardViewState {
 	missionPlans: JarvisMissionPlan[];
 	autonomyPolicy: JarvisAutonomyPolicyRule[];
 	laneScorecards: JarvisWorkerLaneScorecard[];
+	capabilities: JarvisCapabilityRecord[];
+	autonomyReport: JarvisAutonomyReconcileReport | null;
 	proposals: JarvisProposalRecord[];
 	operatorRequests: JarvisOperatorRequestRecord[];
 	selectedNamespace: string | null;

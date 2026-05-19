@@ -25,8 +25,10 @@ import type {
 import type {
 	JarvisActivitySection,
 	JarvisAgentMetadata,
+	JarvisAutonomyReconcileReport,
 	JarvisAuthAuditEvent,
 	JarvisBootstrapRequest,
+	JarvisCapabilityRecord,
 	JarvisClusterIndexState,
 	JarvisClusterNode,
 	JarvisClusterState,
@@ -627,6 +629,28 @@ export default class JarvisCtlControlPlugin extends Plugin {
 	async fetchLaneScorecards(): Promise<JarvisWorkerLaneScorecard[]> {
 		const scorecards = await this.fetchJson<JarvisWorkerLaneScorecard[]>(["mission", "scorecards", "--output", "json"], []);
 		return Array.isArray(scorecards) ? scorecards : [];
+	}
+
+	async fetchCapabilities(): Promise<JarvisCapabilityRecord[]> {
+		const capabilities = await this.fetchJson<JarvisCapabilityRecord[]>(["capability", "list", "--output", "json"], []);
+		return Array.isArray(capabilities) ? capabilities : [];
+	}
+
+	async fetchAutonomyReport(): Promise<JarvisAutonomyReconcileReport | null> {
+		return await this.fetchJson<JarvisAutonomyReconcileReport | null>(
+			["autonomy", "reconcile", "--dry-run", "--output", "json"],
+			null,
+		);
+	}
+
+	async runAutonomyReconcile(notify: boolean): Promise<JarvisAutonomyReconcileReport> {
+		const args = ["autonomy", "reconcile", "--output", "json"];
+		if (notify) {
+			args.push("--notify");
+		}
+		const { stdout } = await this.execJarvisCtl(args);
+		this.invalidateRuntimeCaches();
+		return JSON.parse(stdout.trim() || "{}") as JarvisAutonomyReconcileReport;
 	}
 
 	async fetchProposals(): Promise<JarvisProposalRecord[]> {
@@ -1891,6 +1915,8 @@ class JarvisCtlControlView extends ItemView {
 		missionPlans: [],
 		autonomyPolicy: [],
 		laneScorecards: [],
+		capabilities: [],
+		autonomyReport: null,
 		proposals: [],
 		operatorRequests: [],
 		selectedNamespace: null,
@@ -2207,6 +2233,16 @@ class JarvisCtlControlView extends ItemView {
 					await this.plugin.runJarvisCtl(["node", "reconcile"]);
 				}, true);
 			},
+			runAutonomyReconcile: async (notify) => {
+				let report!: JarvisAutonomyReconcileReport;
+				await this.runAction("Reconciling autonomy", async () => {
+					report = await this.plugin.runAutonomyReconcile(notify);
+					this.state.autonomyReport = report;
+					this.state.statusMessage = `Autonomy ${report.status}: ${report.blocked_actions.length} blockers`;
+					await this.refreshSessions(false);
+				}, true);
+				return report;
+			},
 			rotateCapsuleKey: async () => {
 				await this.runAction("Rotating capsule key", async () => {
 					await this.plugin.runJarvisCtl(["node", "rotate-capsule-key"]);
@@ -2274,6 +2310,7 @@ class JarvisCtlControlView extends ItemView {
 				missionPlans,
 				autonomyPolicy,
 				laneScorecards,
+				capabilities,
 				proposals,
 				operatorRequests,
 			] = await Promise.all([
@@ -2283,6 +2320,7 @@ class JarvisCtlControlView extends ItemView {
 				this.plugin.fetchMissionPlans(),
 				this.plugin.fetchAutonomyPolicy(),
 				this.plugin.fetchLaneScorecards(),
+				this.plugin.fetchCapabilities(),
 				this.plugin.fetchProposals(),
 				this.plugin.fetchOperatorRequests(),
 			]);
@@ -2296,6 +2334,7 @@ class JarvisCtlControlView extends ItemView {
 			this.state.missionPlans = missionPlans;
 			this.state.autonomyPolicy = autonomyPolicy;
 			this.state.laneScorecards = laneScorecards;
+			this.state.capabilities = capabilities;
 			this.state.proposals = proposals;
 			this.state.operatorRequests = operatorRequests;
 			if (
