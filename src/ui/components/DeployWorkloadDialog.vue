@@ -38,6 +38,7 @@ const form = reactive({
 	role: "",
 	schedulerLabels: "",
 	retries: "1",
+	launchMode: "fresh" as "fresh" | "resume_latest" | "resume_session",
 	resumeSessionId: "",
 	workingDirectory: "",
 	startupDelayMs: "1500",
@@ -133,6 +134,9 @@ const validationError = computed(() => {
 		}
 		if (!selectedTicket.value && !form.repoPath.trim()) {
 			return "Set a repo path for the ad-hoc ticket.";
+		}
+		if (form.launchMode === "resume_session" && !form.resumeSessionId.trim()) {
+			return "Enter a Codex session id or switch launch mode to fresh.";
 		}
 	}
 	if ((mode.value === "visit" || mode.value === "fanout") && !form.message.trim() && !selectedTicket.value) {
@@ -245,6 +249,7 @@ async function deploy(): Promise<void> {
 			labels: form.schedulerLabels,
 			retries: form.retries,
 			taskNote: ticket?.absolute_path ?? "",
+			launchMode: form.launchMode,
 			resumeSessionId: form.resumeSessionId,
 			workingDirectory: form.workingDirectory,
 			startupDelayMs: form.startupDelayMs,
@@ -473,8 +478,16 @@ async function deploy(): Promise<void> {
 						</select>
 					</div>
 					<div class="cp-form-field">
+						<label class="cp-form-field__label">Launch mode</label>
+						<select v-model="form.launchMode" class="cp-form-select" :disabled="mode !== 'start-session'">
+							<option value="fresh">fresh</option>
+							<option value="resume_latest">resume latest ticket session</option>
+							<option value="resume_session">resume by session id</option>
+						</select>
+					</div>
+					<div class="cp-form-field">
 						<label class="cp-form-field__label">Resume session</label>
-						<input v-model="form.resumeSessionId" class="cp-form-input" placeholder="optional Codex thread/session id" :disabled="mode !== 'start-session'" />
+						<input v-model="form.resumeSessionId" class="cp-form-input" placeholder="optional Codex thread/session id" :disabled="mode !== 'start-session' || form.launchMode !== 'resume_session'" />
 					</div>
 					<div class="cp-form-field">
 						<label class="cp-form-field__label">Working directory</label>

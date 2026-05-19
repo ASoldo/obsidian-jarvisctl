@@ -29,6 +29,7 @@ const sessionForm = reactive<JarvisStartSessionRequest>({
 	node: "auto",
 	taskNote: "",
 	message: "",
+	launchMode: "fresh",
 });
 
 const fanoutForm = reactive<JarvisFanoutRequest>({
@@ -161,6 +162,8 @@ async function verifyNodeSudo(nodeName: string): Promise<void> {
 				<div class="cp-operator-action-grid">
 					<button type="button" class="cp-mini-button" title="Dispatch once" @click="host.dispatchOnce()">▶</button>
 					<button type="button" class="cp-mini-button" title="Reconcile" @click="host.reconcileNodes()">↻</button>
+					<button type="button" class="cp-mini-button" title="Preview completed-session cleanup" @click="host.pruneCompletedSessions(30, false)">⌕</button>
+					<button type="button" class="cp-mini-button" title="Close completed sessions older than 30 minutes" @click="host.pruneCompletedSessions(30, true)">×</button>
 					<button type="button" class="cp-mini-button" title="Rotate encrypted capsule key" @click="host.rotateCapsuleKey()">◇</button>
 				</div>
 			</div>
@@ -210,6 +213,17 @@ async function verifyNodeSudo(nodeName: string): Promise<void> {
 					<input v-model="sessionForm.namespace" class="cp-form-input" placeholder="namespace" />
 					<input v-model="sessionForm.node" class="cp-form-input" placeholder="node or auto" />
 					<input v-model="sessionForm.taskNote" class="cp-form-input" placeholder="ticket/task note path" />
+					<select v-model="sessionForm.launchMode" class="cp-form-select" title="Launch mode">
+						<option value="fresh">Fresh session</option>
+						<option value="resume_latest">Resume latest ticket session</option>
+						<option value="resume_session">Resume by session id</option>
+					</select>
+					<input
+						v-if="sessionForm.launchMode === 'resume_session'"
+						v-model="sessionForm.resumeSessionId"
+						class="cp-form-input"
+						placeholder="Codex session id"
+					/>
 					<textarea v-model="sessionForm.message" class="cp-form-textarea cp-cluster-form__textarea" placeholder="operator message" />
 					<button type="submit" class="cp-ghost-button cp-cluster-form__submit">Start</button>
 				</form>

@@ -502,6 +502,7 @@ async function previewWorkerRetention(): Promise<void> {
 							<div class="cp-chip-row">
 								<span class="cp-chip">{{ request.kind }}</span>
 								<span class="cp-chip">{{ request.severity }}</span>
+								<span v-if="request.source_node" class="cp-chip">{{ request.source_node }}</span>
 								<span v-if="request.namespace" class="cp-chip">{{ request.namespace }}</span>
 								<span v-if="request.command" class="cp-chip" :title="request.command">sudo command</span>
 							</div>

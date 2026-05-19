@@ -857,6 +857,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			"operator-request",
 			"list",
 			"--all",
+			"--cluster",
 			"--output",
 			"json",
 		], []);
@@ -922,6 +923,9 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			"--decided-by",
 			"operator",
 		];
+		if (request.source_node?.trim()) {
+			args.push("--node", request.source_node.trim());
+		}
 		if (error?.trim()) {
 			args.push("--error", error.trim());
 		} else if (responseJson?.trim()) {
@@ -1010,6 +1014,8 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		}
 		if (request.resumeSessionId?.trim()) {
 			args.push("--resume-session-id", request.resumeSessionId.trim());
+		} else if (request.launchMode === "resume_latest") {
+			args.push("--resume-latest");
 		}
 		if (request.workingDirectory?.trim()) {
 			args.push("--working-directory", request.workingDirectory.trim());
@@ -2518,6 +2524,24 @@ class JarvisCtlControlView extends ItemView {
 			reconcileNodes: async () => {
 				await this.runAction("Reconciling nodes", async () => {
 					await this.plugin.runJarvisCtl(["node", "reconcile"]);
+				}, true);
+			},
+			pruneCompletedSessions: async (maxAgeMinutes, apply) => {
+				await this.runAction(apply ? "Closing completed sessions" : "Checking completed sessions", async () => {
+					const args = [
+						"node",
+						"prune-sessions",
+						"--max-age-minutes",
+						String(Math.max(0, Math.floor(maxAgeMinutes))),
+						"--output",
+						"json",
+					];
+					if (apply) {
+						args.push("--apply");
+					}
+					await this.plugin.runJarvisCtl(args);
+					this.state.statusMessage = "Session prune completed";
+					await this.refreshSessions(false);
 				}, true);
 			},
 			runAutonomyReconcile: async (notify) => {

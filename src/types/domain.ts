@@ -755,6 +755,8 @@ export interface JarvisProposalRecord {
 
 export interface JarvisOperatorRequestRecord {
 	id: string;
+	source_node?: string | null;
+	remote?: boolean | null;
 	title: string;
 	kind: string;
 	status: string;
@@ -791,6 +793,7 @@ export interface JarvisStartSessionRequest {
 	labels?: string;
 	retries?: string;
 	taskNote: string;
+	launchMode?: "fresh" | "resume_latest" | "resume_session";
 	resumeSessionId?: string;
 	workingDirectory?: string;
 	startupDelayMs?: string;

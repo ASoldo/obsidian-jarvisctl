@@ -86,6 +86,7 @@ export interface JarvisDashboardHost {
 	cordonNode(node: string): Promise<void>;
 	uncordonNode(node: string): Promise<void>;
 	reconcileNodes(): Promise<void>;
+	pruneCompletedSessions(maxAgeMinutes: number, apply: boolean): Promise<void>;
 	runAutonomyReconcile(notify: boolean): Promise<JarvisAutonomyReconcileReport>;
 	installAutonomyService(): Promise<JarvisAutonomyServiceInstallReport>;
 	configureMissionSmoke(): Promise<void>;
