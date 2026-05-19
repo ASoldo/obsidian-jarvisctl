@@ -6,6 +6,7 @@ import type {
 	JarvisMissionRecord,
 	JarvisMissionPlan,
 	JarvisMissionTemplate,
+	JarvisOperatorRequestRecord,
 	JarvisProposalRecord,
 	JarvisSessionMetadata,
 	JarvisTicketSummary,
@@ -37,6 +38,7 @@ const props = defineProps<{
 	policy: JarvisAutonomyPolicyRule[];
 	scorecards: JarvisWorkerLaneScorecard[];
 	proposals: JarvisProposalRecord[];
+	operatorRequests: JarvisOperatorRequestRecord[];
 	cluster: JarvisClusterState;
 	host: JarvisDashboardHost;
 }>();
@@ -90,6 +92,9 @@ const schedulableNodes = computed(() =>
 
 const loadedWorkers = computed(() => props.workers.filter((worker) => worker.loaded));
 const pendingProposals = computed(() => props.proposals.filter((proposal) => proposal.status === "pending"));
+const pendingOperatorRequests = computed(() =>
+	props.operatorRequests.filter((request) => request.status === "pending"),
+);
 const latestPlans = computed(() => props.plans.slice(0, 5));
 const visibleScorecards = computed(() => props.scorecards.slice(0, 4));
 const visibleTemplates = computed(() => props.templates.slice(0, 7));
@@ -224,7 +229,7 @@ const commandPost = computed(() => [
 	{ label: "Namespaces", value: String(props.sessions.length), tone: props.sessions.length ? "info" : "idle" },
 	{ label: "Missions", value: String(props.missions.length), tone: props.missions.length ? "info" : "idle" },
 	{ label: "Nodes", value: `${schedulableNodes.value.length}/${props.cluster.nodes.length}`, tone: schedulableNodes.value.length === props.cluster.nodes.length ? "live" : "warning" },
-	{ label: "Approvals", value: String(pendingServerRequests.value.length + pendingProposals.value.length), tone: pendingServerRequests.value.length || pendingProposals.value.length ? "warning" : "live" },
+	{ label: "Approvals", value: String(pendingServerRequests.value.length + pendingProposals.value.length + pendingOperatorRequests.value.length), tone: pendingServerRequests.value.length || pendingProposals.value.length || pendingOperatorRequests.value.length ? "warning" : "live" },
 ] as const);
 
 async function decideProposal(proposal: JarvisProposalRecord, status: "approved" | "rejected"): Promise<void> {
@@ -232,6 +237,25 @@ async function decideProposal(proposal: JarvisProposalRecord, status: "approved"
 		? `Approved from Jarvis Control for ${proposal.title}.`
 		: `Rejected from Jarvis Control for ${proposal.title}.`;
 	await props.host.decideProposal(proposal, status, decision);
+}
+
+async function resolveOperatorRequest(request: JarvisOperatorRequestRecord, status: "approved" | "denied"): Promise<void> {
+	if (status === "denied") {
+		const reason = `Denied from Jarvis Control: ${request.title}.`;
+		await props.host.resolveOperatorRequest(request, "denied", null, reason, reason);
+		return;
+	}
+	const response = request.request_id ? await props.host.promptOperatorRequestResponse(request) : null;
+	if (request.request_id && response === null) {
+		return;
+	}
+	await props.host.resolveOperatorRequest(
+		request,
+		"approved",
+		response,
+		null,
+		`Approved from Jarvis Control: ${request.title}.`,
+	);
 }
 </script>
 
@@ -255,6 +279,36 @@ async function decideProposal(proposal: JarvisProposalRecord, status: "approved"
 		</section>
 
 		<section class="cp-mission-stage-grid">
+			<article class="cp-mission-stage cp-mission-stage--wide">
+				<div class="cp-mission-stage__head">
+					<div class="cp-mission-stage__index">OR</div>
+					<div class="cp-mission-stage__identity">
+						<h4>Operator requests</h4>
+						<p>Durable prompts for admin privileges, app-server approvals, and human decisions.</p>
+					</div>
+					<StatusBadge :label="`${pendingOperatorRequests.length} pending`" :tone="pendingOperatorRequests.length ? 'warning' : 'live'" compact />
+				</div>
+				<div v-if="pendingOperatorRequests.length" class="cp-mission-list">
+					<div v-for="request in pendingOperatorRequests.slice(0, 5)" :key="request.id" class="cp-mission-row">
+						<div>
+							<div class="cp-mission-row__title">{{ request.title }}</div>
+							<div class="cp-mission-row__meta">{{ request.reason }}</div>
+							<div class="cp-chip-row">
+								<span class="cp-chip">{{ request.kind }}</span>
+								<span class="cp-chip">{{ request.severity }}</span>
+								<span v-if="request.namespace" class="cp-chip">{{ request.namespace }}</span>
+								<span v-if="request.command" class="cp-chip" :title="request.command">sudo command</span>
+							</div>
+						</div>
+						<div class="cp-control-strip cp-control-strip--right">
+							<button type="button" class="cp-mini-button cp-mini-button--primary" title="Approve or respond" @click="resolveOperatorRequest(request, 'approved')">✓</button>
+							<button type="button" class="cp-mini-button" title="Deny request" @click="resolveOperatorRequest(request, 'denied')">×</button>
+						</div>
+					</div>
+				</div>
+				<div v-else class="cp-empty-state">No pending operator requests.</div>
+			</article>
+
 			<article class="cp-mission-stage cp-mission-stage--wide">
 				<div class="cp-mission-stage__head">
 					<div class="cp-mission-stage__index">AP</div>

@@ -5,6 +5,7 @@ import type {
 	JarvisFanoutRequest,
 	JarvisMissionRecord,
 	JarvisMissionTemplate,
+	JarvisOperatorRequestRecord,
 	JarvisProposalRecord,
 	JarvisRuntimeServerRequest,
 	JarvisSessionMetadata,
@@ -66,6 +67,14 @@ export interface JarvisDashboardHost {
 	bootstrapClusterNode(request: JarvisBootstrapRequest): Promise<void>;
 	createMissionFromTemplate(template: JarvisMissionTemplate, title?: string): Promise<JarvisMissionRecord>;
 	decideProposal(proposal: JarvisProposalRecord, status: "approved" | "rejected", decision: string): Promise<void>;
+	resolveOperatorRequest(
+		request: JarvisOperatorRequestRecord,
+		status: "approved" | "denied",
+		responseJson: string | null,
+		error: string | null,
+		decision: string,
+	): Promise<void>;
+	promptOperatorRequestResponse(request: JarvisOperatorRequestRecord): Promise<string | null>;
 	syncNodeAuth(node: string): Promise<void>;
 	cordonNode(node: string): Promise<void>;
 	uncordonNode(node: string): Promise<void>;

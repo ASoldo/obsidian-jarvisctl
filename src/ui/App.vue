@@ -332,6 +332,7 @@ function applySearchPrimary(): void {
 				:autonomy-policy="host.state.autonomyPolicy"
 				:lane-scorecards="host.state.laneScorecards"
 				:proposals="host.state.proposals"
+				:operator-requests="host.state.operatorRequests"
 				:activity-sections="selectedActivitySections"
 				:active-surface="activeSurface"
 				@select-worker="handleSelectWorker($event)"

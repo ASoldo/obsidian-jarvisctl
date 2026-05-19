@@ -1238,13 +1238,13 @@
   }
 
   .cp-mission-chain {
-    @apply grid h-full min-h-0 gap-3 overflow-auto overscroll-contain;
+    @apply grid h-full min-h-0 content-start gap-2.5 overflow-auto overscroll-contain pb-3 pr-1;
   }
 
   .cp-mission-command {
     border: 1px solid color-mix(in srgb, var(--cp-border) 78%, transparent);
     background: color-mix(in srgb, var(--cp-panel-strong) 82%, transparent);
-    @apply grid min-w-0 gap-3 rounded-2xl p-4;
+    @apply grid min-w-0 gap-3 rounded-2xl p-3;
     grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
   }
 
@@ -1259,7 +1259,7 @@
   }
 
   .cp-mission-command__metrics {
-    @apply grid min-w-0 gap-2;
+    @apply grid min-w-0 gap-2 pb-2;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2004,7 +2004,7 @@
   }
 
   .cp-surface-card__body {
-    @apply h-full min-h-0 min-w-0 overflow-auto overscroll-contain p-2.5;
+    @apply h-full min-h-0 min-w-0 overflow-hidden overscroll-contain p-2.5;
   }
 
   .cp-surface-card__body > * {

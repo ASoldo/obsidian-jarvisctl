@@ -545,6 +545,30 @@ export interface JarvisProposalRecord {
 	updated_at_epoch_ms: number;
 }
 
+export interface JarvisOperatorRequestRecord {
+	id: string;
+	title: string;
+	kind: string;
+	status: string;
+	severity: string;
+	reason: string;
+	risk?: string | null;
+	requested_by?: string | null;
+	namespace?: string | null;
+	request_id?: string | null;
+	method?: string | null;
+	command?: string | null;
+	params?: unknown;
+	response?: unknown;
+	error?: string | null;
+	decided_by?: string | null;
+	decision?: string | null;
+	created_at_epoch_ms: number;
+	updated_at_epoch_ms: number;
+	resolved_at_epoch_ms?: number | null;
+	expires_at_epoch_ms: number;
+}
+
 export interface JarvisVisitRequest {
 	namespace: string;
 	node: string;
@@ -610,6 +634,7 @@ export interface JarvisDashboardViewState {
 	autonomyPolicy: JarvisAutonomyPolicyRule[];
 	laneScorecards: JarvisWorkerLaneScorecard[];
 	proposals: JarvisProposalRecord[];
+	operatorRequests: JarvisOperatorRequestRecord[];
 	selectedNamespace: string | null;
 	selectedControlNamespace: string | null;
 	statusMessage: string;

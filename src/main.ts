@@ -41,6 +41,7 @@ import type {
 	JarvisMissionTemplate,
 	JarvisNodeDoctorCheck,
 	JarvisNodeLinkCheck,
+	JarvisOperatorRequestRecord,
 	JarvisOrchestrationPolicy,
 	JarvisProposalRecord,
 	JarvisStartSessionRequest,
@@ -635,6 +636,19 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			: [];
 	}
 
+	async fetchOperatorRequests(): Promise<JarvisOperatorRequestRecord[]> {
+		const requests = await this.fetchJson<JarvisOperatorRequestRecord[]>([
+			"operator-request",
+			"list",
+			"--all",
+			"--output",
+			"json",
+		], []);
+		return Array.isArray(requests)
+			? requests.sort((left, right) => right.created_at_epoch_ms - left.created_at_epoch_ms)
+			: [];
+	}
+
 	async createMissionFromTemplate(template: JarvisMissionTemplate, title?: string): Promise<JarvisMissionRecord> {
 		const missionTitle = title?.trim() || template.title;
 		const { stdout } = await this.execJarvisCtl([
@@ -671,6 +685,33 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			"--decided-by",
 			"operator",
 		]);
+		this.invalidateRuntimeCaches();
+	}
+
+	async resolveOperatorRequest(
+		request: JarvisOperatorRequestRecord,
+		status: "approved" | "denied",
+		responseJson: string | null,
+		error: string | null,
+		decision: string,
+	): Promise<void> {
+		const args = [
+			"operator-request",
+			"resolve",
+			request.id,
+			"--status",
+			status,
+			"--decision",
+			decision.trim() || status,
+			"--decided-by",
+			"operator",
+		];
+		if (error?.trim()) {
+			args.push("--error", error.trim());
+		} else if (responseJson?.trim()) {
+			args.push("--response-json", responseJson.trim());
+		}
+		await this.execJarvisCtl(args);
 		this.invalidateRuntimeCaches();
 	}
 
@@ -999,6 +1040,12 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		request: JarvisRuntimeServerRequest,
 	): Promise<string | null> {
 		return await promptForServerRequestResponse(this.app, session, request);
+	}
+
+	async promptOperatorRequestResponse(
+		request: JarvisOperatorRequestRecord,
+	): Promise<string | null> {
+		return await promptForOperatorRequestResponse(this.app, request);
 	}
 
 	async launchCodexForActiveNote(fresh: boolean): Promise<void> {
@@ -1845,6 +1892,7 @@ class JarvisCtlControlView extends ItemView {
 		autonomyPolicy: [],
 		laneScorecards: [],
 		proposals: [],
+		operatorRequests: [],
 		selectedNamespace: null,
 		selectedControlNamespace: null,
 		statusMessage: "Idle",
@@ -2130,6 +2178,15 @@ class JarvisCtlControlView extends ItemView {
 					await this.refreshSessions(false);
 				}, true);
 			},
+			resolveOperatorRequest: async (request, status, responseJson, error, decision) => {
+				await this.runAction(`${status === "approved" ? "Approving" : "Denying"} ${request.title}`, async () => {
+					await this.plugin.resolveOperatorRequest(request, status, responseJson, error, decision);
+					await this.refreshSessions(false);
+				}, true);
+			},
+			promptOperatorRequestResponse: async (request) => {
+				return await this.plugin.promptOperatorRequestResponse(request);
+			},
 			syncNodeAuth: async (node) => {
 				await this.runAction(`Syncing auth to ${node}`, async () => {
 					await this.plugin.runJarvisCtl(["node", "sync-codex-auth", node]);
@@ -2218,6 +2275,7 @@ class JarvisCtlControlView extends ItemView {
 				autonomyPolicy,
 				laneScorecards,
 				proposals,
+				operatorRequests,
 			] = await Promise.all([
 				this.plugin.fetchTickets(),
 				this.plugin.fetchMissions(),
@@ -2226,6 +2284,7 @@ class JarvisCtlControlView extends ItemView {
 				this.plugin.fetchAutonomyPolicy(),
 				this.plugin.fetchLaneScorecards(),
 				this.plugin.fetchProposals(),
+				this.plugin.fetchOperatorRequests(),
 			]);
 			const sessions = mergeSessions(localSessions, cluster.index.sessions);
 			this.state.sessions = sessions;
@@ -2238,6 +2297,7 @@ class JarvisCtlControlView extends ItemView {
 			this.state.autonomyPolicy = autonomyPolicy;
 			this.state.laneScorecards = laneScorecards;
 			this.state.proposals = proposals;
+			this.state.operatorRequests = operatorRequests;
 			if (
 				!this.state.selectedNamespace ||
 				!sessions.some((session) => session.namespace === this.state.selectedNamespace)
@@ -2656,6 +2716,105 @@ class JarvisServerRequestResponseModal extends Modal {
 	}
 }
 
+class JarvisOperatorRequestResponseModal extends Modal {
+	private readonly request: JarvisOperatorRequestRecord;
+	private readonly resolveResult: (result: string | null) => void;
+	private resolved = false;
+
+	constructor(
+		app: App,
+		request: JarvisOperatorRequestRecord,
+		resolveResult: (result: string | null) => void,
+	) {
+		super(app);
+		this.request = request;
+		this.resolveResult = resolveResult;
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl("h2", { text: "Respond to operator request" });
+		contentEl.createEl("p", {
+			cls: "jarvisctl-modal-copy",
+			text: `${this.request.title} needs an operator decision. Review the reason and provide JSON only when the linked runtime expects a structured response.`,
+		});
+
+		contentEl.createEl("label", {
+			cls: "jarvisctl-modal-label",
+			text: "Reason",
+		});
+		const reasonEl = contentEl.createEl("textarea", {
+			cls: "jarvisctl-modal-textarea jarvisctl-modal-textarea--readonly",
+		});
+		reasonEl.value = [
+			this.request.reason,
+			this.request.risk ? `Risk: ${this.request.risk}` : "",
+			this.request.command ? `Command: ${this.request.command}` : "",
+		].filter(Boolean).join("\n\n");
+		reasonEl.readOnly = true;
+
+		contentEl.createEl("label", {
+			cls: "jarvisctl-modal-label",
+			text: "Request params",
+		});
+		const paramsEl = contentEl.createEl("textarea", {
+			cls: "jarvisctl-modal-textarea jarvisctl-modal-textarea--readonly",
+		});
+		paramsEl.value = JSON.stringify(this.request.params ?? null, null, 2);
+		paramsEl.readOnly = true;
+
+		contentEl.createEl("label", {
+			cls: "jarvisctl-modal-label",
+			text: "JSON response",
+		});
+		const responseEl = contentEl.createEl("textarea", {
+			cls: "jarvisctl-modal-textarea",
+		});
+		responseEl.value = "null";
+
+		const errorEl = contentEl.createDiv({
+			cls: "jarvisctl-modal-error",
+		});
+
+		const actions = contentEl.createDiv({ cls: "jarvisctl-modal-actions" });
+		const cancel = actions.createEl("button", { text: "Cancel" });
+		cancel.addEventListener("click", () => this.finish(null));
+
+		const submit = actions.createEl("button", {
+			text: "Use response",
+			cls: "mod-cta",
+		});
+		submit.addEventListener("click", () => {
+			const raw = responseEl.value.trim();
+			try {
+				JSON.parse(raw);
+			} catch (error) {
+				errorEl.setText(error instanceof Error ? error.message : "Response must be valid JSON.");
+				return;
+			}
+			this.finish(raw);
+		});
+
+		window.setTimeout(() => responseEl.focus(), 0);
+	}
+
+	onClose(): void {
+		if (!this.resolved) {
+			this.resolveResult(null);
+		}
+	}
+
+	private finish(result: string | null): void {
+		if (this.resolved) {
+			return;
+		}
+		this.resolved = true;
+		this.resolveResult(result);
+		this.close();
+	}
+}
+
 class JarvisCodexLaunchModal extends Modal {
 	private readonly titleText: string;
 	private readonly description: string;
@@ -2760,6 +2919,15 @@ function promptForServerRequestResponse(
 ): Promise<string | null> {
 	return new Promise((resolve) => {
 		new JarvisServerRequestResponseModal(app, session, request, resolve).open();
+	});
+}
+
+function promptForOperatorRequestResponse(
+	app: App,
+	request: JarvisOperatorRequestRecord,
+): Promise<string | null> {
+	return new Promise((resolve) => {
+		new JarvisOperatorRequestResponseModal(app, request, resolve).open();
 	});
 }
 
