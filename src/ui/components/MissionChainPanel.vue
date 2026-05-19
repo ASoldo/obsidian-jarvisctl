@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type {
+	JarvisAutonomyPolicyRule,
 	JarvisClusterState,
 	JarvisMissionRecord,
+	JarvisMissionPlan,
+	JarvisMissionTemplate,
+	JarvisProposalRecord,
 	JarvisSessionMetadata,
 	JarvisTicketSummary,
 	JarvisWorkerMetadata,
+	JarvisWorkerLaneScorecard,
 } from "../../types/domain";
+import type { JarvisDashboardHost } from "../bridge";
 import { relativeAge, sessionTone, statusTone } from "../helpers";
 import StatusBadge from "./StatusBadge.vue";
 
@@ -26,7 +32,13 @@ const props = defineProps<{
 	workers: JarvisWorkerMetadata[];
 	tickets: JarvisTicketSummary[];
 	missions: JarvisMissionRecord[];
+	templates: JarvisMissionTemplate[];
+	plans: JarvisMissionPlan[];
+	policy: JarvisAutonomyPolicyRule[];
+	scorecards: JarvisWorkerLaneScorecard[];
+	proposals: JarvisProposalRecord[];
 	cluster: JarvisClusterState;
+	host: JarvisDashboardHost;
 }>();
 
 const activeTickets = computed(() =>
@@ -77,6 +89,11 @@ const schedulableNodes = computed(() =>
 );
 
 const loadedWorkers = computed(() => props.workers.filter((worker) => worker.loaded));
+const pendingProposals = computed(() => props.proposals.filter((proposal) => proposal.status === "pending"));
+const latestPlans = computed(() => props.plans.slice(0, 5));
+const visibleScorecards = computed(() => props.scorecards.slice(0, 4));
+const visibleTemplates = computed(() => props.templates.slice(0, 7));
+const visiblePolicy = computed(() => props.policy.slice(0, 5));
 
 const latestSession = computed(() =>
 	props.sessions
@@ -207,8 +224,15 @@ const commandPost = computed(() => [
 	{ label: "Namespaces", value: String(props.sessions.length), tone: props.sessions.length ? "info" : "idle" },
 	{ label: "Missions", value: String(props.missions.length), tone: props.missions.length ? "info" : "idle" },
 	{ label: "Nodes", value: `${schedulableNodes.value.length}/${props.cluster.nodes.length}`, tone: schedulableNodes.value.length === props.cluster.nodes.length ? "live" : "warning" },
-	{ label: "Approvals", value: String(pendingServerRequests.value.length), tone: pendingServerRequests.value.length ? "warning" : "live" },
+	{ label: "Approvals", value: String(pendingServerRequests.value.length + pendingProposals.value.length), tone: pendingServerRequests.value.length || pendingProposals.value.length ? "warning" : "live" },
 ] as const);
+
+async function decideProposal(proposal: JarvisProposalRecord, status: "approved" | "rejected"): Promise<void> {
+	const decision = status === "approved"
+		? `Approved from Jarvis Control for ${proposal.title}.`
+		: `Rejected from Jarvis Control for ${proposal.title}.`;
+	await props.host.decideProposal(proposal, status, decision);
+}
 </script>
 
 <template>
@@ -231,6 +255,119 @@ const commandPost = computed(() => [
 		</section>
 
 		<section class="cp-mission-stage-grid">
+			<article class="cp-mission-stage cp-mission-stage--wide">
+				<div class="cp-mission-stage__head">
+					<div class="cp-mission-stage__index">AP</div>
+					<div class="cp-mission-stage__identity">
+						<h4>Autonomy queue</h4>
+						<p>Controller recommendations and operator gates.</p>
+					</div>
+					<StatusBadge :label="`${pendingProposals.length} proposals`" :tone="pendingProposals.length ? 'warning' : 'live'" compact />
+				</div>
+				<div v-if="pendingProposals.length" class="cp-mission-list">
+					<div v-for="proposal in pendingProposals.slice(0, 4)" :key="proposal.id" class="cp-mission-row">
+						<div>
+							<div class="cp-mission-row__title">{{ proposal.title }}</div>
+							<div class="cp-mission-row__meta">{{ proposal.action }}</div>
+							<div class="cp-chip-row">
+								<span v-if="proposal.mission_id" class="cp-chip">{{ proposal.mission_id }}</span>
+								<span v-if="proposal.risk" class="cp-chip">risk {{ proposal.risk }}</span>
+							</div>
+						</div>
+						<div class="cp-control-strip cp-control-strip--right">
+							<button type="button" class="cp-mini-button cp-mini-button--primary" title="Approve proposal" @click="decideProposal(proposal, 'approved')">✓</button>
+							<button type="button" class="cp-mini-button" title="Reject proposal" @click="decideProposal(proposal, 'rejected')">×</button>
+						</div>
+					</div>
+				</div>
+				<div v-else class="cp-empty-state">No pending proposals. Agents can continue inside current policy.</div>
+			</article>
+
+			<article class="cp-mission-stage cp-mission-stage--wide">
+				<div class="cp-mission-stage__head">
+					<div class="cp-mission-stage__index">NX</div>
+					<div class="cp-mission-stage__identity">
+						<h4>Next actions</h4>
+						<p>Read-only controller plan from `jarvisctl mission plan`.</p>
+					</div>
+					<StatusBadge :label="`${plans.length} plans`" tone="info" compact />
+				</div>
+				<div v-if="latestPlans.length" class="cp-mission-list">
+					<div v-for="plan in latestPlans" :key="plan.mission_id" class="cp-mission-row">
+						<div>
+							<div class="cp-mission-row__title">{{ plan.title }}</div>
+							<div class="cp-mission-row__meta">{{ plan.actions[0]?.summary ?? plan.next_stage }}</div>
+						</div>
+						<div class="cp-chip-row cp-chip-row--right">
+							<span class="cp-chip">{{ plan.next_stage }}</span>
+							<span class="cp-chip">{{ plan.autonomy_level }}</span>
+							<span class="cp-chip">risk {{ plan.risk }}</span>
+						</div>
+					</div>
+				</div>
+				<div v-else class="cp-empty-state">No mission plans yet. Create a mission from a template or bind one in Deploy.</div>
+			</article>
+
+			<article class="cp-mission-stage cp-mission-stage--wide">
+				<div class="cp-mission-stage__head">
+					<div class="cp-mission-stage__index">SC</div>
+					<div class="cp-mission-stage__identity">
+						<h4>Lane scorecards</h4>
+						<p>Autonomy expands only where evidence supports it.</p>
+					</div>
+					<StatusBadge :label="`${scorecards.length} lanes`" tone="info" compact />
+				</div>
+				<div class="cp-mission-scoregrid">
+					<div v-for="scorecard in visibleScorecards" :key="scorecard.lane" class="cp-mission-score">
+						<div class="cp-mission-row__title">{{ scorecard.lane }}</div>
+						<div class="cp-mission-row__meta">{{ scorecard.readiness }} · {{ scorecard.confidence }}%</div>
+						<div class="cp-mission-meter"><span :style="{ width: `${scorecard.confidence}%` }" /></div>
+						<div class="cp-chip-row">
+							<span v-for="gap in scorecard.gaps.slice(0, 2)" :key="gap" class="cp-chip">{{ gap }}</span>
+						</div>
+					</div>
+				</div>
+			</article>
+
+			<article class="cp-mission-stage cp-mission-stage--wide">
+				<div class="cp-mission-stage__head">
+					<div class="cp-mission-stage__index">TM</div>
+					<div class="cp-mission-stage__identity">
+						<h4>Mission templates</h4>
+						<p>Repeatable operating models for autonomous work.</p>
+					</div>
+					<StatusBadge :label="`${templates.length} templates`" tone="info" compact />
+				</div>
+				<div class="cp-chip-row">
+					<span v-for="template in visibleTemplates" :key="template.id" class="cp-chip" :title="template.objective">
+						{{ template.id }} · {{ template.priority }}
+					</span>
+				</div>
+			</article>
+
+			<article class="cp-mission-stage cp-mission-stage--wide">
+				<div class="cp-mission-stage__head">
+					<div class="cp-mission-stage__index">PG</div>
+					<div class="cp-mission-stage__identity">
+						<h4>Policy gates</h4>
+						<p>Autonomous action boundaries before agents escalate.</p>
+					</div>
+					<StatusBadge :label="`${policy.length} rules`" tone="info" compact />
+				</div>
+				<div v-if="visiblePolicy.length" class="cp-mission-list">
+					<div v-for="rule in visiblePolicy" :key="rule.id" class="cp-mission-row">
+						<div>
+							<div class="cp-mission-row__title">{{ rule.action_class }}</div>
+							<div class="cp-mission-row__meta">{{ rule.rationale }}</div>
+						</div>
+						<div class="cp-chip-row cp-chip-row--right">
+							<span class="cp-chip">{{ rule.decision }}</span>
+						</div>
+					</div>
+				</div>
+				<div v-else class="cp-empty-state">No autonomy policy loaded.</div>
+			</article>
+
 			<article v-if="missions.length" class="cp-mission-stage cp-mission-stage--ledger">
 				<div class="cp-mission-stage__head">
 					<div class="cp-mission-stage__index">ML</div>

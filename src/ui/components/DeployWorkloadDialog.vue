@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
-import type { JarvisClusterState, JarvisTicketSummary } from "../../types/domain";
+import type {
+	JarvisClusterState,
+	JarvisMissionRecord,
+	JarvisMissionTemplate,
+	JarvisTicketSummary,
+} from "../../types/domain";
 import type { JarvisDashboardHost } from "../bridge";
 import { statusTone } from "../helpers";
 import StatusBadge from "./StatusBadge.vue";
@@ -11,6 +16,8 @@ const props = defineProps<{
 	host: JarvisDashboardHost;
 	tickets: JarvisTicketSummary[];
 	cluster: JarvisClusterState;
+	missions: JarvisMissionRecord[];
+	missionTemplates: JarvisMissionTemplate[];
 }>();
 
 const emit = defineEmits<{
@@ -35,6 +42,8 @@ const form = reactive({
 	workingDirectory: "",
 	startupDelayMs: "1500",
 	command: "",
+	missionId: "",
+	missionTemplate: "",
 	timeoutSeconds: "900",
 	message: "",
 	repoPath: "/home/rootster/codex",
@@ -101,6 +110,10 @@ const filteredTickets = computed(() => {
 });
 
 const nodeOptions = computed(() => ["auto", ...props.cluster.nodes.map((node) => node.name)]);
+const missionOptions = computed(() => props.missions.filter((mission) => !["completed", "closed", "cancelled", "canceled"].includes(mission.status)));
+const selectedMissionTemplate = computed(() =>
+	props.missionTemplates.find((template) => template.id === form.missionTemplate) ?? null,
+);
 
 const canDeploy = computed(() => validationError.value.length === 0 && !submitting.value);
 
@@ -144,6 +157,7 @@ watch(
 		form.reasoningEffort = ticket.codex_reasoning_effort || form.reasoningEffort;
 		form.sandboxMode = ticket.codex_sandbox_mode || form.sandboxMode;
 		form.finishMode = ticket.codex_finish_mode || form.finishMode;
+		form.missionId = "";
 	},
 	{ immediate: false },
 );
@@ -215,6 +229,15 @@ async function deploy(): Promise<void> {
 			emit("close");
 			return;
 		}
+		let missionId = form.missionId.trim();
+		if (!missionId && selectedMissionTemplate.value) {
+			const mission = await props.host.createMissionFromTemplate(
+				selectedMissionTemplate.value,
+				form.title || selectedMissionTemplate.value.title,
+			);
+			missionId = mission.id;
+			form.missionId = mission.id;
+		}
 		await props.host.startClusterSession({
 			namespace: form.namespace,
 			node: form.node,
@@ -235,6 +258,8 @@ async function deploy(): Promise<void> {
 			reasoningEffort: form.reasoningEffort,
 			sandboxMode: form.sandboxMode,
 			finishMode: form.finishMode,
+			missionId,
+			missionTemplate: form.missionTemplate,
 			tags: form.labels,
 			message: form.message,
 		});
@@ -310,6 +335,33 @@ async function deploy(): Promise<void> {
 							<option value="fanout">Fanout visit</option>
 							<option value="dispatch">Run dispatch scan</option>
 						</select>
+					</div>
+					<div class="cp-form-field">
+						<label class="cp-form-field__label">Mission</label>
+						<select v-model="form.missionId" class="cp-form-select" :disabled="mode === 'dispatch' || !!form.missionTemplate">
+							<option value="">Create or leave unbound</option>
+							<option v-for="mission in missionOptions" :key="mission.id" :value="mission.id">
+								{{ mission.title }} · {{ mission.status }}
+							</option>
+						</select>
+					</div>
+					<div class="cp-form-field">
+						<label class="cp-form-field__label">Mission template</label>
+						<select v-model="form.missionTemplate" class="cp-form-select" :disabled="mode === 'dispatch' || !!form.missionId">
+							<option value="">No new mission</option>
+							<option v-for="template in missionTemplates" :key="template.id" :value="template.id">
+								{{ template.id }} · {{ template.priority }}
+							</option>
+						</select>
+					</div>
+					<div v-if="selectedMissionTemplate" class="cp-form-field cp-form-field--full">
+						<div class="cp-deploy-ticket-card">
+							<div class="cp-control-plane-card__title">{{ selectedMissionTemplate.title }}</div>
+							<div class="cp-control-plane-card__meta">{{ selectedMissionTemplate.objective }}</div>
+							<div class="cp-chip-row">
+								<span v-for="stage in selectedMissionTemplate.stages" :key="stage" class="cp-chip">{{ stage }}</span>
+							</div>
+						</div>
 					</div>
 					<div class="cp-form-field">
 						<label class="cp-form-field__label">Title</label>

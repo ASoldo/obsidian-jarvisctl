@@ -6,6 +6,11 @@ import type {
 	JarvisClusterState,
 	JarvisSessionMetadata,
 	JarvisWorkerMetadata,
+	JarvisMissionTemplate,
+	JarvisMissionPlan,
+	JarvisAutonomyPolicyRule,
+	JarvisWorkerLaneScorecard,
+	JarvisProposalRecord,
 } from "../../types/domain";
 import type { JarvisDashboardHost } from "../bridge";
 import {
@@ -47,6 +52,11 @@ const props = defineProps<{
 	selectedWorkerKey: string | null;
 	controlPlane: JarvisControlPlaneState | null;
 	cluster: JarvisClusterState;
+	missionTemplates: JarvisMissionTemplate[];
+	missionPlans: JarvisMissionPlan[];
+	autonomyPolicy: JarvisAutonomyPolicyRule[];
+	laneScorecards: JarvisWorkerLaneScorecard[];
+	proposals: JarvisProposalRecord[];
 	activitySections: JarvisActivitySection[];
 	activeSurface: SurfaceId;
 }>();
@@ -267,7 +277,13 @@ const activeSurfaceModel = computed(
 					:workers="workers"
 					:tickets="host.state.tickets"
 					:missions="host.state.missions"
+					:templates="missionTemplates"
+					:plans="missionPlans"
+					:policy="autonomyPolicy"
+					:scorecards="laneScorecards"
+					:proposals="proposals"
 					:cluster="cluster"
+					:host="host"
 				/>
 				<OperatorConsole v-if="activeSurface === 'operator'" :host="host" :session="session" />
 				<WorkflowPanel v-else-if="activeSurface === 'workflow'" :session="session" embedded />

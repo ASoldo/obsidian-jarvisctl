@@ -485,6 +485,66 @@ export interface JarvisMissionRecord {
 	updated_at_epoch_ms: number;
 }
 
+export interface JarvisMissionTemplate {
+	id: string;
+	title: string;
+	objective: string;
+	priority: string;
+	labels: Record<string, string>;
+	stages: string[];
+	evidence: string[];
+}
+
+export interface JarvisMissionPlanAction {
+	kind: string;
+	stage: string;
+	summary: string;
+	command?: string | null;
+	requires_proposal: boolean;
+}
+
+export interface JarvisMissionPlan {
+	mission_id: string;
+	title: string;
+	status: string;
+	next_stage: string;
+	autonomy_level: string;
+	pending_proposals: number;
+	risk: string;
+	actions: JarvisMissionPlanAction[];
+}
+
+export interface JarvisAutonomyPolicyRule {
+	id: string;
+	action_class: string;
+	decision: string;
+	rationale: string;
+}
+
+export interface JarvisWorkerLaneScorecard {
+	lane: string;
+	readiness: string;
+	confidence: number;
+	evidence: string[];
+	gaps: string[];
+}
+
+export interface JarvisProposalRecord {
+	id: string;
+	title: string;
+	mission_id?: string | null;
+	status: string;
+	action: string;
+	rationale: string;
+	risk?: string | null;
+	proposed_by?: string | null;
+	evidence?: string[] | null;
+	decision?: string | null;
+	decided_by?: string | null;
+	created_at_epoch_ms: number;
+	updated_at_epoch_ms: number;
+}
+
 export interface JarvisVisitRequest {
 	namespace: string;
 	node: string;
@@ -512,6 +572,8 @@ export interface JarvisStartSessionRequest {
 	reasoningEffort?: string;
 	sandboxMode?: string;
 	finishMode?: string;
+	missionId?: string;
+	missionTemplate?: string;
 	tags?: string[];
 	message: string;
 }
@@ -543,6 +605,11 @@ export interface JarvisDashboardViewState {
 	cluster: JarvisClusterState;
 	tickets: JarvisTicketSummary[];
 	missions: JarvisMissionRecord[];
+	missionTemplates: JarvisMissionTemplate[];
+	missionPlans: JarvisMissionPlan[];
+	autonomyPolicy: JarvisAutonomyPolicyRule[];
+	laneScorecards: JarvisWorkerLaneScorecard[];
+	proposals: JarvisProposalRecord[];
 	selectedNamespace: string | null;
 	selectedControlNamespace: string | null;
 	statusMessage: string;

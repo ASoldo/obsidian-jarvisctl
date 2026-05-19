@@ -35,10 +35,14 @@ import type {
 	JarvisDashboardViewState,
 	JarvisFanoutRequest,
 	JarvisGpgStatus,
+	JarvisAutonomyPolicyRule,
 	JarvisMissionRecord,
+	JarvisMissionPlan,
+	JarvisMissionTemplate,
 	JarvisNodeDoctorCheck,
 	JarvisNodeLinkCheck,
 	JarvisOrchestrationPolicy,
+	JarvisProposalRecord,
 	JarvisStartSessionRequest,
 	JarvisDeploymentStatus,
 	JarvisApplicationStatus,
@@ -53,6 +57,7 @@ import type {
 	JarvisTicketSummary,
 	JarvisVisitRequest,
 	JarvisWorkerMetadata,
+	JarvisWorkerLaneScorecard,
 	JarvisWorkerOffloadRequest,
 	JarvisWorkerOffloadResult,
 } from "./types/domain";
@@ -603,6 +608,72 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			: [];
 	}
 
+	async fetchMissionTemplates(): Promise<JarvisMissionTemplate[]> {
+		const templates = await this.fetchJson<JarvisMissionTemplate[]>(["mission", "templates", "--output", "json"], []);
+		return Array.isArray(templates) ? templates : [];
+	}
+
+	async fetchMissionPlans(): Promise<JarvisMissionPlan[]> {
+		const plans = await this.fetchJson<JarvisMissionPlan[]>(["mission", "plan", "--output", "json"], []);
+		return Array.isArray(plans) ? plans : [];
+	}
+
+	async fetchAutonomyPolicy(): Promise<JarvisAutonomyPolicyRule[]> {
+		const rules = await this.fetchJson<JarvisAutonomyPolicyRule[]>(["mission", "policy", "--output", "json"], []);
+		return Array.isArray(rules) ? rules : [];
+	}
+
+	async fetchLaneScorecards(): Promise<JarvisWorkerLaneScorecard[]> {
+		const scorecards = await this.fetchJson<JarvisWorkerLaneScorecard[]>(["mission", "scorecards", "--output", "json"], []);
+		return Array.isArray(scorecards) ? scorecards : [];
+	}
+
+	async fetchProposals(): Promise<JarvisProposalRecord[]> {
+		const proposals = await this.fetchJson<JarvisProposalRecord[]>(["proposal", "list", "--output", "json"], []);
+		return Array.isArray(proposals)
+			? proposals.sort((left, right) => right.updated_at_epoch_ms - left.updated_at_epoch_ms)
+			: [];
+	}
+
+	async createMissionFromTemplate(template: JarvisMissionTemplate, title?: string): Promise<JarvisMissionRecord> {
+		const missionTitle = title?.trim() || template.title;
+		const { stdout } = await this.execJarvisCtl([
+			"mission",
+			"create",
+			"--template",
+			template.id,
+			"--title",
+			missionTitle,
+			"--output",
+			"json",
+		]);
+		this.invalidateRuntimeCaches();
+		const detail = JSON.parse(stdout.trim() || "{}") as { mission?: JarvisMissionRecord };
+		if (!detail.mission?.id) {
+			throw new Error("Mission create did not return a mission record.");
+		}
+		return detail.mission;
+	}
+
+	async decideProposal(
+		proposal: JarvisProposalRecord,
+		status: "approved" | "rejected",
+		decision: string,
+	): Promise<void> {
+		await this.execJarvisCtl([
+			"proposal",
+			"decide",
+			proposal.id,
+			"--status",
+			status,
+			"--decision",
+			decision.trim() || status,
+			"--decided-by",
+			"operator",
+		]);
+		this.invalidateRuntimeCaches();
+	}
+
 	async syncRemoteSessionTickets(sessions: JarvisSessionMetadata[]): Promise<void> {
 		await Promise.allSettled(
 			sessions.slice(0, 24).map(async (session) => {
@@ -670,6 +741,9 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		}
 		if (request.message.trim()) {
 			args.push("--message", request.message.trim());
+		}
+		if (request.missionId?.trim()) {
+			args.push("--mission", request.missionId.trim());
 		}
 		if (request.startupDelayMs?.trim()) {
 			args.push("--startup-delay-ms", request.startupDelayMs.trim());
@@ -785,6 +859,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			"codex_completion_status: review",
 			"codex_completion_column: Review",
 			`codex_finish_mode: ${request.finishMode?.trim() || "keep"}`,
+			request.missionId?.trim() ? `jarvis_mission: ${request.missionId.trim()}` : "",
 			`created: ${created}`,
 			`updated: ${created}`,
 			"tags:",
@@ -1765,6 +1840,11 @@ class JarvisCtlControlView extends ItemView {
 		cluster: structuredClone(EMPTY_CLUSTER_STATE),
 		tickets: [],
 		missions: [],
+		missionTemplates: [],
+		missionPlans: [],
+		autonomyPolicy: [],
+		laneScorecards: [],
+		proposals: [],
 		selectedNamespace: null,
 		selectedControlNamespace: null,
 		statusMessage: "Idle",
@@ -2035,6 +2115,21 @@ class JarvisCtlControlView extends ItemView {
 					this.state.statusMessage = output || "Bootstrap completed";
 				}, true);
 			},
+			createMissionFromTemplate: async (template, title) => {
+				let mission!: JarvisMissionRecord;
+				await this.runAction(`Creating mission ${title || template.title}`, async () => {
+					mission = await this.plugin.createMissionFromTemplate(template, title);
+					this.state.statusMessage = `Mission ${mission.title} created`;
+					await this.refreshSessions(false);
+				}, true);
+				return mission;
+			},
+			decideProposal: async (proposal, status, decision) => {
+				await this.runAction(`${status === "approved" ? "Approving" : "Rejecting"} ${proposal.title}`, async () => {
+					await this.plugin.decideProposal(proposal, status, decision);
+					await this.refreshSessions(false);
+				}, true);
+			},
 			syncNodeAuth: async (node) => {
 				await this.runAction(`Syncing auth to ${node}`, async () => {
 					await this.plugin.runJarvisCtl(["node", "sync-codex-auth", node]);
@@ -2115,9 +2210,22 @@ class JarvisCtlControlView extends ItemView {
 				this.plugin.fetchClusterState(),
 			]);
 			await this.plugin.syncRemoteSessionTickets(cluster.index.sessions);
-			const [tickets, missions] = await Promise.all([
+			const [
+				tickets,
+				missions,
+				missionTemplates,
+				missionPlans,
+				autonomyPolicy,
+				laneScorecards,
+				proposals,
+			] = await Promise.all([
 				this.plugin.fetchTickets(),
 				this.plugin.fetchMissions(),
+				this.plugin.fetchMissionTemplates(),
+				this.plugin.fetchMissionPlans(),
+				this.plugin.fetchAutonomyPolicy(),
+				this.plugin.fetchLaneScorecards(),
+				this.plugin.fetchProposals(),
 			]);
 			const sessions = mergeSessions(localSessions, cluster.index.sessions);
 			this.state.sessions = sessions;
@@ -2125,6 +2233,11 @@ class JarvisCtlControlView extends ItemView {
 			this.state.cluster = cluster;
 			this.state.tickets = tickets;
 			this.state.missions = missions;
+			this.state.missionTemplates = missionTemplates;
+			this.state.missionPlans = missionPlans;
+			this.state.autonomyPolicy = autonomyPolicy;
+			this.state.laneScorecards = laneScorecards;
+			this.state.proposals = proposals;
 			if (
 				!this.state.selectedNamespace ||
 				!sessions.some((session) => session.namespace === this.state.selectedNamespace)

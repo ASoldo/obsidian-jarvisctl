@@ -1,6 +1,6 @@
 # obsidian-jarvisctl
 
-`obsidian-jarvisctl` is a custom Obsidian control-plane view for live `jarvisctl` runtimes. It turns structured `jarvisctl list --json` session data into a dark operator dashboard with topology, applications, runtime, workflow, and observability surfaces inside the vault.
+`obsidian-jarvisctl` is a custom Obsidian control-plane view for live `jarvisctl` runtimes. It turns structured `jarvisctl` session, cluster, mission, proposal, and ticket data into an operator dashboard for orchestrating Codex work from the vault.
 
 ## Current Capabilities
 
@@ -8,6 +8,9 @@
 - Vue 3 SFC UI with `<script setup lang="ts">`
 - Tailwind CSS v4 design system compiled into plugin-local `styles.css`
 - Live namespace polling from `jarvisctl list --json`
+- Native toolbar with repository scope, search, surface tabs, and runtime counters
+- Mission-chain view for autonomy policy, proposals, next actions, lane scorecards, templates, and mission evidence
+- Deploy dialog that can start from a ticket, create an ad-hoc ticket, or bind/create a mission template before launching a session
 - Runtime actions:
   - attach namespace
   - continue/fresh Codex from ticket note
@@ -18,11 +21,9 @@
   - close namespace
   - open `exec` terminals
 - Control-plane regions:
-  - top bar / environment and search
-  - repository and agent sidebar
-  - center tabs for topology, applications, and runtime
-  - workflow lane
-  - bottom observability tabs for logs, events, reasoning, and metrics
+  - Obsidian-native top toolbar for scope, search, tabs, counters, deploy, refresh, and settings
+  - collapsible repository, node, namespace, worker, and resource sidebar
+  - full-height center surfaces for agent chat, execution steps, nodes, policies, namespaces, workers, and mission chain
 
 ## Development
 
@@ -36,7 +37,7 @@ npm run install-local
 `install-local` copies the built plugin into:
 
 ```text
-/home/rootster/documents/codex/.obsidian/plugins/jarvisctl-control
+/home/rootster/codex/.obsidian/plugins/jarvisctl-control
 ```
 
 To iterate locally:
@@ -58,6 +59,10 @@ The plugin expects a `jarvisctl` build with structured runtime support:
 
 ```bash
 jarvisctl list --json
+jarvisctl mission plan --output json
+jarvisctl mission policy --output json
+jarvisctl mission scorecards --output json
+jarvisctl proposal list --output json
 ```
 
 The configured binary path is exposed in plugin settings and defaults to:
@@ -68,12 +73,12 @@ The configured binary path is exposed in plugin settings and defaults to:
 
 ## Current Limitation
 
-The UI is wired to real `jarvisctl` session data, but it still depends on `jarvisctl` as the runtime provider. Git, Kubernetes, ArgoCD, and workflow-engine adapters are represented through the control-plane layout and live runtime state, not through direct external API integrations yet.
+The UI intentionally depends on `jarvisctl` as the runtime provider. GitOps, Kubernetes, ArgoCD, and external workflow engines are design references for the control flow, but the active source of truth is still the vault, mission ledger, session metadata, and `jarvisctl` control plane.
 
 ## Roadmap
 
-- adapter interfaces for Git / Kubernetes / Argo-style providers
-- richer workflow editing
+- recurring two-node mission smoke from the dashboard
+- richer proposal forms for worker-lane promotion and external runtime onboarding
 - persisted panel preferences
 - direct transcript and reasoning drill-down
 - live stream transport instead of polling

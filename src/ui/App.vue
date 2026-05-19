@@ -327,6 +327,11 @@ function applySearchPrimary(): void {
 				:selected-worker-key="selectedWorkerKey"
 				:control-plane="controlPlane"
 				:cluster="host.state.cluster"
+				:mission-templates="host.state.missionTemplates"
+				:mission-plans="host.state.missionPlans"
+				:autonomy-policy="host.state.autonomyPolicy"
+				:lane-scorecards="host.state.laneScorecards"
+				:proposals="host.state.proposals"
 				:activity-sections="selectedActivitySections"
 				:active-surface="activeSurface"
 				@select-worker="handleSelectWorker($event)"
@@ -338,6 +343,8 @@ function applySearchPrimary(): void {
 			:host="host"
 			:tickets="host.state.tickets"
 			:cluster="host.state.cluster"
+			:missions="host.state.missions"
+			:mission-templates="host.state.missionTemplates"
 			@close="deployDialogOpen = false"
 		/>
 	</div>

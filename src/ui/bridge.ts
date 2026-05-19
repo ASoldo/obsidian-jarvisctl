@@ -3,6 +3,9 @@ import type {
 	JarvisDashboardViewState,
 	JarvisBootstrapRequest,
 	JarvisFanoutRequest,
+	JarvisMissionRecord,
+	JarvisMissionTemplate,
+	JarvisProposalRecord,
 	JarvisRuntimeServerRequest,
 	JarvisSessionMetadata,
 	JarvisStartSessionRequest,
@@ -61,6 +64,8 @@ export interface JarvisDashboardHost {
 	startClusterSession(request: JarvisStartSessionRequest): Promise<void>;
 	runClusterFanout(request: JarvisFanoutRequest): Promise<void>;
 	bootstrapClusterNode(request: JarvisBootstrapRequest): Promise<void>;
+	createMissionFromTemplate(template: JarvisMissionTemplate, title?: string): Promise<JarvisMissionRecord>;
+	decideProposal(proposal: JarvisProposalRecord, status: "approved" | "rejected", decision: string): Promise<void>;
 	syncNodeAuth(node: string): Promise<void>;
 	cordonNode(node: string): Promise<void>;
 	uncordonNode(node: string): Promise<void>;

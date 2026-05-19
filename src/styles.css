@@ -1290,6 +1290,11 @@
     @apply grid min-w-0 content-start gap-3 rounded-2xl p-3;
   }
 
+  .cp-mission-stage--wide,
+  .cp-mission-stage--ledger {
+    grid-column: 1 / -1;
+  }
+
   .cp-mission-stage__head {
     @apply grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3;
   }
@@ -1323,6 +1328,53 @@
 
   .cp-mission-stage__evidence {
     @apply flex min-w-0 flex-wrap gap-1.5;
+  }
+
+  .cp-mission-list {
+    @apply grid min-w-0 gap-2;
+  }
+
+  .cp-mission-row {
+    border: 1px solid color-mix(in srgb, var(--cp-border) 66%, transparent);
+    background: color-mix(in srgb, var(--cp-panel-strong) 72%, transparent);
+    @apply grid min-w-0 items-center gap-3 rounded-xl px-3 py-2;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .cp-mission-row__title {
+    color: var(--cp-text-soft);
+    @apply min-w-0 truncate text-sm font-semibold;
+  }
+
+  .cp-mission-row__meta {
+    color: var(--cp-text-dim);
+    @apply mt-0.5 min-w-0 truncate text-xs leading-relaxed;
+  }
+
+  .cp-mission-scoregrid {
+    @apply grid min-w-0 gap-2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cp-mission-score {
+    border: 1px solid color-mix(in srgb, var(--cp-border) 66%, transparent);
+    background: color-mix(in srgb, var(--cp-panel-strong) 72%, transparent);
+    @apply grid min-w-0 gap-2 rounded-xl p-3;
+  }
+
+  .cp-mission-meter {
+    block-size: 0.45rem;
+    background: color-mix(in srgb, var(--cp-panel) 84%, transparent);
+    border: 1px solid color-mix(in srgb, var(--cp-border) 60%, transparent);
+    @apply overflow-hidden rounded-full;
+  }
+
+  .cp-mission-meter span {
+    display: block;
+    block-size: 100%;
+    max-inline-size: 100%;
+    min-inline-size: 0.35rem;
+    background: linear-gradient(90deg, var(--cp-blue), var(--cp-green));
   }
 
   .cp-inspector {
@@ -2401,6 +2453,10 @@
     @apply flex flex-wrap gap-2;
   }
 
+  .cp-chip-row--right {
+    @apply justify-end;
+  }
+
   .cp-filter-pill {
     border: 1px solid var(--cp-border);
     background: color-mix(in srgb, var(--cp-panel-strong) 82%, transparent);
@@ -2506,6 +2562,7 @@
     .cp-cluster-form-grid,
     .cp-mission-command,
     .cp-mission-stage-grid,
+    .cp-mission-scoregrid,
     .cp-deploy-dialog__body,
     .cp-deploy-form {
       grid-template-columns: 1fr;
@@ -2523,6 +2580,14 @@
 
     .cp-native-toolbar__metrics {
       display: none;
+    }
+
+    .cp-mission-row {
+      grid-template-columns: 1fr;
+    }
+
+    .cp-chip-row--right {
+      @apply justify-start;
     }
 
     .cp-dialog-backdrop {
