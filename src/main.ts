@@ -10,7 +10,7 @@ import {
 	TFile,
 	WorkspaceLeaf,
 } from "obsidian";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, isAbsolute, join, relative } from "node:path";
 import { promisify } from "node:util";
@@ -949,6 +949,24 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		this.invalidateRuntimeCaches();
 	}
 
+	async runNodeSudo(node: string, command: string, password: string): Promise<string> {
+		const { stdout } = await this.execJarvisCtlWithInput(
+			[
+				"node",
+				"sudo",
+				node,
+				"--command",
+				command,
+				"--password-stdin",
+				"--output",
+				"json",
+			],
+			`${password}\n`,
+		);
+		this.invalidateRuntimeCaches();
+		return stdout;
+	}
+
 	async runClusterVisit(request: JarvisVisitRequest): Promise<string> {
 		const args = [
 			"visit",
@@ -1600,6 +1618,53 @@ export default class JarvisCtlControlPlugin extends Plugin {
 					},
 				});
 				return { stdout, stderr };
+			} catch (error) {
+				if (isMissingExecutable(error)) {
+					lastError = error;
+					continue;
+				}
+				throw error;
+			}
+		}
+		throw lastError ?? new Error("jarvisctl executable could not be resolved");
+	}
+
+	private async execJarvisCtlWithInput(
+		args: string[],
+		input: string,
+	): Promise<{ stdout: string; stderr: string }> {
+		let lastError: unknown;
+		for (const candidate of this.getJarvisCtlCandidates()) {
+			try {
+				this.lastExecPath = candidate;
+				return await new Promise((resolve, reject) => {
+					const child = spawn(candidate, args, {
+						env: {
+							...process.env,
+							JARVIS_NODE_PROBE_TIMEOUT_SECONDS: process.env.JARVIS_NODE_PROBE_TIMEOUT_SECONDS ?? "3",
+						},
+						stdio: ["pipe", "pipe", "pipe"],
+					});
+					let stdout = "";
+					let stderr = "";
+					child.stdout.setEncoding("utf8");
+					child.stderr.setEncoding("utf8");
+					child.stdout.on("data", (chunk) => {
+						stdout += chunk;
+					});
+					child.stderr.on("data", (chunk) => {
+						stderr += chunk;
+					});
+					child.on("error", reject);
+					child.on("close", (code) => {
+						if (code === 0) {
+							resolve({ stdout, stderr });
+							return;
+						}
+						reject(new Error(stderr.trim() || stdout.trim() || `jarvisctl exited with ${code}`));
+					});
+					child.stdin.end(input);
+				});
 			} catch (error) {
 				if (isMissingExecutable(error)) {
 					lastError = error;
@@ -2418,6 +2483,23 @@ class JarvisCtlControlView extends ItemView {
 			promptOperatorRequestResponse: async (request) => {
 				return await this.plugin.promptOperatorRequestResponse(request);
 			},
+			runNodeSudo: async (node, command) => {
+				let output = "";
+				await this.runAction(`Running sudo on ${node}`, async () => {
+					const password = await promptForPassword(
+						this.app,
+						`Credentials for ${node}`,
+						`Jarvis will run this approved command on ${node} through SSH. The password is sent over SSH stdin and is not stored.\n\n${command}`,
+					);
+					if (password === null) {
+						return;
+					}
+					output = await this.plugin.runNodeSudo(node, command, password);
+					this.state.statusMessage = `Sudo command completed on ${node}`;
+					await this.refreshSessions(false);
+				}, true);
+				return output;
+			},
 			syncNodeAuth: async (node) => {
 				await this.runAction(`Syncing auth to ${node}`, async () => {
 					await this.plugin.runJarvisCtl(["node", "sync-codex-auth", node]);
@@ -3057,6 +3139,80 @@ class JarvisServerRequestResponseModal extends Modal {
 	}
 }
 
+class JarvisPasswordModal extends Modal {
+	private readonly titleText: string;
+	private readonly description: string;
+	private readonly resolveResult: (result: string | null) => void;
+	private resolved = false;
+
+	constructor(
+		app: App,
+		titleText: string,
+		description: string,
+		resolveResult: (result: string | null) => void,
+	) {
+		super(app);
+		this.titleText = titleText;
+		this.description = description;
+		this.resolveResult = resolveResult;
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl("h2", { text: this.titleText });
+		contentEl.createEl("p", {
+			cls: "jarvisctl-modal-copy",
+			text: this.description,
+		});
+
+		contentEl.createEl("label", {
+			cls: "jarvisctl-modal-label",
+			text: "Password",
+		});
+		const passwordEl = contentEl.createEl("input", {
+			cls: "jarvisctl-modal-input",
+			type: "password",
+		});
+		passwordEl.placeholder = "Used once, sent over SSH stdin, not stored.";
+
+		const actions = contentEl.createDiv({ cls: "jarvisctl-modal-actions" });
+		const cancel = actions.createEl("button", { text: "Cancel" });
+		cancel.addEventListener("click", () => this.finish(null));
+
+		const submit = actions.createEl("button", {
+			text: "Run command",
+			cls: "mod-cta",
+		});
+		submit.addEventListener("click", () => {
+			this.finish(passwordEl.value);
+		});
+		passwordEl.addEventListener("keydown", (event) => {
+			if (event.key === "Enter") {
+				event.preventDefault();
+				this.finish(passwordEl.value);
+			}
+		});
+
+		window.setTimeout(() => passwordEl.focus(), 0);
+	}
+
+	onClose(): void {
+		if (!this.resolved) {
+			this.resolveResult(null);
+		}
+	}
+
+	private finish(result: string | null): void {
+		if (this.resolved) {
+			return;
+		}
+		this.resolved = true;
+		this.resolveResult(result);
+		this.close();
+	}
+}
+
 class JarvisOperatorRequestResponseModal extends Modal {
 	private readonly request: JarvisOperatorRequestRecord;
 	private readonly resolveResult: (result: string | null) => void;
@@ -3269,6 +3425,16 @@ function promptForOperatorRequestResponse(
 ): Promise<string | null> {
 	return new Promise((resolve) => {
 		new JarvisOperatorRequestResponseModal(app, request, resolve).open();
+	});
+}
+
+function promptForPassword(
+	app: App,
+	title: string,
+	description: string,
+): Promise<string | null> {
+	return new Promise((resolve) => {
+		new JarvisPasswordModal(app, title, description, resolve).open();
 	});
 }
 

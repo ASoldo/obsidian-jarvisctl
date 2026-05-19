@@ -301,6 +301,20 @@ function serverRequestRaw(request: JarvisRuntimeServerRequest): string {
 	return JSON.stringify(request.params ?? {}, null, 2);
 }
 
+function serverRequestCommand(request: JarvisRuntimeServerRequest): string | null {
+	const params = request.params as Record<string, unknown> | null | undefined;
+	return typeof params?.command === "string" ? params.command : null;
+}
+
+function serverRequestNode(): string {
+	return props.session?.context?.labels?.["jarvisctl.io/node"]?.trim() || "archiechokie";
+}
+
+function canRunSudoBridge(request: JarvisRuntimeServerRequest): boolean {
+	const command = serverRequestCommand(request)?.toLowerCase() ?? "";
+	return command.includes("sudo") || command.includes("pkexec");
+}
+
 function serverRequestDecisions(request: JarvisRuntimeServerRequest): ServerRequestDecision[] {
 	const params = request.params as Record<string, unknown> | null | undefined;
 	if (!Array.isArray(params?.availableDecisions)) {
@@ -367,6 +381,24 @@ async function sendCustomServerResponse(request: JarvisRuntimeServerRequest): Pr
 		return;
 	}
 	await props.host.respondServerRequest(props.session, request, raw, null);
+}
+
+async function runServerRequestSudo(request: JarvisRuntimeServerRequest): Promise<void> {
+	if (!props.session) {
+		return;
+	}
+	const command = serverRequestCommand(request);
+	if (!command) {
+		return;
+	}
+	const node = serverRequestNode();
+	await props.host.runNodeSudo(node, command);
+	await props.host.respondServerRequest(
+		props.session,
+		request,
+		null,
+		`Operator executed the privileged command on node '${node}' through Jarvis Control. Do not rerun it; verify the resulting state.`,
+	);
 }
 
 function mapEventToConversationEntry(event: JarvisRuntimeFeedEntry): ConsoleEntry | null {
@@ -529,6 +561,16 @@ function entryAvatarScope(role: ConsoleEntry["role"]): "cloud" | "local" | "remo
 						<pre>{{ serverRequestRaw(request) }}</pre>
 					</details>
 					<div v-if="serverRequestDecisions(request).length > 0" class="cp-server-request-card__decisions">
+						<button
+							v-if="canRunSudoBridge(request)"
+							type="button"
+							class="cp-button cp-action-button cp-button--primary"
+							title="Prompt here and run the privileged command on the request node"
+							@click="runServerRequestSudo(request)"
+						>
+							<span class="cp-button__icon" aria-hidden="true">⚿</span>
+							<span class="cp-action-button__label">Run sudo</span>
+						</button>
 						<button
 							v-for="decision in serverRequestDecisions(request)"
 							:key="decision.key"

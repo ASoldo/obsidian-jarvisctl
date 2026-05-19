@@ -323,6 +323,20 @@ function serverRequestTitle(request: JarvisRuntimeServerRequest): string {
 	return command ?? request.method.replaceAll("/", " / ");
 }
 
+function serverRequestCommand(request: JarvisRuntimeServerRequest): string | null {
+	const params = request.params as Record<string, unknown> | null | undefined;
+	return typeof params?.command === "string" ? params.command : null;
+}
+
+function serverRequestNode(item: PendingServerRequest): string {
+	return item.session.context?.labels?.["jarvisctl.io/node"]?.trim() || "archiechokie";
+}
+
+function canRunSudoBridge(item: PendingServerRequest): boolean {
+	const command = serverRequestCommand(item.request)?.toLowerCase() ?? "";
+	return command.includes("sudo") || command.includes("pkexec");
+}
+
 function serverRequestDecisions(request: JarvisRuntimeServerRequest): ServerRequestDecision[] {
 	const params = request.params as Record<string, unknown> | null | undefined;
 	if (!Array.isArray(params?.availableDecisions)) {
@@ -378,6 +392,21 @@ async function denyServerRequest(item: PendingServerRequest): Promise<void> {
 		item.request,
 		null,
 		"Denied by operator from Mission Chain.",
+	);
+}
+
+async function runServerRequestSudo(item: PendingServerRequest): Promise<void> {
+	const command = serverRequestCommand(item.request);
+	if (!command) {
+		return;
+	}
+	const node = serverRequestNode(item);
+	await props.host.runNodeSudo(node, command);
+	await props.host.respondServerRequest(
+		item.session,
+		item.request,
+		null,
+		`Operator executed the privileged command on node '${node}' through Jarvis Control. Do not rerun it; verify the resulting state.`,
 	);
 }
 
@@ -447,8 +476,10 @@ async function previewWorkerRetention(): Promise<void> {
 			<div class="cp-mission-command__metrics">
 				<div v-for="metric in commandPost" :key="metric.label" class="cp-mission-metric">
 					<span class="cp-mission-metric__label">{{ metric.label }}</span>
-					<span class="cp-mission-metric__value">{{ metric.value }}</span>
-					<StatusBadge :label="metric.tone" :tone="metric.tone" compact />
+					<span class="cp-mission-metric__value">
+						<span>{{ metric.value }}</span>
+						<StatusBadge :label="metric.tone" :tone="metric.tone" compact />
+					</span>
 				</div>
 			</div>
 		</section>
@@ -526,9 +557,9 @@ async function previewWorkerRetention(): Promise<void> {
 					/>
 				</div>
 				<div class="cp-control-strip">
-					<button type="button" class="cp-mini-button cp-mini-button--primary" title="Run autonomy reconcile" @click="runAutonomyReconcile(false)">Reconcile</button>
-					<button type="button" class="cp-mini-button" title="Run and send persistent desktop notifications for pending operator requests" @click="runAutonomyReconcile(true)">Notify</button>
-					<button type="button" class="cp-mini-button" title="Install and start the user-systemd autonomy timer" @click="installAutonomyService()">Timer</button>
+					<button type="button" class="cp-mini-button cp-mini-button--primary" title="Run autonomy reconcile" @click="runAutonomyReconcile(false)">⟳</button>
+					<button type="button" class="cp-mini-button" title="Run and send persistent desktop notifications for pending operator requests" @click="runAutonomyReconcile(true)">!</button>
+					<button type="button" class="cp-mini-button" title="Install and start the user-systemd autonomy timer" @click="installAutonomyService()">⏱</button>
 				</div>
 				<div v-if="autonomyReport" class="cp-mission-scoregrid">
 					<div class="cp-mission-score">
@@ -569,8 +600,8 @@ async function previewWorkerRetention(): Promise<void> {
 					<StatusBadge :label="missionSmokeLabel" :tone="missionSmokeTone" compact />
 				</div>
 				<div class="cp-control-strip">
-					<button type="button" class="cp-mini-button cp-mini-button--primary" title="Schedule recurring two-node smoke using the first two cluster nodes" @click="configureMissionSmoke()">Schedule</button>
-					<button type="button" class="cp-mini-button" title="Run the recurring smoke now" @click="runMissionSmoke()">Run now</button>
+					<button type="button" class="cp-mini-button cp-mini-button--primary" title="Schedule recurring two-node smoke using the first two cluster nodes" @click="configureMissionSmoke()">⏱</button>
+					<button type="button" class="cp-mini-button" title="Run the recurring smoke now" @click="runMissionSmoke()">▶</button>
 				</div>
 				<div v-if="missionSmokeConfigured && missionSmokeConfig" class="cp-mission-scoregrid">
 					<div class="cp-mission-score">
@@ -820,6 +851,15 @@ async function previewWorkerRetention(): Promise<void> {
 								@click="promptServerRequest(item)"
 							>
 								↵
+							</button>
+							<button
+								v-if="canRunSudoBridge(item)"
+								type="button"
+								class="cp-mini-button cp-mini-button--primary"
+								title="Prompt here and run the privileged command on the request node"
+								@click="runServerRequestSudo(item)"
+							>
+								⚿
 							</button>
 							<button
 								v-for="decision in serverRequestDecisions(item.request)"
