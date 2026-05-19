@@ -2148,6 +2148,10 @@
     font-family: var(--font-monospace);
   }
 
+  .cp-server-request-card__decisions {
+    @apply flex min-w-0 flex-wrap items-center justify-end gap-2;
+  }
+
   .cp-operator-stream__header,
   .cp-operator-compose__header {
     @apply flex flex-wrap items-center justify-between gap-2;

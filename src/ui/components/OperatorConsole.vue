@@ -30,6 +30,14 @@ interface ConsoleEntry {
 	status?: string | null;
 }
 
+interface ServerRequestDecision {
+	key: string;
+	label: string;
+	responseJson: string;
+	tone: "default" | "danger";
+	title: string;
+}
+
 const props = defineProps<{
 	host: JarvisDashboardHost;
 	session: JarvisSessionMetadata | null;
@@ -293,6 +301,41 @@ function serverRequestRaw(request: JarvisRuntimeServerRequest): string {
 	return JSON.stringify(request.params ?? {}, null, 2);
 }
 
+function serverRequestDecisions(request: JarvisRuntimeServerRequest): ServerRequestDecision[] {
+	const params = request.params as Record<string, unknown> | null | undefined;
+	if (!Array.isArray(params?.availableDecisions)) {
+		return [];
+	}
+	return params.availableDecisions.map((decision, index) => {
+		const key =
+			typeof decision === "string"
+				? decision
+				: decision && typeof decision === "object"
+					? Object.keys(decision as Record<string, unknown>)[0] ?? `decision-${index}`
+					: `decision-${index}`;
+		return {
+			key: `${index}:${key}`,
+			label: formatDecisionLabel(key),
+			responseJson: JSON.stringify(decision),
+			tone: key === "cancel" ? "danger" : "default",
+			title: `Respond with ${JSON.stringify(decision)}`,
+		};
+	});
+}
+
+function formatDecisionLabel(decision: string): string {
+	switch (decision) {
+		case "accept":
+			return "Approve";
+		case "cancel":
+			return "Cancel";
+		case "acceptWithExecpolicyAmendment":
+			return "Approve with policy";
+		default:
+			return decision.replaceAll(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ");
+	}
+}
+
 async function denyServerRequest(request: JarvisRuntimeServerRequest): Promise<void> {
 	if (!props.session) {
 		return;
@@ -303,6 +346,16 @@ async function denyServerRequest(request: JarvisRuntimeServerRequest): Promise<v
 		null,
 		"Denied by operator from Jarvis Control.",
 	);
+}
+
+async function sendServerRequestDecision(
+	request: JarvisRuntimeServerRequest,
+	decision: ServerRequestDecision,
+): Promise<void> {
+	if (!props.session) {
+		return;
+	}
+	await props.host.respondServerRequest(props.session, request, decision.responseJson, null);
 }
 
 async function sendCustomServerResponse(request: JarvisRuntimeServerRequest): Promise<void> {
@@ -475,6 +528,23 @@ function entryAvatarScope(role: ConsoleEntry["role"]): "cloud" | "local" | "remo
 						<summary>Raw request</summary>
 						<pre>{{ serverRequestRaw(request) }}</pre>
 					</details>
+					<div v-if="serverRequestDecisions(request).length > 0" class="cp-server-request-card__decisions">
+						<button
+							v-for="decision in serverRequestDecisions(request)"
+							:key="decision.key"
+							type="button"
+							:class="[
+								'cp-button',
+								'cp-action-button',
+								decision.tone === 'danger' ? 'cp-button--danger' : '',
+							]"
+							:title="decision.title"
+							@click="sendServerRequestDecision(request, decision)"
+						>
+							<span class="cp-button__icon" aria-hidden="true">{{ decision.tone === 'danger' ? '×' : '✓' }}</span>
+							<span class="cp-action-button__label">{{ decision.label }}</span>
+						</button>
+					</div>
 					<div class="cp-control-strip cp-control-strip--right">
 						<button type="button" class="cp-button cp-action-button" title="Send custom JSON response" @click="sendCustomServerResponse(request)">
 							<span class="cp-button__icon" aria-hidden="true">↵</span>
