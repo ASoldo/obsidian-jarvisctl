@@ -1661,7 +1661,7 @@ export default class JarvisCtlControlPlugin extends Plugin {
 							resolve({ stdout, stderr });
 							return;
 						}
-						reject(new Error(stderr.trim() || stdout.trim() || `jarvisctl exited with ${code}`));
+						reject(commandOutputError(`jarvisctl exited with ${code}`, stdout, stderr));
 					});
 					child.stdin.end(input);
 				});
@@ -3473,7 +3473,8 @@ function escapeForDoubleQuotes(value: string): string {
 
 function formatError(error: unknown): string {
 	if (error instanceof Error) {
-		return error.message;
+		const detail = commandFailureDetail(error);
+		return detail ? `${error.message}\n${detail}` : error.message;
 	}
 	return String(error);
 }
@@ -3492,12 +3493,64 @@ function errorText(error: unknown): string {
 
 function appendCommandFailureDetail(error: unknown): Error {
 	const base = formatError(error);
-	const detail = errorText(error)
+	const detail = commandFailureDetail(error);
+	return new Error(detail ? `${base}\n${detail}` : base);
+}
+
+function commandOutputError(message: string, stdout: string, stderr: string): Error {
+	const error = new Error(commandFailureMessage(message, stdout, stderr));
+	Object.assign(error, { stdout, stderr });
+	return error;
+}
+
+function commandFailureMessage(message: string, stdout: string, stderr: string): string {
+	const parsed = parseNodeSudoReport(stdout);
+	if (parsed) {
+		const detail = parsed.stderr.trim() || parsed.stdout.trim() || "no command output";
+		return `sudo on ${parsed.node} (${parsed.target}) failed with exit ${parsed.exit_status}: ${detail}`;
+	}
+	return stderr.trim() || stdout.trim() || message;
+}
+
+function commandFailureDetail(error: unknown): string | null {
+	const text = errorText(error);
+	const parsed = parseNodeSudoReport(text);
+	if (parsed) {
+		const detail = parsed.stderr.trim() || parsed.stdout.trim() || "no command output";
+		return `sudo report: ${parsed.node} (${parsed.target}) exit ${parsed.exit_status}: ${detail}`;
+	}
+	const base = error instanceof Error ? error.message : "";
+	return text
 		.split("\n")
 		.map((line) => line.trim())
 		.filter(Boolean)
-		.find((line) => line !== base);
-	return new Error(detail ? `${base}\n${detail}` : base);
+		.find((line) => line !== base) ?? null;
+}
+
+function parseNodeSudoReport(text: string): { node: string; target: string; exit_status: number; stdout: string; stderr: string } | null {
+	const trimmed = text.trim();
+	if (!trimmed.startsWith("{")) {
+		return null;
+	}
+	try {
+		const parsed = JSON.parse(trimmed) as unknown;
+		if (!parsed || typeof parsed !== "object") {
+			return null;
+		}
+		const record = parsed as Record<string, unknown>;
+		if (!("node" in record) || !("target" in record) || !("exit_status" in record)) {
+			return null;
+		}
+		return {
+			node: String(record.node ?? ""),
+			target: String(record.target ?? ""),
+			exit_status: Number(record.exit_status ?? -1),
+			stdout: String(record.stdout ?? ""),
+			stderr: String(record.stderr ?? ""),
+		};
+	} catch {
+		return null;
+	}
 }
 
 function isDescribeMissingError(error: unknown): boolean {
