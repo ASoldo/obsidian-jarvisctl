@@ -26,6 +26,8 @@ import type {
 	JarvisActivitySection,
 	JarvisAgentMetadata,
 	JarvisAutonomyReconcileReport,
+	JarvisAutonomyServiceInstallReport,
+	JarvisAutonomyServiceStatus,
 	JarvisAuthAuditEvent,
 	JarvisBootstrapRequest,
 	JarvisCapabilityRecord,
@@ -651,6 +653,30 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		const { stdout } = await this.execJarvisCtl(args);
 		this.invalidateRuntimeCaches();
 		return JSON.parse(stdout.trim() || "{}") as JarvisAutonomyReconcileReport;
+	}
+
+	async fetchAutonomyServiceStatus(): Promise<JarvisAutonomyServiceStatus | null> {
+		return await this.fetchJson<JarvisAutonomyServiceStatus | null>(
+			["autonomy", "service-status", "--output", "json"],
+			null,
+		);
+	}
+
+	async installAutonomyService(): Promise<JarvisAutonomyServiceInstallReport> {
+		const { stdout } = await this.execJarvisCtl([
+			"autonomy",
+			"install-user-service",
+			"--interval-seconds",
+			"300",
+			"--notify=true",
+			"--enable=true",
+			"--start=true",
+			"--request-linger=true",
+			"--output",
+			"json",
+		]);
+		this.invalidateRuntimeCaches();
+		return JSON.parse(stdout.trim() || "{}") as JarvisAutonomyServiceInstallReport;
 	}
 
 	async fetchProposals(): Promise<JarvisProposalRecord[]> {
@@ -1917,6 +1943,7 @@ class JarvisCtlControlView extends ItemView {
 		laneScorecards: [],
 		capabilities: [],
 		autonomyReport: null,
+		autonomyServiceStatus: null,
 		proposals: [],
 		operatorRequests: [],
 		selectedNamespace: null,
@@ -2243,6 +2270,18 @@ class JarvisCtlControlView extends ItemView {
 				}, true);
 				return report;
 			},
+			installAutonomyService: async () => {
+				let report!: JarvisAutonomyServiceInstallReport;
+				await this.runAction("Installing autonomy timer", async () => {
+					report = await this.plugin.installAutonomyService();
+					this.state.autonomyServiceStatus = await this.plugin.fetchAutonomyServiceStatus();
+					this.state.statusMessage = report.linger_request_id
+						? `Autonomy timer installed; linger request ${report.linger_request_id} is pending`
+						: "Autonomy timer installed";
+					await this.refreshSessions(false);
+				}, true);
+				return report;
+			},
 			rotateCapsuleKey: async () => {
 				await this.runAction("Rotating capsule key", async () => {
 					await this.plugin.runJarvisCtl(["node", "rotate-capsule-key"]);
@@ -2311,6 +2350,7 @@ class JarvisCtlControlView extends ItemView {
 				autonomyPolicy,
 				laneScorecards,
 				capabilities,
+				autonomyServiceStatus,
 				proposals,
 				operatorRequests,
 			] = await Promise.all([
@@ -2321,6 +2361,7 @@ class JarvisCtlControlView extends ItemView {
 				this.plugin.fetchAutonomyPolicy(),
 				this.plugin.fetchLaneScorecards(),
 				this.plugin.fetchCapabilities(),
+				this.plugin.fetchAutonomyServiceStatus(),
 				this.plugin.fetchProposals(),
 				this.plugin.fetchOperatorRequests(),
 			]);
@@ -2335,6 +2376,7 @@ class JarvisCtlControlView extends ItemView {
 			this.state.autonomyPolicy = autonomyPolicy;
 			this.state.laneScorecards = laneScorecards;
 			this.state.capabilities = capabilities;
+			this.state.autonomyServiceStatus = autonomyServiceStatus;
 			this.state.proposals = proposals;
 			this.state.operatorRequests = operatorRequests;
 			if (

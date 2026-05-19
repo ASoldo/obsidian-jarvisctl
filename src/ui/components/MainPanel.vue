@@ -3,6 +3,7 @@ import { computed } from "vue";
 import type {
 	JarvisActivitySection,
 	JarvisAutonomyReconcileReport,
+	JarvisAutonomyServiceStatus,
 	JarvisControlPlaneState,
 	JarvisCapabilityRecord,
 	JarvisClusterState,
@@ -61,6 +62,7 @@ const props = defineProps<{
 	laneScorecards: JarvisWorkerLaneScorecard[];
 	capabilities: JarvisCapabilityRecord[];
 	autonomyReport: JarvisAutonomyReconcileReport | null;
+	autonomyServiceStatus: JarvisAutonomyServiceStatus | null;
 	proposals: JarvisProposalRecord[];
 	operatorRequests: JarvisOperatorRequestRecord[];
 	activitySections: JarvisActivitySection[];
@@ -289,6 +291,7 @@ const activeSurfaceModel = computed(
 					:scorecards="laneScorecards"
 					:capabilities="capabilities"
 					:autonomy-report="autonomyReport"
+					:autonomy-service-status="autonomyServiceStatus"
 					:proposals="proposals"
 					:operator-requests="operatorRequests"
 					:cluster="cluster"

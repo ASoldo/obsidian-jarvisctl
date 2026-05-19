@@ -333,6 +333,7 @@ function applySearchPrimary(): void {
 				:lane-scorecards="host.state.laneScorecards"
 				:capabilities="host.state.capabilities"
 				:autonomy-report="host.state.autonomyReport"
+				:autonomy-service-status="host.state.autonomyServiceStatus"
 				:proposals="host.state.proposals"
 				:operator-requests="host.state.operatorRequests"
 				:activity-sections="selectedActivitySections"

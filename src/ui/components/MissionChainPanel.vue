@@ -3,6 +3,7 @@ import { computed } from "vue";
 import type {
 	JarvisAutonomyPolicyRule,
 	JarvisAutonomyReconcileReport,
+	JarvisAutonomyServiceStatus,
 	JarvisCapabilityRecord,
 	JarvisClusterState,
 	JarvisMissionRecord,
@@ -41,6 +42,7 @@ const props = defineProps<{
 	scorecards: JarvisWorkerLaneScorecard[];
 	capabilities: JarvisCapabilityRecord[];
 	autonomyReport: JarvisAutonomyReconcileReport | null;
+	autonomyServiceStatus: JarvisAutonomyServiceStatus | null;
 	proposals: JarvisProposalRecord[];
 	operatorRequests: JarvisOperatorRequestRecord[];
 	cluster: JarvisClusterState;
@@ -106,6 +108,7 @@ const visibleTemplates = computed(() => props.templates.slice(0, 7));
 const visiblePolicy = computed(() => props.policy.slice(0, 5));
 const reconcileBlockers = computed(() => props.autonomyReport?.blocked_actions ?? []);
 const reconcileSafeActions = computed(() => props.autonomyReport?.safe_actions ?? []);
+const autonomyTimerActive = computed(() => props.autonomyServiceStatus?.timer_active === "active");
 
 const latestSession = computed(() =>
 	props.sessions
@@ -268,6 +271,10 @@ async function resolveOperatorRequest(request: JarvisOperatorRequestRecord, stat
 async function runAutonomyReconcile(notify: boolean): Promise<void> {
 	await props.host.runAutonomyReconcile(notify);
 }
+
+async function installAutonomyService(): Promise<void> {
+	await props.host.installAutonomyService();
+}
 </script>
 
 <template>
@@ -364,6 +371,7 @@ async function runAutonomyReconcile(notify: boolean): Promise<void> {
 				<div class="cp-control-strip">
 					<button type="button" class="cp-mini-button cp-mini-button--primary" title="Run autonomy reconcile" @click="runAutonomyReconcile(false)">Reconcile</button>
 					<button type="button" class="cp-mini-button" title="Run and send persistent desktop notifications for pending operator requests" @click="runAutonomyReconcile(true)">Notify</button>
+					<button type="button" class="cp-mini-button" title="Install and start the user-systemd autonomy timer" @click="installAutonomyService()">Timer</button>
 				</div>
 				<div v-if="autonomyReport" class="cp-mission-scoregrid">
 					<div class="cp-mission-score">
@@ -378,6 +386,16 @@ async function runAutonomyReconcile(notify: boolean): Promise<void> {
 						<div class="cp-mission-row__meta">{{ reconcileBlockers.length }} need operator judgment</div>
 						<div class="cp-chip-row">
 							<span v-for="action in reconcileBlockers.slice(0, 3)" :key="`${action.kind}-${action.summary}`" class="cp-chip">{{ action.kind }}</span>
+						</div>
+					</div>
+					<div class="cp-mission-score">
+						<div class="cp-mission-row__title">Autonomy timer</div>
+						<div class="cp-mission-row__meta">
+							{{ autonomyServiceStatus?.timer_active ?? 'unknown' }} · {{ autonomyServiceStatus?.timer_enabled ?? 'not installed' }}
+						</div>
+						<div class="cp-chip-row">
+							<span class="cp-chip">{{ autonomyTimerActive ? "running" : "manual" }}</span>
+							<span class="cp-chip">linger {{ autonomyServiceStatus?.linger ?? "unknown" }}</span>
 						</div>
 					</div>
 				</div>

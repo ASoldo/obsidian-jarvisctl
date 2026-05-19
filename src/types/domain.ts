@@ -578,6 +578,30 @@ export interface JarvisAutonomyReconcileReport {
 	expired_requests: string[];
 }
 
+export interface JarvisAutonomyServiceStatus {
+	service_unit: string;
+	timer_unit: string;
+	service_unit_path: string;
+	timer_unit_path: string;
+	service_active: string;
+	service_enabled: string;
+	timer_active: string;
+	timer_enabled: string;
+	linger: string;
+	linger_request_id?: string | null;
+}
+
+export interface JarvisAutonomyServiceInstallReport {
+	installed: boolean;
+	enabled: boolean;
+	started: boolean;
+	service_unit_path: string;
+	timer_unit_path: string;
+	linger: string;
+	linger_request_id?: string | null;
+	commands: string[];
+}
+
 export interface JarvisProposalRecord {
 	id: string;
 	title: string;
@@ -684,6 +708,7 @@ export interface JarvisDashboardViewState {
 	laneScorecards: JarvisWorkerLaneScorecard[];
 	capabilities: JarvisCapabilityRecord[];
 	autonomyReport: JarvisAutonomyReconcileReport | null;
+	autonomyServiceStatus: JarvisAutonomyServiceStatus | null;
 	proposals: JarvisProposalRecord[];
 	operatorRequests: JarvisOperatorRequestRecord[];
 	selectedNamespace: string | null;
