@@ -95,8 +95,11 @@ const sessionsWithErrors = computed(() =>
 
 const schedulableNodes = computed(() =>
 	props.cluster.nodes.filter((node) => {
+		if (node.available === false || node.schedulable === false) {
+			return false;
+		}
 		const value = `${node.status ?? ""} ${node.detail ?? ""}`.toLowerCase();
-		return value.includes("schedulable") || value.includes("ready") || value.includes("ssh=");
+		return node.available === true || value.includes("reachable") || value.includes("schedulable") || value.includes("ready") || value.includes("ssh=");
 	}),
 );
 

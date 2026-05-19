@@ -371,6 +371,10 @@ export interface JarvisClusterNode {
 	name: string;
 	status?: string;
 	detail?: string;
+	available?: boolean;
+	schedulable?: boolean;
+	facts?: Record<string, string>;
+	issues?: string[];
 }
 
 export interface JarvisNodeDoctorCheck {

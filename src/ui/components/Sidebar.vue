@@ -54,12 +54,15 @@ function runtimeStateLabel(session: JarvisSessionMetadata): string {
 }
 
 function nodeTone(node: JarvisClusterNode): "live" | "warning" | "idle" {
-	const status = (node.status ?? "").toLowerCase();
-	const detail = (node.detail ?? "").toLowerCase();
-	if (status.includes("cordon") || status.includes("offline") || detail.includes("cordon")) {
+	if (node.available === false) {
 		return "warning";
 	}
-	return status.includes("schedulable") || status.includes("ready") || status.includes("online") || status.includes("local") || detail.includes("ssh=")
+	const status = (node.status ?? "").toLowerCase();
+	const detail = (node.detail ?? "").toLowerCase();
+	if (node.schedulable === false || status.includes("cordon") || status.includes("offline") || detail.includes("cordon")) {
+		return "warning";
+	}
+	return status.includes("reachable") || status.includes("schedulable") || status.includes("ready") || status.includes("online") || status.includes("local") || detail.includes("ssh=")
 		? "live"
 		: "idle";
 }
@@ -80,6 +83,9 @@ function nodeRole(node: JarvisClusterNode): string {
 }
 
 function nodeStatusLabel(node: JarvisClusterNode): string {
+	if (node.available === false) {
+		return "unreachable";
+	}
 	const status = node.status?.trim();
 	return status || (nodeTone(node) === "live" ? "ready" : "idle");
 }
@@ -197,7 +203,7 @@ function nodeStatusLabel(node: JarvisClusterNode): string {
 			<section class="cp-sidebar-section">
 				<div class="cp-section__header">
 					<p class="cp-panel__eyebrow">Cluster Nodes</p>
-					<span class="cp-section__meta">{{ nodes.length }} nodes</span>
+					<span class="cp-section__meta">{{ nodes.filter((node) => node.available !== false).length }}/{{ nodes.length }} nodes</span>
 				</div>
 				<div v-if="nodes.length === 0" class="cp-empty-state">
 					No cluster nodes are registered.

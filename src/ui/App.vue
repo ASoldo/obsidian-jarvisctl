@@ -134,6 +134,9 @@ const subagentCount = computed(() =>
 		0,
 	),
 );
+const reachableNodeCount = computed(() =>
+	props.host.state.cluster.nodes.filter((node) => node.available !== false).length,
+);
 
 const selectedState = computed(() =>
 	selectedSession.value?.context?.thread_status ??
@@ -291,7 +294,7 @@ function applySearchPrimary(): void {
 					<span class="cp-toolbar-pill" title="Live agents">ag {{ liveAgentCount }}</span>
 					<span class="cp-toolbar-pill" title="Subagents">sub {{ subagentCount }}</span>
 					<span class="cp-toolbar-pill" title="Workers">wrk {{ allWorkers.length }}</span>
-					<span class="cp-toolbar-pill" title="Nodes">node {{ host.state.cluster.nodes.length }}</span>
+					<span class="cp-toolbar-pill" title="Reachable nodes / registered nodes">node {{ reachableNodeCount }}/{{ host.state.cluster.nodes.length }}</span>
 				</div>
 
 				<StatusBadge :label="selectedState" :tone="selectedTone" compact />

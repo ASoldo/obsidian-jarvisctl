@@ -75,7 +75,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-observer";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control", "jarvisctl-control-live"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-05-19-worker-run-ledger";
+const BUILD_STAMP = "2026-05-19-live-node-health";
 
 const EMPTY_CLUSTER_STATE: JarvisClusterState = {
 	nodes: [],
@@ -545,9 +545,31 @@ export default class JarvisCtlControlPlugin extends Plugin {
 				this.fetchJson<JarvisOrchestrationPolicy | null>(["node", "policy", "--output", "json"], null),
 				this.inspectGpgStatus(),
 			]);
+			const doctorChecks = Array.isArray(doctor) ? doctor : [];
+			const doctorByNode = new Map(doctorChecks.map((check) => [check.node, check]));
+			const enrichedNodes = (Array.isArray(nodes) ? nodes : []).map((node) => {
+				const check = doctorByNode.get(node.name);
+				if (!check) {
+					return node;
+				}
+				const issueDetail = check.issues?.length ? ` issues=${check.issues.join(",")}` : "";
+				return {
+					...node,
+					available: check.available,
+					schedulable: Boolean(check.schedulable),
+					facts: check.facts,
+					issues: check.issues,
+					status: check.available
+						? check.schedulable
+							? "reachable"
+							: "attention"
+						: "unreachable",
+					detail: `${node.detail ?? ""}${issueDetail}`.trim(),
+				};
+			});
 			const state: JarvisClusterState = {
-				nodes: Array.isArray(nodes) ? nodes : [],
-				doctor: Array.isArray(doctor) ? doctor : [],
+				nodes: enrichedNodes,
+				doctor: doctorChecks,
 				links: Array.isArray(links) ? links : [],
 				index: {
 					sessions: Array.isArray(index.sessions) ? index.sessions : [],
@@ -1474,7 +1496,12 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		for (const candidate of this.getJarvisCtlCandidates()) {
 			try {
 				this.lastExecPath = candidate;
-				const { stdout, stderr } = await execFileAsync(candidate, args);
+				const { stdout, stderr } = await execFileAsync(candidate, args, {
+					env: {
+						...process.env,
+						JARVIS_NODE_PROBE_TIMEOUT_SECONDS: process.env.JARVIS_NODE_PROBE_TIMEOUT_SECONDS ?? "3",
+					},
+				});
 				return { stdout, stderr };
 			} catch (error) {
 				if (isMissingExecutable(error)) {
