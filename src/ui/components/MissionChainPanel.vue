@@ -11,6 +11,7 @@ import type {
 	JarvisMissionTemplate,
 	JarvisOperatorRequestRecord,
 	JarvisProposalRecord,
+	JarvisRecurringMissionSmokeStatus,
 	JarvisSessionMetadata,
 	JarvisTicketSummary,
 	JarvisWorkerMetadata,
@@ -43,6 +44,7 @@ const props = defineProps<{
 	capabilities: JarvisCapabilityRecord[];
 	autonomyReport: JarvisAutonomyReconcileReport | null;
 	autonomyServiceStatus: JarvisAutonomyServiceStatus | null;
+	missionSmokeStatus: JarvisRecurringMissionSmokeStatus | null;
 	proposals: JarvisProposalRecord[];
 	operatorRequests: JarvisOperatorRequestRecord[];
 	cluster: JarvisClusterState;
@@ -109,6 +111,31 @@ const visiblePolicy = computed(() => props.policy.slice(0, 5));
 const reconcileBlockers = computed(() => props.autonomyReport?.blocked_actions ?? []);
 const reconcileSafeActions = computed(() => props.autonomyReport?.safe_actions ?? []);
 const autonomyTimerActive = computed(() => props.autonomyServiceStatus?.timer_active === "active");
+const smokeReports = computed(() => props.autonomyReport?.smoke_reports ?? []);
+const missionSmokeConfigured = computed(() => props.missionSmokeStatus?.configured ?? false);
+const missionSmokeState = computed(() => props.missionSmokeStatus?.state ?? null);
+const missionSmokeConfig = computed(() => props.missionSmokeStatus?.config ?? null);
+const missionSmokeTone = computed<"live" | "warning" | "error" | "idle" | "info">(() => {
+	if (!missionSmokeConfigured.value) {
+		return "idle";
+	}
+	if (missionSmokeState.value?.last_error) {
+		return "error";
+	}
+	if (props.missionSmokeStatus?.due) {
+		return "warning";
+	}
+	return "live";
+});
+const missionSmokeLabel = computed(() => {
+	if (!missionSmokeConfigured.value) {
+		return "not scheduled";
+	}
+	if (missionSmokeState.value?.last_error) {
+		return "error";
+	}
+	return props.missionSmokeStatus?.due ? "due" : "scheduled";
+});
 
 const latestSession = computed(() =>
 	props.sessions
@@ -275,6 +302,30 @@ async function runAutonomyReconcile(notify: boolean): Promise<void> {
 async function installAutonomyService(): Promise<void> {
 	await props.host.installAutonomyService();
 }
+
+function formatFutureAge(timestampEpochMs: number): string {
+	const seconds = Math.max(0, Math.ceil((timestampEpochMs - Date.now()) / 1000));
+	if (seconds < 60) {
+		return `in ${seconds}s`;
+	}
+	const minutes = Math.ceil(seconds / 60);
+	if (minutes < 60) {
+		return `in ${minutes}m`;
+	}
+	const hours = Math.ceil(minutes / 60);
+	if (hours < 48) {
+		return `in ${hours}h`;
+	}
+	return `in ${Math.ceil(hours / 24)}d`;
+}
+
+async function configureMissionSmoke(): Promise<void> {
+	await props.host.configureMissionSmoke();
+}
+
+async function runMissionSmoke(): Promise<void> {
+	await props.host.runMissionSmoke();
+}
 </script>
 
 <template>
@@ -400,6 +451,58 @@ async function installAutonomyService(): Promise<void> {
 					</div>
 				</div>
 				<div v-else class="cp-empty-state">Reconciler status will load on refresh and can be run from here.</div>
+			</article>
+
+			<article class="cp-mission-stage cp-mission-stage--wide">
+				<div class="cp-mission-stage__head">
+					<div class="cp-mission-stage__index">SM</div>
+					<div class="cp-mission-stage__identity">
+						<h4>Recurring smoke</h4>
+						<p>Two-node mission drill run by the autonomy timer to prove cross-node orchestration stays healthy.</p>
+					</div>
+					<StatusBadge :label="missionSmokeLabel" :tone="missionSmokeTone" compact />
+				</div>
+				<div class="cp-control-strip">
+					<button type="button" class="cp-mini-button cp-mini-button--primary" title="Schedule recurring two-node smoke using the first two cluster nodes" @click="configureMissionSmoke()">Schedule</button>
+					<button type="button" class="cp-mini-button" title="Run the recurring smoke now" @click="runMissionSmoke()">Run now</button>
+				</div>
+				<div v-if="missionSmokeConfigured && missionSmokeConfig" class="cp-mission-scoregrid">
+					<div class="cp-mission-score">
+						<div class="cp-mission-row__title">Nodes</div>
+						<div class="cp-mission-row__meta">{{ missionSmokeConfig.first_node }} <-> {{ missionSmokeConfig.second_node }}</div>
+						<div class="cp-chip-row">
+							<span class="cp-chip">{{ missionSmokeConfig.execute ? "execute" : "dry-run" }}</span>
+							<span class="cp-chip">every {{ Math.round(missionSmokeConfig.interval_seconds / 3600) || 1 }}h</span>
+						</div>
+					</div>
+					<div class="cp-mission-score">
+						<div class="cp-mission-row__title">Last run</div>
+						<div class="cp-mission-row__meta">
+							{{ missionSmokeState?.last_status ?? "not run" }}
+							<span v-if="missionSmokeState?.last_mission_id"> · {{ missionSmokeState.last_mission_id }}</span>
+						</div>
+						<div class="cp-chip-row">
+							<span class="cp-chip">{{ missionSmokeState?.run_count ?? 0 }} runs</span>
+							<span v-if="missionSmokeState?.last_run_epoch_ms" class="cp-chip">{{ relativeAge(missionSmokeState.last_run_epoch_ms) }}</span>
+						</div>
+					</div>
+					<div class="cp-mission-score">
+						<div class="cp-mission-row__title">Next run</div>
+						<div class="cp-mission-row__meta">
+							{{ missionSmokeStatus?.due ? "due now" : missionSmokeStatus?.next_run_epoch_ms ? formatFutureAge(missionSmokeStatus.next_run_epoch_ms) : "waiting" }}
+						</div>
+						<div class="cp-chip-row">
+							<span v-if="missionSmokeState?.last_error" class="cp-chip">error: {{ missionSmokeState.last_error }}</span>
+							<span v-else class="cp-chip">autonomy timer</span>
+						</div>
+					</div>
+				</div>
+				<div v-else class="cp-empty-state">Schedule a recurring smoke once both cluster nodes are visible.</div>
+				<div v-if="smokeReports.length" class="cp-chip-row">
+					<span v-for="report in smokeReports.slice(0, 3)" :key="report.id" class="cp-chip" :title="report.command">
+						{{ report.mission_id }} · {{ report.status }}
+					</span>
+				</div>
 			</article>
 
 			<article class="cp-mission-stage cp-mission-stage--wide">

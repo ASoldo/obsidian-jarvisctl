@@ -574,8 +574,48 @@ export interface JarvisAutonomyReconcileReport {
 	capability_count: number;
 	safe_actions: JarvisAutonomyReconcileAction[];
 	blocked_actions: JarvisAutonomyReconcileAction[];
+	smoke_reports?: JarvisMissionSmokeReport[] | null;
 	notifications_sent: number;
 	expired_requests: string[];
+}
+
+export interface JarvisMissionSmokeReport {
+	id: string;
+	status: string;
+	dry_run: boolean;
+	first_node: string;
+	second_node: string;
+	mission_id: string;
+	command: string;
+	evidence: string[];
+}
+
+export interface JarvisRecurringMissionSmokeConfig {
+	enabled: boolean;
+	first_node: string;
+	second_node: string;
+	first_task_note: string;
+	second_task_note: string;
+	namespace_prefix: string;
+	interval_seconds: number;
+	execute: boolean;
+	updated_at_epoch_ms: number;
+}
+
+export interface JarvisRecurringMissionSmokeState {
+	last_run_epoch_ms?: number | null;
+	last_status?: string | null;
+	last_mission_id?: string | null;
+	last_error?: string | null;
+	run_count: number;
+}
+
+export interface JarvisRecurringMissionSmokeStatus {
+	configured: boolean;
+	due: boolean;
+	next_run_epoch_ms?: number | null;
+	config?: JarvisRecurringMissionSmokeConfig | null;
+	state: JarvisRecurringMissionSmokeState;
 }
 
 export interface JarvisAutonomyServiceStatus {
@@ -709,6 +749,7 @@ export interface JarvisDashboardViewState {
 	capabilities: JarvisCapabilityRecord[];
 	autonomyReport: JarvisAutonomyReconcileReport | null;
 	autonomyServiceStatus: JarvisAutonomyServiceStatus | null;
+	missionSmokeStatus: JarvisRecurringMissionSmokeStatus | null;
 	proposals: JarvisProposalRecord[];
 	operatorRequests: JarvisOperatorRequestRecord[];
 	selectedNamespace: string | null;

@@ -15,6 +15,7 @@ import type {
 	JarvisWorkerLaneScorecard,
 	JarvisProposalRecord,
 	JarvisOperatorRequestRecord,
+	JarvisRecurringMissionSmokeStatus,
 } from "../../types/domain";
 import type { JarvisDashboardHost } from "../bridge";
 import {
@@ -63,6 +64,7 @@ const props = defineProps<{
 	capabilities: JarvisCapabilityRecord[];
 	autonomyReport: JarvisAutonomyReconcileReport | null;
 	autonomyServiceStatus: JarvisAutonomyServiceStatus | null;
+	missionSmokeStatus: JarvisRecurringMissionSmokeStatus | null;
 	proposals: JarvisProposalRecord[];
 	operatorRequests: JarvisOperatorRequestRecord[];
 	activitySections: JarvisActivitySection[];
@@ -292,6 +294,7 @@ const activeSurfaceModel = computed(
 					:capabilities="capabilities"
 					:autonomy-report="autonomyReport"
 					:autonomy-service-status="autonomyServiceStatus"
+					:mission-smoke-status="missionSmokeStatus"
 					:proposals="proposals"
 					:operator-requests="operatorRequests"
 					:cluster="cluster"

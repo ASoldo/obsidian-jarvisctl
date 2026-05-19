@@ -334,6 +334,7 @@ function applySearchPrimary(): void {
 				:capabilities="host.state.capabilities"
 				:autonomy-report="host.state.autonomyReport"
 				:autonomy-service-status="host.state.autonomyServiceStatus"
+				:mission-smoke-status="host.state.missionSmokeStatus"
 				:proposals="host.state.proposals"
 				:operator-requests="host.state.operatorRequests"
 				:activity-sections="selectedActivitySections"

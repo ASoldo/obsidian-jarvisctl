@@ -42,6 +42,7 @@ import type {
 	JarvisAutonomyPolicyRule,
 	JarvisMissionRecord,
 	JarvisMissionPlan,
+	JarvisMissionSmokeReport,
 	JarvisMissionTemplate,
 	JarvisNodeDoctorCheck,
 	JarvisNodeLinkCheck,
@@ -57,6 +58,7 @@ import type {
 	JarvisResourcePolicyStatus,
 	JarvisResourceSummary,
 	JarvisRuntimeServerRequest,
+	JarvisRecurringMissionSmokeStatus,
 	JarvisSessionMetadata,
 	JarvisServiceStatus,
 	JarvisTicketSummary,
@@ -660,6 +662,42 @@ export default class JarvisCtlControlPlugin extends Plugin {
 			["autonomy", "service-status", "--output", "json"],
 			null,
 		);
+	}
+
+	async fetchMissionSmokeStatus(): Promise<JarvisRecurringMissionSmokeStatus | null> {
+		return await this.fetchJson<JarvisRecurringMissionSmokeStatus | null>(
+			["mission", "smoke-status", "--output", "json"],
+			null,
+		);
+	}
+
+	async configureMissionSmoke(firstNode: string, secondNode: string): Promise<void> {
+		await this.execJarvisCtl([
+			"mission",
+			"smoke-schedule",
+			"--first-node",
+			firstNode,
+			"--second-node",
+			secondNode,
+			"--interval-seconds",
+			"86400",
+			"--execute=false",
+			"--enabled=true",
+		]);
+		this.invalidateRuntimeCaches();
+	}
+
+	async runMissionSmoke(): Promise<JarvisMissionSmokeReport | null> {
+		const { stdout } = await this.execJarvisCtl([
+			"mission",
+			"smoke-run",
+			"--force",
+			"--output",
+			"json",
+		]);
+		this.invalidateRuntimeCaches();
+		const parsed = JSON.parse(stdout.trim() || "null") as JarvisMissionSmokeReport | JarvisRecurringMissionSmokeStatus | null;
+		return parsed && typeof parsed === "object" && "mission_id" in parsed ? parsed : null;
 	}
 
 	async installAutonomyService(): Promise<JarvisAutonomyServiceInstallReport> {
@@ -1944,6 +1982,7 @@ class JarvisCtlControlView extends ItemView {
 		capabilities: [],
 		autonomyReport: null,
 		autonomyServiceStatus: null,
+		missionSmokeStatus: null,
 		proposals: [],
 		operatorRequests: [],
 		selectedNamespace: null,
@@ -2282,6 +2321,30 @@ class JarvisCtlControlView extends ItemView {
 				}, true);
 				return report;
 			},
+			configureMissionSmoke: async () => {
+				const nodes = this.state.cluster.nodes.map((node) => node.name).filter(Boolean);
+				if (nodes.length < 2) {
+					throw new Error("Recurring mission smoke needs at least two registered nodes.");
+				}
+				await this.runAction("Scheduling two-node smoke", async () => {
+					await this.plugin.configureMissionSmoke(nodes[0], nodes[1]);
+					this.state.missionSmokeStatus = await this.plugin.fetchMissionSmokeStatus();
+					this.state.statusMessage = `Scheduled two-node smoke for ${nodes[0]} and ${nodes[1]}`;
+					await this.refreshSessions(false);
+				}, true);
+			},
+			runMissionSmoke: async () => {
+				let report: JarvisMissionSmokeReport | null = null;
+				await this.runAction("Running two-node smoke", async () => {
+					report = await this.plugin.runMissionSmoke();
+					this.state.missionSmokeStatus = await this.plugin.fetchMissionSmokeStatus();
+					this.state.statusMessage = report
+						? `Mission smoke ${report.status}: ${report.mission_id}`
+						: "Mission smoke not due or not configured";
+					await this.refreshSessions(false);
+				}, true);
+				return report;
+			},
 			rotateCapsuleKey: async () => {
 				await this.runAction("Rotating capsule key", async () => {
 					await this.plugin.runJarvisCtl(["node", "rotate-capsule-key"]);
@@ -2351,6 +2414,7 @@ class JarvisCtlControlView extends ItemView {
 				laneScorecards,
 				capabilities,
 				autonomyServiceStatus,
+				missionSmokeStatus,
 				proposals,
 				operatorRequests,
 			] = await Promise.all([
@@ -2362,6 +2426,7 @@ class JarvisCtlControlView extends ItemView {
 				this.plugin.fetchLaneScorecards(),
 				this.plugin.fetchCapabilities(),
 				this.plugin.fetchAutonomyServiceStatus(),
+				this.plugin.fetchMissionSmokeStatus(),
 				this.plugin.fetchProposals(),
 				this.plugin.fetchOperatorRequests(),
 			]);
@@ -2377,6 +2442,7 @@ class JarvisCtlControlView extends ItemView {
 			this.state.laneScorecards = laneScorecards;
 			this.state.capabilities = capabilities;
 			this.state.autonomyServiceStatus = autonomyServiceStatus;
+			this.state.missionSmokeStatus = missionSmokeStatus;
 			this.state.proposals = proposals;
 			this.state.operatorRequests = operatorRequests;
 			if (
