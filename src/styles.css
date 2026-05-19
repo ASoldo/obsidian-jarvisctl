@@ -2099,17 +2099,53 @@
   .cp-server-request-panel {
     border-color: color-mix(in srgb, var(--cp-amber) 42%, var(--cp-border) 58%);
     background: color-mix(in srgb, var(--cp-amber) 8%, var(--cp-panel) 92%);
-    @apply content-start overflow-auto;
+    @apply min-w-0 overflow-hidden;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .cp-server-request-list {
+    @apply grid min-h-0 min-w-0 content-start gap-2 overflow-auto pr-1;
   }
 
   .cp-server-request-card {
     border: 1px solid color-mix(in srgb, var(--cp-amber) 36%, var(--cp-border) 64%);
     background: color-mix(in srgb, var(--cp-panel-strong) 96%, #020617 4%);
-    @apply grid min-w-0 gap-2 rounded-xl px-3 py-3;
+    @apply grid min-w-0 gap-2 overflow-hidden rounded-xl px-3 py-3;
   }
 
   .cp-server-request-card__head {
     @apply flex min-w-0 items-start justify-between gap-3;
+  }
+
+  .cp-server-request-card__identity {
+    @apply min-w-0;
+  }
+
+  .cp-server-request-card__title {
+    color: var(--cp-text-soft);
+    @apply truncate text-sm font-semibold;
+  }
+
+  .cp-server-request-card__meta {
+    color: var(--cp-text-dim);
+    @apply mt-0.5 truncate text-[11px];
+  }
+
+  .cp-server-request-card__raw {
+    border: 1px solid color-mix(in srgb, var(--cp-amber) 22%, var(--cp-border) 78%);
+    color: var(--cp-text-muted);
+    @apply min-w-0 rounded-xl px-2.5 py-2 text-xs;
+  }
+
+  .cp-server-request-card__raw summary {
+    @apply cursor-pointer select-none text-[10px] font-medium uppercase tracking-[0.16em];
+  }
+
+  .cp-server-request-card__raw pre {
+    color: var(--cp-text-soft);
+    @apply mt-2 max-h-44 min-w-0 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed;
+    overflow-wrap: anywhere;
+    font-family: var(--font-monospace);
   }
 
   .cp-operator-stream__header,
@@ -2123,6 +2159,10 @@
 
   .cp-operator-stream {
     @apply grid min-h-0 content-start gap-3 overflow-auto pr-1;
+  }
+
+  .cp-follow-latest-button {
+    @apply h-7 w-7 shrink-0 rounded-full p-0;
   }
 
   .cp-operator-entry {

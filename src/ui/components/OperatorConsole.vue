@@ -42,6 +42,8 @@ const draftMessage = ref("");
 const sending = ref(false);
 const attachmentFileInput = ref<HTMLInputElement | null>(null);
 const messageTextarea = ref<HTMLTextAreaElement | null>(null);
+const streamEl = ref<HTMLElement | null>(null);
+const followLatest = ref(true);
 
 const targetOptions = computed<ConsoleTargetOption[]>(() => {
 	if (!props.session) {
@@ -131,6 +133,46 @@ const pendingServerRequests = computed<JarvisRuntimeServerRequest[]>(() =>
 const composerDisabled = computed(() => !props.session || sending.value);
 const hasAttachment = computed(() => draftAttachmentPath.value.trim().length > 0);
 
+watch(
+	() => props.session?.namespace,
+	() => {
+		followLatest.value = true;
+		void nextTick(scrollConversationToPresent);
+	},
+	{ immediate: true },
+);
+
+watch(
+	() => conversationEntries.value.map((entry) => `${entry.id}:${entry.status ?? ""}:${entry.timestamp_epoch_ms}`).join("|"),
+	() => {
+		if (followLatest.value) {
+			void nextTick(scrollConversationToPresent);
+		}
+	},
+);
+
+function scrollConversationToPresent(): void {
+	const el = streamEl.value;
+	if (!el) {
+		return;
+	}
+	el.scrollTop = el.scrollHeight;
+}
+
+function jumpConversationToPresent(): void {
+	followLatest.value = true;
+	void nextTick(scrollConversationToPresent);
+}
+
+function handleConversationScroll(): void {
+	const el = streamEl.value;
+	if (!el) {
+		return;
+	}
+	const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+	followLatest.value = distanceFromBottom < 28;
+}
+
 async function handleSend(): Promise<void> {
 	if (!props.session || !selectedTarget.value || sending.value) {
 		return;
@@ -214,6 +256,41 @@ async function handlePasteClipboardAttachment(): Promise<void> {
 
 function clearAttachment(): void {
 	draftAttachmentPath.value = "";
+}
+
+function serverRequestTitle(request: JarvisRuntimeServerRequest): string {
+	const params = request.params as Record<string, unknown> | null | undefined;
+	const command = typeof params?.command === "string" ? params.command : null;
+	if (request.method.includes("requestApproval")) {
+		return "Command approval";
+	}
+	if (command) {
+		return command;
+	}
+	return request.method.replaceAll("/", " / ");
+}
+
+function serverRequestSummary(request: JarvisRuntimeServerRequest): string {
+	const params = request.params as Record<string, unknown> | null | undefined;
+	const command = typeof params?.command === "string" ? params.command : null;
+	const reason = typeof params?.reason === "string" ? params.reason : null;
+	const cwd = typeof params?.cwd === "string" ? params.cwd : null;
+	const decisionCount = Array.isArray(params?.availableDecisions) ? params.availableDecisions.length : 0;
+	const lines = [
+		command ? `Command: ${command}` : null,
+		reason ? `Reason: ${reason}` : null,
+		cwd ? `Working directory: ${cwd}` : null,
+		decisionCount > 0 ? `${decisionCount} available decision${decisionCount === 1 ? "" : "s"}` : null,
+		request.detail ?? null,
+	].filter(Boolean);
+	if (lines.length > 0) {
+		return lines.join("\n");
+	}
+	return JSON.stringify(request.params ?? {}, null, 2);
+}
+
+function serverRequestRaw(request: JarvisRuntimeServerRequest): string {
+	return JSON.stringify(request.params ?? {}, null, 2);
 }
 
 async function denyServerRequest(request: JarvisRuntimeServerRequest): Promise<void> {
@@ -331,13 +408,22 @@ function entryAvatarScope(role: ConsoleEntry["role"]): "cloud" | "local" | "remo
 				<div class="cp-panel__meta">
 					<StatusBadge :label="sessionStateLabel(session)" :tone="sessionTone(session)" compact />
 					<span class="cp-chip">{{ conversationEntries.length }} messages</span>
+					<button
+						v-if="!followLatest"
+						type="button"
+						class="cp-button cp-button--icon cp-follow-latest-button"
+						title="Jump to present"
+						@click="jumpConversationToPresent"
+					>
+						<span class="cp-button__icon" aria-hidden="true">↓</span>
+					</button>
 				</div>
 			</div>
 
 			<div v-if="conversationEntries.length === 0" class="cp-empty-state">
 				No operator-visible exchange yet. New assistant, operator, system, and subagent activity will appear here.
 			</div>
-			<div v-else class="cp-operator-stream">
+			<div v-else ref="streamEl" class="cp-operator-stream" @scroll.passive="handleConversationScroll">
 				<article
 					v-for="entry in conversationEntries"
 					:key="entry.id"
@@ -375,26 +461,32 @@ function entryAvatarScope(role: ConsoleEntry["role"]): "cloud" | "local" | "remo
 					<StatusBadge :label="`${pendingServerRequests.length} pending`" tone="warning" compact />
 				</div>
 			</div>
-			<article v-for="request in pendingServerRequests" :key="request.id" class="cp-server-request-card">
-				<div class="cp-server-request-card__head">
-					<div>
-						<div class="cp-control-plane-card__title">{{ request.method }}</div>
-						<div class="cp-control-plane-card__meta">{{ request.id }} · {{ formatClock(request.created_at_epoch_ms) }}</div>
+			<div class="cp-server-request-list">
+				<article v-for="request in pendingServerRequests" :key="request.id" class="cp-server-request-card">
+					<div class="cp-server-request-card__head">
+						<div class="cp-server-request-card__identity">
+							<div class="cp-server-request-card__title">{{ serverRequestTitle(request) }}</div>
+							<div class="cp-server-request-card__meta">{{ request.id }} · {{ formatClock(request.created_at_epoch_ms) }}</div>
+						</div>
+						<StatusBadge :label="request.status" tone="warning" compact />
 					</div>
-					<StatusBadge :label="request.status" tone="warning" compact />
-				</div>
-				<ExpandableText :text="JSON.stringify(request.params ?? {}, null, 2)" :lines="8" />
-				<div class="cp-control-strip cp-control-strip--right">
-					<button type="button" class="cp-button cp-action-button" title="Send custom JSON response" @click="sendCustomServerResponse(request)">
-						<span class="cp-button__icon" aria-hidden="true">↵</span>
-						<span class="cp-action-button__label">Respond</span>
-					</button>
-					<button type="button" class="cp-button cp-button--danger cp-action-button" title="Deny request" @click="denyServerRequest(request)">
-						<span class="cp-button__icon" aria-hidden="true">×</span>
-						<span class="cp-action-button__label">Deny</span>
-					</button>
-				</div>
-			</article>
+					<ExpandableText :text="serverRequestSummary(request)" :lines="5" />
+					<details class="cp-server-request-card__raw">
+						<summary>Raw request</summary>
+						<pre>{{ serverRequestRaw(request) }}</pre>
+					</details>
+					<div class="cp-control-strip cp-control-strip--right">
+						<button type="button" class="cp-button cp-action-button" title="Send custom JSON response" @click="sendCustomServerResponse(request)">
+							<span class="cp-button__icon" aria-hidden="true">↵</span>
+							<span class="cp-action-button__label">Respond</span>
+						</button>
+						<button type="button" class="cp-button cp-button--danger cp-action-button" title="Deny request" @click="denyServerRequest(request)">
+							<span class="cp-button__icon" aria-hidden="true">×</span>
+							<span class="cp-action-button__label">Deny</span>
+						</button>
+					</div>
+				</article>
+			</div>
 		</section>
 
 		<div class="cp-operator-compose">
