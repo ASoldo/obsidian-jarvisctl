@@ -75,6 +75,23 @@ function factNumber(check: ReturnType<typeof doctorFor>, field: "auth_leases" | 
 	return Number(value) || 0;
 }
 
+function heartbeatLabel(node: JarvisClusterNode): string {
+	const facts = doctorFor(node)?.facts;
+	const epoch = Number(facts?.heartbeat_epoch_ms ?? 0);
+	if (!epoch) {
+		return "no heartbeat";
+	}
+	const age = facts?.heartbeat_age_seconds;
+	if (age === undefined || age === "0") {
+		return "heartbeat fresh";
+	}
+	const seconds = Number(age) || 0;
+	if (seconds < 60) {
+		return `heartbeat ${seconds}s`;
+	}
+	return `heartbeat ${Math.round(seconds / 60)}m`;
+}
+
 function doctorFor(node: JarvisClusterNode) {
 	return props.cluster.doctor.find((check) => check.node === node.name) ?? null;
 }
@@ -184,9 +201,11 @@ async function verifyNodeSudo(nodeName: string): Promise<void> {
 					</div>
 					<div class="cp-kv-inline">
 						<button type="button" class="cp-mini-button" title="Sync Codex auth" @click="host.syncNodeAuth(node.name)">A</button>
+						<button type="button" class="cp-mini-button" title="Write node heartbeat" @click="host.heartbeatNode(node.name)">H</button>
 						<button type="button" class="cp-mini-button" title="Verify remote sudo from this dashboard" @click="verifyNodeSudo(node.name)">⚿</button>
 						<button type="button" class="cp-mini-button" title="Cordon node" @click="host.cordonNode(node.name)">C</button>
 						<button type="button" class="cp-mini-button" title="Uncordon node" @click="host.uncordonNode(node.name)">U</button>
+						<span class="cp-chip">{{ heartbeatLabel(node) }}</span>
 						<span class="cp-chip">leases {{ factNumber(doctorFor(node), "auth_leases") }}</span>
 						<span class="cp-chip">artifacts {{ factNumber(doctorFor(node), "visit_artifacts") }}</span>
 					</div>
@@ -260,6 +279,8 @@ async function verifyNodeSudo(nodeName: string): Promise<void> {
 				<div class="cp-operator-action-grid">
 					<StatusBadge :label="`${pendingRelayMessages.length} pending`" :tone="pendingRelayMessages.length ? 'warning' : 'live'" compact />
 					<button type="button" class="cp-mini-button" title="Retry pending relay messages" @click="host.flushRelayMessages()">↻</button>
+					<button type="button" class="cp-mini-button" title="Preview relay retention" @click="host.pruneRelayMessages(false)">⌕</button>
+					<button type="button" class="cp-mini-button" title="Prune old terminal relay messages" @click="host.pruneRelayMessages(true)">×</button>
 				</div>
 			</div>
 			<div class="cp-control-plane-columns">

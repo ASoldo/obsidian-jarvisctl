@@ -84,7 +84,9 @@ export interface JarvisDashboardHost {
 	promptOperatorRequestResponse(request: JarvisOperatorRequestRecord): Promise<string | null>;
 	flushRelayMessages(): Promise<void>;
 	ackRelayMessage(message: JarvisRelayMessageRecord): Promise<void>;
+	pruneRelayMessages(apply: boolean): Promise<void>;
 	runNodeSudo(node: string, command: string): Promise<string>;
+	heartbeatNode(node: string): Promise<void>;
 	syncNodeAuth(node: string): Promise<void>;
 	cordonNode(node: string): Promise<void>;
 	uncordonNode(node: string): Promise<void>;

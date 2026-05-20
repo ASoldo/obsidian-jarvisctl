@@ -2523,6 +2523,17 @@ class JarvisCtlControlView extends ItemView {
 					this.state.statusMessage = `Relay ${message.id} acknowledged`;
 				}, true);
 			},
+			pruneRelayMessages: async (apply) => {
+				await this.runAction(apply ? "Pruning relay messages" : "Checking relay retention", async () => {
+					const args = ["message", "prune", "--max-age-days", "14", "--cluster", "--output", "json"];
+					if (apply) {
+						args.push("--apply");
+					}
+					await this.plugin.runJarvisCtl(args);
+					this.state.relayMessages = await this.plugin.fetchRelayMessages();
+					this.state.statusMessage = apply ? "Relay prune completed" : "Relay prune dry-run completed";
+				}, true);
+			},
 			runNodeSudo: async (node, command) => {
 				let output = "";
 				await this.runAction(`Running sudo on ${node}`, async () => {
@@ -2539,6 +2550,13 @@ class JarvisCtlControlView extends ItemView {
 					await this.refreshSessions(false);
 				}, true);
 				return output;
+			},
+			heartbeatNode: async (node) => {
+				await this.runAction(`Writing heartbeat on ${node}`, async () => {
+					await this.plugin.runJarvisCtl(["node", "heartbeat", node, "--output", "json"]);
+					this.state.cluster = await this.plugin.fetchClusterState();
+					this.state.statusMessage = `Heartbeat updated on ${node}`;
+				}, true);
 			},
 			syncNodeAuth: async (node) => {
 				await this.runAction(`Syncing auth to ${node}`, async () => {
