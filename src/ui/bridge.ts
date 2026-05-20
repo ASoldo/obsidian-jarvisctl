@@ -10,6 +10,7 @@ import type {
 	JarvisMissionTemplate,
 	JarvisOperatorRequestRecord,
 	JarvisProposalRecord,
+	JarvisRelayMessageRecord,
 	JarvisRuntimeServerRequest,
 	JarvisSessionMetadata,
 	JarvisStartSessionRequest,
@@ -81,6 +82,8 @@ export interface JarvisDashboardHost {
 		decision: string,
 	): Promise<void>;
 	promptOperatorRequestResponse(request: JarvisOperatorRequestRecord): Promise<string | null>;
+	flushRelayMessages(): Promise<void>;
+	ackRelayMessage(message: JarvisRelayMessageRecord): Promise<void>;
 	runNodeSudo(node: string, command: string): Promise<string>;
 	syncNodeAuth(node: string): Promise<void>;
 	cordonNode(node: string): Promise<void>;

@@ -833,6 +833,27 @@ export interface JarvisBootstrapRequest {
 	workspaceRoot: string;
 }
 
+export interface JarvisRelayMessageRecord {
+	id: string;
+	created_at_epoch_ms: number;
+	updated_at_epoch_ms: number;
+	from_node?: string | null;
+	from_namespace?: string | null;
+	to_node?: string | null;
+	to_namespace: string;
+	agent: string;
+	mode: string;
+	kind: string;
+	status: string;
+	body: string;
+	attempts: number;
+	last_error?: string | null;
+	delivered_at_epoch_ms?: number | null;
+	acked_at_epoch_ms?: number | null;
+	source_node?: string | null;
+	remote?: boolean | null;
+}
+
 export interface JarvisDashboardViewState {
 	sessions: JarvisSessionMetadata[];
 	workers: JarvisWorkerMetadata[];
@@ -851,6 +872,7 @@ export interface JarvisDashboardViewState {
 	missionSmokeStatus: JarvisRecurringMissionSmokeStatus | null;
 	proposals: JarvisProposalRecord[];
 	operatorRequests: JarvisOperatorRequestRecord[];
+	relayMessages: JarvisRelayMessageRecord[];
 	selectedNamespace: string | null;
 	selectedControlNamespace: string | null;
 	statusMessage: string;

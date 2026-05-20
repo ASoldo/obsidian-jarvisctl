@@ -53,6 +53,10 @@ const reachableLinkCount = computed(
 const authLinks = computed(() =>
 	props.cluster.links.filter((link) => !Boolean(link.reachable ?? link.ok) && Boolean(link.auth_url)),
 );
+const relayMessages = computed(() => props.host.state.relayMessages ?? []);
+const pendingRelayMessages = computed(() =>
+	relayMessages.value.filter((message) => message.status === "pending"),
+);
 
 function nodeDetail(node: JarvisClusterNode, key: string): string {
 	return String(node.detail ?? "").match(new RegExp(`${key}=([^ ]+)`))?.[1] ?? "";
@@ -244,6 +248,40 @@ async function verifyNodeSudo(nodeName: string): Promise<void> {
 					<input v-model="bootstrapForm.workspaceRoot" class="cp-form-input" placeholder="workspace root" />
 					<button type="submit" class="cp-ghost-button cp-cluster-form__submit">Bootstrap</button>
 				</form>
+			</div>
+		</section>
+
+		<section class="cp-control-plane-section">
+			<div class="cp-control-plane-section__head">
+				<div>
+					<p class="cp-panel__eyebrow">Message Relay</p>
+					<h4 class="cp-control-plane-section__title">Durable cross-runtime messages</h4>
+				</div>
+				<div class="cp-operator-action-grid">
+					<StatusBadge :label="`${pendingRelayMessages.length} pending`" :tone="pendingRelayMessages.length ? 'warning' : 'live'" compact />
+					<button type="button" class="cp-mini-button" title="Retry pending relay messages" @click="host.flushRelayMessages()">↻</button>
+				</div>
+			</div>
+			<div class="cp-control-plane-columns">
+				<article v-for="message in relayMessages.slice(0, 6)" :key="`${message.source_node ?? 'local'}-${message.id}`" class="cp-control-plane-card">
+					<div class="cp-control-plane-card__head">
+						<div>
+							<div class="cp-control-plane-card__title">{{ message.to_namespace }}</div>
+							<div class="cp-control-plane-card__meta">
+								{{ message.from_namespace ?? message.from_node ?? message.source_node ?? "local" }} → {{ message.agent }} · attempts {{ message.attempts }}
+							</div>
+						</div>
+						<StatusBadge :label="message.status" :tone="statusTone(message.status)" compact />
+					</div>
+					<div class="cp-status-list__message">{{ message.body }}</div>
+					<div v-if="message.last_error" class="cp-control-plane-card__meta">{{ message.last_error }}</div>
+					<div class="cp-kv-inline">
+						<span class="cp-chip">{{ message.kind }}</span>
+						<span class="cp-chip">{{ message.mode }}</span>
+						<button type="button" class="cp-mini-button" title="Acknowledge relay message" @click="host.ackRelayMessage(message)">✓</button>
+					</div>
+				</article>
+				<div v-if="relayMessages.length === 0" class="cp-empty-state">No relay messages.</div>
 			</div>
 		</section>
 

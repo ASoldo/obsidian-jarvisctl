@@ -49,6 +49,7 @@ import type {
 	JarvisOperatorRequestRecord,
 	JarvisOrchestrationPolicy,
 	JarvisProposalRecord,
+	JarvisRelayMessageRecord,
 	JarvisStartSessionRequest,
 	JarvisDeploymentStatus,
 	JarvisApplicationStatus,
@@ -79,7 +80,7 @@ const execFileAsync = promisify(execFile);
 const VIEW_TYPE_JARVISCTL_CONTROL = "jarvisctl-control-observer";
 const LEGACY_VIEW_TYPES = ["jarvisctl-control", "jarvisctl-control-live"];
 const TERMINAL_VIEW_TYPE = "terminal:terminal";
-const BUILD_STAMP = "2026-05-19-live-node-health";
+const BUILD_STAMP = "2026-05-20-relay-messages";
 
 const EMPTY_CLUSTER_STATE: JarvisClusterState = {
 	nodes: [],
@@ -863,6 +864,20 @@ export default class JarvisCtlControlPlugin extends Plugin {
 		], []);
 		return Array.isArray(requests)
 			? requests.sort((left, right) => right.created_at_epoch_ms - left.created_at_epoch_ms)
+			: [];
+	}
+
+	async fetchRelayMessages(): Promise<JarvisRelayMessageRecord[]> {
+		const messages = await this.fetchJson<JarvisRelayMessageRecord[]>([
+			"message",
+			"list",
+			"--all",
+			"--cluster",
+			"--output",
+			"json",
+		], []);
+		return Array.isArray(messages)
+			? messages.sort((left, right) => right.updated_at_epoch_ms - left.updated_at_epoch_ms)
 			: [];
 	}
 
@@ -2195,6 +2210,7 @@ class JarvisCtlControlView extends ItemView {
 		missionSmokeStatus: null,
 		proposals: [],
 		operatorRequests: [],
+		relayMessages: [],
 		selectedNamespace: null,
 		selectedControlNamespace: null,
 		statusMessage: "Idle",
@@ -2489,6 +2505,24 @@ class JarvisCtlControlView extends ItemView {
 			promptOperatorRequestResponse: async (request) => {
 				return await this.plugin.promptOperatorRequestResponse(request);
 			},
+			flushRelayMessages: async () => {
+				await this.runAction("Retrying relay messages", async () => {
+					await this.plugin.runJarvisCtl(["message", "flush", "--cluster", "--output", "json"]);
+					this.state.relayMessages = await this.plugin.fetchRelayMessages();
+					this.state.statusMessage = "Relay retry completed";
+				}, true);
+			},
+			ackRelayMessage: async (message) => {
+				await this.runAction(`Acknowledging ${message.id}`, async () => {
+					const args = ["message", "ack", message.id, "--output", "json"];
+					if (message.source_node) {
+						args.push("--node", message.source_node);
+					}
+					await this.plugin.runJarvisCtl(args);
+					this.state.relayMessages = await this.plugin.fetchRelayMessages();
+					this.state.statusMessage = `Relay ${message.id} acknowledged`;
+				}, true);
+			},
 			runNodeSudo: async (node, command) => {
 				let output = "";
 				await this.runAction(`Running sudo on ${node}`, async () => {
@@ -2715,6 +2749,7 @@ class JarvisCtlControlView extends ItemView {
 				missionSmokeStatus,
 				proposals,
 				operatorRequests,
+				relayMessages,
 			] = await Promise.all([
 				this.plugin.fetchTickets(),
 				this.plugin.fetchMissions(),
@@ -2728,6 +2763,7 @@ class JarvisCtlControlView extends ItemView {
 				this.plugin.fetchMissionSmokeStatus(),
 				this.plugin.fetchProposals(),
 				this.plugin.fetchOperatorRequests(),
+				this.plugin.fetchRelayMessages(),
 			]);
 			const sessions = mergeSessions(localSessions, cluster.index.sessions);
 			this.state.sessions = sessions;
@@ -2745,6 +2781,7 @@ class JarvisCtlControlView extends ItemView {
 			this.state.missionSmokeStatus = missionSmokeStatus;
 			this.state.proposals = proposals;
 			this.state.operatorRequests = operatorRequests;
+			this.state.relayMessages = relayMessages;
 			if (
 				!this.state.selectedNamespace ||
 				!sessions.some((session) => session.namespace === this.state.selectedNamespace)
