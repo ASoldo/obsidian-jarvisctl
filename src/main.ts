@@ -3292,7 +3292,7 @@ class JarvisOperatorRequestResponseModal extends Modal {
 		const responseEl = contentEl.createEl("textarea", {
 			cls: "jarvisctl-modal-textarea",
 		});
-		responseEl.value = "null";
+		responseEl.value = defaultOperatorRequestResponse(this.request);
 
 		const errorEl = contentEl.createDiv({
 			cls: "jarvisctl-modal-error",
@@ -3419,6 +3419,21 @@ class JarvisCodexLaunchModal extends Modal {
 		this.resolveResult(result);
 		this.close();
 	}
+}
+
+function defaultOperatorRequestResponse(request: JarvisOperatorRequestRecord): string {
+	const params = request.params as Record<string, unknown> | null | undefined;
+	const decisions = Array.isArray(params?.availableDecisions) ? params.availableDecisions : [];
+	const accept = decisions.find((decision) => decision === "accept")
+		?? decisions.find((decision) => {
+			return Boolean(
+				decision
+				&& typeof decision === "object"
+				&& Object.prototype.hasOwnProperty.call(decision as Record<string, unknown>, "accept"),
+			);
+		})
+		?? decisions.find((decision) => decision !== "cancel");
+	return JSON.stringify(accept ?? null, null, 2);
 }
 
 function promptForTell(app: App, namespace: string, agent: string): Promise<JarvisTellRequest | null> {
